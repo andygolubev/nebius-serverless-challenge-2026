@@ -230,6 +230,11 @@ sim2policy/runs/*
 *.webm
 *.gif
 !sim2policy/assets/*.gif
+!sim2policy/assets/samples/
+!sim2policy/assets/samples/*.gif
+!sim2policy/assets/samples/*.png
+!sim2policy/assets/samples/*.json
+!sim2policy/assets/samples/*.md
 .env.*
 credentials.json
 service-account*.json

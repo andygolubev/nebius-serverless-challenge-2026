@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "aggregate": {
+    "episodes": 2,
+    "mean_length": 1000.0,
+    "mean_reward": -240.5,
+    "std_reward": 12.5
+  },
+  "backend": "sb3",
+  "benchmark": {
+    "currency": null,
+    "estimated_cost": null,
+    "gpu_utilization_percent": 0.0,
+    "hourly_rate": null,
+    "rate_date": null
+  },
+  "checkpoint": "final-000000004096.zip",
+  "device": {
+    "gpu": {
+      "available": true,
+      "gpus": [
+        {
+          "index": 0,
+          "memory_total_mib": 23034.0,
+          "memory_used_mib": 1024.0,
+          "name": "NVIDIA L4",
+          "utilization_percent": 0.0
+        }
+      ],
+      "reason": null
+    },
+    "platform": "AWS g6.2xlarge / Ubuntu 24.04",
+    "requested": "auto"
+  },
+  "environment": "HalfCheetah-v5",
+  "episodes": [
+    {
+      "final_info": {},
+      "index": 0,
+      "length": 1000,
+      "reward": -253.0,
+      "seed": 0
+    },
+    {
+      "final_info": {},
+      "index": 1,
+      "length": 1000,
+      "reward": -228.0,
+      "seed": 1
+    }
+  ],
+  "run_id": "sample-halfcheetah-smoke",
+  "runtime_seconds": 12.34,
+  "seeds": [
+    0,
+    1
+  ],
+  "success": {
+    "criterion": "mean_reward >= 4000",
+    "met": false
+  },
+  "threshold_crossing": null,
+  "versions": {
+    "gymnasium": "1.3.0",
+    "mujoco": "3.10.0",
+    "stable-baselines3": "2.9.0",
+    "torch": "2.12.1"
+  },
+  "wall_clock": {
+    "completed_at": "2026-06-29T17:23:00Z",
+    "started_at": "2026-06-29T17:22:48Z"
+  }
+}

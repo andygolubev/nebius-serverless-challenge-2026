@@ -8,6 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from sim2policy.checkpoint import validate_checkpoint
 from sim2policy.config import RunConfig, load_config
 from sim2policy.reporting import (
@@ -18,10 +20,35 @@ from sim2policy.reporting import (
 )
 from sim2policy.run import package_versions
 from sim2policy.storage import ArtifactStore
+from sim2policy.telemetry import gpu_snapshot, mean_gpu_utilization, utc_now_iso
+
+
+def _override(value: str) -> tuple[str, Any]:
+    key, separator, raw = value.partition("=")
+    if not separator:
+        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
+    return key, yaml.safe_load(raw)
 
 
 def seed_schedule(episodes: int, seeds: list[int]) -> list[int]:
     return [seeds[index % len(seeds)] for index in range(episodes)]
+
+
+def _jsonable(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(item) for item in value]
+    if hasattr(value, "item") and callable(value.item):
+        try:
+            return value.item()
+        except ValueError:
+            pass
+    if hasattr(value, "tolist") and callable(value.tolist):
+        return _jsonable(value.tolist())
+    if isinstance(value, str | int | float | bool) or value is None:
+        return value
+    return str(value)
 
 
 def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
@@ -56,19 +83,22 @@ def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
                 "seed": seed,
                 "reward": reward_sum,
                 "length": length,
-                "final_info": info,
+                "final_info": _jsonable(info),
             }
         )
     return episodes, time.monotonic() - started
 
 
 def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -> dict[str, Any]:
+    started_at = utc_now_iso()
     if config.backend != "sb3":
         from sim2policy.train_mjx import evaluate_mjx
 
         episodes, runtime = evaluate_mjx(checkpoint, config)
     else:
         episodes, runtime = evaluate_sb3(checkpoint, config)
+    completed_at = utc_now_iso()
+    gpu = gpu_snapshot()
     aggregate = aggregate_episodes(episodes)
     if config.success.kind == "mean_reward":
         met = aggregate["mean_reward"] >= float(config.success.threshold or 0)
@@ -92,10 +122,15 @@ def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -
             "currency": config.reporting.currency,
             "rate_date": config.reporting.rate_date,
             "estimated_cost": estimated_cost,
-            "gpu_utilization_percent": None,
+            "gpu_utilization_percent": mean_gpu_utilization(gpu),
         },
         "threshold_crossing": None,
-        "device": {"platform": platform.platform(), "requested": config.training.device},
+        "wall_clock": {"started_at": started_at, "completed_at": completed_at},
+        "device": {
+            "platform": platform.platform(),
+            "requested": config.training.device,
+            "gpu": gpu,
+        },
         "versions": package_versions(),
     }
     report_dir = run_root / "report"
@@ -111,8 +146,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--checkpoint", required=True, type=Path)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
+    parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     args = parser.parse_args(argv)
-    config = load_config(args.config)
+    config = load_config(args.config, dict(args.overrides))
     evaluate(args.checkpoint, config, args.run_id, args.runs_root / args.run_id)
 
 

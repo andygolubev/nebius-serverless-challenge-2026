@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import json
 import os
 import subprocess
 import sys
@@ -12,6 +13,20 @@ from typing import Any
 from sim2policy.checkpoint import progression_checkpoints, validate_checkpoint
 from sim2policy.config import RunConfig, load_config
 from sim2policy.storage import ArtifactStore
+
+
+def _override(value: str) -> tuple[str, Any]:
+    key, separator, raw = value.partition("=")
+    if not separator:
+        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
+    import yaml
+
+    return key, yaml.safe_load(raw)
+
+
+def _format_override(item: tuple[str, Any]) -> str:
+    key, value = item
+    return f"{key}={json.dumps(value)}"
 
 
 def _make_rgb_env(gym: Any, config: RunConfig) -> Any:
@@ -92,7 +107,7 @@ def render_with_fallback(args: list[str]) -> str:
 
 def montage_command(videos: list[Path], output: Path) -> list[str]:
     inputs = [part for video in videos for part in ("-i", str(video))]
-    labels = ["initial", "~25%", "final"]
+    labels = ["initial", "25pct", "final"]
     filters = ";".join(
         f"[{i}:v]drawtext=text='{label}':x=20:y=20:fontsize=28:fontcolor=white[v{i}]"
         for i, label in enumerate(labels)
@@ -113,8 +128,10 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--checkpoints-dir", type=Path)
     parser.add_argument("--total-steps", type=int)
     parser.add_argument("--worker", action="store_true")
+    parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     args = parser.parse_args(argv)
-    config = load_config(args.config)
+    config = load_config(args.config, dict(args.overrides))
+    override_args = [part for item in args.overrides for part in ("--set", _format_override(item))]
     if args.montage:
         if args.checkpoints_dir is None or args.total_steps is None:
             parser.error("--montage requires --checkpoints-dir and --total-steps")
@@ -123,7 +140,15 @@ def main(argv: Sequence[str] | None = None) -> None:
         for label, checkpoint in zip(("initial", "quarter", "final"), checkpoints, strict=True):
             video = args.output.parent / f"{label}-{checkpoint.stem}.mp4"
             render_with_fallback(
-                ["--config", args.config, "--checkpoint", str(checkpoint), "--output", str(video)]
+                [
+                    "--config",
+                    args.config,
+                    "--checkpoint",
+                    str(checkpoint),
+                    "--output",
+                    str(video),
+                    *override_args,
+                ]
             )
             videos.append(video)
         subprocess.run(montage_command(videos, args.output), check=True)
@@ -136,6 +161,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         child += ["--checkpoint", str(args.checkpoint)]
     if args.smoke_test:
         child.append("--smoke-test")
+    child.extend(override_args)
     backend = render_with_fallback(child)
     store = ArtifactStore(config.storage, args.run_id)
     if store.enabled:

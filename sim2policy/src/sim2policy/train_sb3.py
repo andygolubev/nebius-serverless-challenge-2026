@@ -4,6 +4,7 @@ import argparse
 import importlib
 import json
 import sys
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -19,14 +20,16 @@ from sim2policy.checkpoint import (
 from sim2policy.config import RunConfig, load_config
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.storage import ArtifactStore
+from sim2policy.telemetry import gpu_snapshot, runtime_record, utc_now_iso, write_runtime_record
 
 
-def _imports() -> tuple[Any, Any, Any]:
+def _imports() -> tuple[Any, Any, Any, Any, Any]:
     try:
         PPO = importlib.import_module("stable_baselines3").PPO
-        BaseCallback = importlib.import_module(
-            "stable_baselines3.common.callbacks"
-        ).BaseCallback
+        callbacks = importlib.import_module("stable_baselines3.common.callbacks")
+        BaseCallback = callbacks.BaseCallback
+        CallbackList = callbacks.CallbackList
+        EvalCallback = callbacks.EvalCallback
         make_vec_env = importlib.import_module(
             "stable_baselines3.common.env_util"
         ).make_vec_env
@@ -35,7 +38,7 @@ def _imports() -> tuple[Any, Any, Any]:
             "SB3 dependencies are unavailable; install with `uv sync --extra sb3` "
             "or use the SB3 container target"
         ) from exc
-    return PPO, BaseCallback, make_vec_env
+    return PPO, BaseCallback, CallbackList, EvalCallback, make_vec_env
 
 
 def _save_model(model: Any, path: Path, config: RunConfig) -> Path:
@@ -50,8 +53,9 @@ def build_checkpoint_callback(
     config: RunConfig,
     paths: RunPaths,
     sync_hook: Callable[[Path], None] | None = None,
+    eval_env: Any | None = None,
 ) -> Any:
-    _, BaseCallback, _ = _imports()
+    _, BaseCallback, CallbackList, EvalCallback, _ = _imports()
 
     class DurableCheckpointCallback(BaseCallback):  # type: ignore[misc, valid-type]
         def __init__(self) -> None:
@@ -80,7 +84,25 @@ def build_checkpoint_callback(
                     stale.with_suffix(stale.suffix + ".json").unlink(missing_ok=True)
             return True
 
-    return DurableCheckpointCallback()
+    callbacks = [DurableCheckpointCallback()]
+    if eval_env is not None:
+        eval_log_path = paths.report / "eval"
+        best_model_path = paths.checkpoints / "best"
+        eval_log_path.mkdir(parents=True, exist_ok=True)
+        best_model_path.mkdir(parents=True, exist_ok=True)
+        callbacks.append(
+            EvalCallback(
+                eval_env,
+                best_model_save_path=str(best_model_path),
+                log_path=str(eval_log_path),
+                eval_freq=max(config.checkpoint.every_steps // config.training.n_envs, 1),
+                n_eval_episodes=config.evaluation.episodes,
+                deterministic=True,
+                render=False,
+                warn=False,
+            )
+        )
+    return CallbackList(callbacks) if len(callbacks) > 1 else callbacks[0]
 
 
 def train(
@@ -90,7 +112,10 @@ def train(
     resume: Path | None = None,
     sync_hook: Callable[[Path], None] | None = None,
 ) -> Path:
-    PPO, _, make_vec_env = _imports()
+    PPO, _, _, _, make_vec_env = _imports()
+    started_at = utc_now_iso()
+    started_monotonic = time.monotonic()
+    start_gpu = gpu_snapshot()
     paths = create_run_paths(run_id, runs_root)
     store = ArtifactStore(config.storage, run_id)
     if sync_hook is None and store.enabled:
@@ -104,6 +129,11 @@ def train(
         config.environment,
         n_envs=config.training.n_envs,
         seed=config.seed,
+    )
+    eval_env = make_vec_env(
+        config.environment,
+        n_envs=1,
+        seed=config.seed + 10_000,
     )
     if resume:
         resume_metadata = validate_checkpoint(resume, config)
@@ -129,7 +159,7 @@ def train(
         learn_steps = config.training.total_steps
         reset_num_timesteps = True
 
-    callback = build_checkpoint_callback(config, paths, sync_hook)
+    callback = build_checkpoint_callback(config, paths, sync_hook, eval_env)
     completed = False
     try:
         model.learn(
@@ -146,6 +176,7 @@ def train(
             sync_hook(interrupted)
         raise
     finally:
+        eval_env.close()
         env.close()
 
     if not completed:  # pragma: no cover - defensive
@@ -154,6 +185,17 @@ def train(
     _save_model(model, final, config)
     if sync_hook:
         sync_hook(final)
+    completed_at = utc_now_iso()
+    write_runtime_record(
+        paths.report / "runtime.json",
+        runtime_record(
+            started_at=started_at,
+            completed_at=completed_at,
+            runtime_seconds=time.monotonic() - started_monotonic,
+            start_gpu=start_gpu,
+            end_gpu=gpu_snapshot(),
+        ),
+    )
     store.sync_tree(paths.root, required=store.enabled)
     return final
 

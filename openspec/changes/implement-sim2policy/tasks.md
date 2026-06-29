@@ -19,11 +19,11 @@
 
 - [x] 3.1 Implement the SB3 trainer CLI with seeded vectorized Gymnasium MuJoCo environments, resolved hyperparameters, device selection, and TensorBoard logging
 - [x] 3.2 Implement initial, periodic, and final SB3 checkpoint creation with step and compatibility metadata
-- [ ] 3.3 Implement SB3 callback composition for checkpoint cadence, evaluation logging, sync hooks, graceful interruption, and finalization
+- [x] 3.3 Implement SB3 callback composition for checkpoint cadence, evaluation logging, sync hooks, graceful interruption, and finalization
 - [x] 3.4 Implement compatible local SB3 checkpoint resume while preserving the cumulative timestep and checkpoint numbering
-- [ ] 3.5 Add unit tests with lightweight fake environments for trainer setup, callback cadence, initial/final snapshots, interruption, and resume compatibility
-- [ ] 3.6 Run a short local HalfCheetah training session and verify metadata, TensorBoard events, periodic checkpoints, and a loadable final policy
-- [ ] 3.7 Run the Ant smoke configuration and verify the same artifact contract without requiring convergence
+- [x] 3.5 Add unit tests with lightweight fake environments for trainer setup, callback cadence, initial/final snapshots, interruption, and resume compatibility
+- [x] 3.6 Run a short local HalfCheetah training session and verify metadata, TensorBoard events, periodic checkpoints, and a loadable final policy
+- [x] 3.7 Run the Ant smoke configuration and verify the same artifact contract without requiring convergence
 
 ## 4. Deterministic Evaluation and Reports
 
@@ -32,8 +32,8 @@
 - [x] 4.3 Implement configurable mean-reward and locomotion-condition success evaluators without coupling report generation to one backend's reward semantics
 - [x] 4.4 Implement reward-log parsing, threshold-crossing detection, and reward-curve PNG generation from TensorBoard data
 - [x] 4.5 Implement Markdown report generation with explicit unavailable states for missing utilization or price inputs
-- [ ] 4.6 Add tests for deterministic seed scheduling, aggregate statistics, success/no-success reports, schema validation, threshold crossing, and unavailable benchmark values
-- [ ] 4.7 Evaluate the local HalfCheetah smoke checkpoint and verify both machine-readable and human-readable report outputs
+- [x] 4.6 Add tests for deterministic seed scheduling, aggregate statistics, success/no-success reports, schema validation, threshold crossing, and unavailable benchmark values
+- [x] 4.7 Evaluate the local HalfCheetah smoke checkpoint and verify both machine-readable and human-readable report outputs
 
 ## 5. Rollout Rendering and Progression Media
 
@@ -42,8 +42,8 @@
 - [x] 5.3 Implement EGL rendering orchestration with a single fresh-process OSMesa retry and clear reporting of the successful graphics backend
 - [x] 5.4 Implement a random-policy render smoke command that validates at least ten frames without a trained checkpoint
 - [x] 5.5 Implement initial/nearest-quarter/final checkpoint selection and labeled ffmpeg progression montage generation while retaining source videos
-- [ ] 5.6 Add tests for episode resets, checkpoint mismatch, quarter-checkpoint selection, EGL failure handoff, and ffmpeg command construction
-- [ ] 5.7 Render the local HalfCheetah smoke checkpoint and verify a playable MP4 plus progression montage using available snapshots
+- [x] 5.6 Add tests for episode resets, checkpoint mismatch, quarter-checkpoint selection, EGL failure handoff, and ffmpeg command construction
+- [x] 5.7 Render the local HalfCheetah smoke checkpoint and verify a playable MP4 plus progression montage using available snapshots
 
 ## 6. Durable S3-Compatible Artifacts
 
@@ -54,7 +54,7 @@
 - [x] 6.5 Implement explicit remote resume discovery, manifest/checksum validation, checkpoint download, and incompatibility rejection
 - [x] 6.6 Wire periodic and final synchronization into SB3 callbacks and wire report/video commands to publish their outputs
 - [x] 6.7 Add mocked S3 tests for layout, local-only behavior, partial upload, retry exhaustion, manifest ordering, redaction, and compatible/incompatible resume
-- [ ] 6.8 Exercise upload, interruption, latest-checkpoint selection, and resume against a disposable S3-compatible test bucket or emulator
+- [x] 6.8 Exercise upload, interruption, latest-checkpoint selection, and resume against a disposable S3-compatible test bucket or emulator
 
 ## 7. Reproducible Containers and Local Gates
 
@@ -95,10 +95,10 @@
 
 ## 11. Benchmarking and Comparison
 
-- [ ] 11.1 Capture wall-clock timestamps and GPU telemetry for comparable Track A and Track B runs without blocking training when telemetry is unavailable
+- [x] 11.1 Capture wall-clock timestamps and GPU telemetry for comparable Track A and Track B runs without blocking training when telemetry is unavailable
 - [ ] 11.2 Obtain an explicit dated Nebius rate and currency input and implement reproducible runtime-times-rate cost calculation
 - [x] 11.3 Implement comparison-table generation from versioned metrics documents with compatibility/context disclosures and unavailable-value handling
-- [ ] 11.4 Add tests for cost arithmetic, rate metadata, mismatched comparison context, partial telemetry, and honest unavailable fields
+- [x] 11.4 Add tests for cost arithmetic, rate metadata, mismatched comparison context, partial telemetry, and honest unavailable fields
 - [ ] 11.5 Generate the final Track A versus Track B comparison when both runs exist, or generate a Track B-only benchmark that clearly marks Track A as not completed
 
 ## 12. Tutorial, Demo Assets, and Release Verification

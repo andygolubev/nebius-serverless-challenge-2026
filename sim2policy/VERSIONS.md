@@ -42,6 +42,76 @@ Executed gates:
 Both host and container render smoke selected EGL successfully. OSMesa fallback remains implemented
 but was not exercised in this AWS pass.
 
+## HalfCheetah AWS smoke record
+
+Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with `HalfCheetah-v5` and bounded
+smoke overrides:
+
+- `training.total_steps=4096`
+- `training.n_envs=2`
+- `training.hyperparameters={n_steps: 128, batch_size: 64, gamma: 0.98, learning_rate: 0.0003, ent_coef: 0.0, clip_range: 0.2}`
+- `checkpoint.every_steps=1024`
+- `evaluation.episodes=2`
+- `rendering.frames=90`
+- `rendering.width=320`
+- `rendering.height=240`
+
+Executed gates:
+
+- short HalfCheetah training produced initial, step-1024, step-2048, step-3072, step-4096,
+  final checkpoint sidecars, metadata, and TensorBoard events
+- deterministic evaluation loaded the final checkpoint and wrote `report/metrics.json` plus
+  `report/summary.md`
+- final checkpoint rollout rendered with EGL to `videos/final.mp4`
+- progression montage rendered initial, nearest-quarter, and final videos plus
+  `videos/progression.mp4`
+
+SB3 selected CUDA on the host and emitted the expected warning that MLP PPO may underutilize GPU;
+this is recorded as an honest baseline characteristic, not a failure.
+
+## S3 sync/resume smoke record
+
+Verified against the AWS stack-created bucket
+`sim2policy-debug-g6-debugartifactbucket-coamofr1ws62` using the EC2 instance role on 2026-06-29:
+
+1. Ran `halfcheetah-s3-smoke` to 1024 steps with `storage.mode=s3`, `checkpoint.every_steps=512`.
+2. Confirmed remote checkpoint objects and `checkpoints/latest.json` existed under
+   `s3://sim2policy-debug-g6-debugartifactbucket-coamofr1ws62/sim2policy/halfcheetah-s3-smoke/`.
+3. Deleted the local run directory.
+4. Ran the same run ID with `--resume remote` and `training.total_steps=2048`.
+5. Confirmed local training resumed from the downloaded 1024-step checkpoint and published
+   1536-step, 2048-step, and final-2048 artifacts.
+6. Confirmed remote `checkpoints/latest.json` referenced `final-000000002048.zip`.
+
+## Ant AWS smoke record
+
+Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with `Ant-v5` and bounded smoke
+overrides:
+
+- `training.total_steps=1024`
+- `training.n_envs=2`
+- `training.hyperparameters={n_steps: 128, batch_size: 64, gamma: 0.98, learning_rate: 0.0003, ent_coef: 0.0, clip_range: 0.2}`
+- `checkpoint.every_steps=512`
+
+The run produced metadata, TensorBoard events, initial checkpoint, periodic step-512 and step-1024
+checkpoints, final-1024 checkpoint, and all checkpoint sidecars. Convergence was not expected or
+claimed for this bounded artifact-contract smoke.
+
+## SB3 callback composition smoke record
+
+Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with the lightweight `smoke_sb3.yaml` run
+`eval-callback-smoke`. The composed callback produced durable periodic checkpoints, final
+checkpoint, TensorBoard eval scalars, `report/eval/evaluations.npz`, and
+`checkpoints/best/best_model.zip`.
+
+## Telemetry smoke record
+
+Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with the lightweight `telemetry-smoke`
+run. Training wrote `report/runtime.json` with wall-clock timestamps and best-effort GPU snapshots;
+evaluation wrote `report/metrics.json` with wall-clock timestamps, GPU snapshot metadata, and
+`benchmark.gpu_utilization_percent`. GPU utilization may be `0.0` for CPU-configured smoke runs
+and telemetry unavailability is represented as structured metadata rather than a workflow failure.
+
 ## MJX status
 
 The MJX dependency matrix remains a candidate until a Linux/GPU smoke gate validates JAX accelerator
