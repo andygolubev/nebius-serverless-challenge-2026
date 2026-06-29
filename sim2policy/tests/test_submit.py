@@ -27,3 +27,12 @@ def test_dry_run_and_missing_parameter() -> None:
     assert preview.returncode == 0
     assert "nebius" in preview.stdout
     assert "secret-id" not in preview.stdout
+
+    unsafe = dict(env, RUN_ID="../unsafe")
+    rejected = subprocess.run([script], capture_output=True, text=True, env=unsafe)
+    assert rejected.returncode == 2
+
+    spaced = dict(env, IMAGE="registry.example/team image:tag")
+    escaped = subprocess.run([script], capture_output=True, text=True, env=spaced)
+    assert escaped.returncode == 0
+    assert "team\\ image" in escaped.stdout

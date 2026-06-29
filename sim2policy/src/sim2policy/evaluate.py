@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import platform
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -14,6 +15,7 @@ from sim2policy.reporting import (
     write_markdown_report,
     write_metrics,
 )
+from sim2policy.run import package_versions
 from sim2policy.storage import ArtifactStore
 
 
@@ -92,6 +94,8 @@ def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -
             "gpu_utilization_percent": None,
         },
         "threshold_crossing": None,
+        "device": {"platform": platform.platform(), "requested": config.training.device},
+        "versions": package_versions(),
     }
     report_dir = run_root / "report"
     write_metrics(report_dir / "metrics.json", metrics)

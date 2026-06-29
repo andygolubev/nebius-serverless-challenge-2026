@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sim2policy.checkpoint import checkpoint_path, write_checkpoint_metadata
+from sim2policy.checkpoint import CheckpointError, checkpoint_path, write_checkpoint_metadata
 from sim2policy.config import StorageConfig, load_config
 from sim2policy.storage import ArtifactStore, StorageError
 
@@ -103,6 +104,9 @@ def test_publish_and_resume_round_trip(tmp_path: Path) -> None:
     store.publish_checkpoint(original, tmp_path / "source")
     restored = store.resume_latest(tmp_path / "restored", config)
     assert restored.read_bytes() == original.read_bytes()
+    incompatible = replace(config, environment="Other-v1")
+    with pytest.raises(CheckpointError, match="incompatible"):
+        store.resume_latest(tmp_path / "wrong", incompatible)
 
 
 def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> None:

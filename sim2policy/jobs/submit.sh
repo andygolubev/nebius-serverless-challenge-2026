@@ -7,6 +7,12 @@ for name in "${required[@]}"; do
 done
 BACKEND="${BACKEND:-sb3}"
 if [[ "$BACKEND" != sb3 && "$BACKEND" != mjx ]]; then echo "BACKEND must be sb3 or mjx" >&2; exit 2; fi
+if [[ ! "$RUN_ID" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+  echo "RUN_ID contains unsafe characters" >&2; exit 2
+fi
+if [[ ! "$TIMEOUT" =~ ^[0-9]+(h|m|s)([0-9]+(m|s))?$ ]]; then
+  echo "TIMEOUT must be a Nebius duration such as 1h or 2h30m" >&2; exit 2
+fi
 module="sim2policy.train_${BACKEND}"
 command=(nebius ai job create
   --name "sim2policy-${RUN_ID}"
@@ -32,4 +38,3 @@ if [[ "${DRY_RUN:-0}" == 1 ]]; then
 else
   "${command[@]}"
 fi
-

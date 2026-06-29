@@ -19,7 +19,7 @@
 
 - [x] 3.1 Implement the SB3 trainer CLI with seeded vectorized Gymnasium MuJoCo environments, resolved hyperparameters, device selection, and TensorBoard logging
 - [x] 3.2 Implement initial, periodic, and final SB3 checkpoint creation with step and compatibility metadata
-- [x] 3.3 Implement SB3 callback composition for checkpoint cadence, evaluation logging, sync hooks, graceful interruption, and finalization
+- [ ] 3.3 Implement SB3 callback composition for checkpoint cadence, evaluation logging, sync hooks, graceful interruption, and finalization
 - [x] 3.4 Implement compatible local SB3 checkpoint resume while preserving the cumulative timestep and checkpoint numbering
 - [ ] 3.5 Add unit tests with lightweight fake environments for trainer setup, callback cadence, initial/final snapshots, interruption, and resume compatibility
 - [ ] 3.6 Run a short local HalfCheetah training session and verify metadata, TensorBoard events, periodic checkpoints, and a loadable final policy

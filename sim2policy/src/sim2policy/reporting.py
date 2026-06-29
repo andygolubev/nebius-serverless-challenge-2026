@@ -40,7 +40,9 @@ def threshold_crossing(
 
 def load_reward_points(log_dir: Path) -> list[dict[str, float | int]]:
     try:
-        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+        from tensorboard.backend.event_processing.event_accumulator import (  # type: ignore[import-untyped]
+            EventAccumulator,
+        )
     except ImportError as exc:  # pragma: no cover - base dependency
         raise RuntimeError("TensorBoard is required to parse reward logs") from exc
     points: list[dict[str, float | int]] = []
@@ -122,16 +124,23 @@ def write_markdown_report(metrics: dict[str, Any], output: Path) -> Path:
 
 def comparison_table(metrics_documents: list[dict[str, Any]]) -> str:
     rows = [
-        "| Backend | Environment | Success | Runtime (s) | GPU util. | Cost |",
-        "|---|---|---:|---:|---:|---:|",
+        "| Backend | Environment | Success criterion | Seeds | Hardware | "
+        "Runtime (s) | GPU util. | Cost |",
+        "|---|---|---|---|---|---:|---:|---:|",
     ]
     for item in metrics_documents:
         benchmark = item.get("benchmark", {})
         rows.append(
-            "| {backend} | {environment} | {success} | {runtime} | {util} | {cost} |".format(
+            (
+                "| {backend} | {environment} | {criterion}: {success} | {seeds} | "
+                "{hardware} | {runtime} | {util} | {cost} |"
+            ).format(
                 backend=item["backend"],
                 environment=item["environment"],
+                criterion=item["success"].get("criterion", "unspecified"),
                 success=item["success"]["met"],
+                seeds=",".join(str(seed) for seed in item.get("seeds", [])) or "unavailable",
+                hardware=item.get("device", {}).get("platform", "unavailable"),
                 runtime=item.get("runtime_seconds", "unavailable"),
                 util=benchmark.get("gpu_utilization_percent", "unavailable"),
                 cost=benchmark.get("estimated_cost", "unavailable"),
