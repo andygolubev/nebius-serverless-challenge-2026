@@ -23,9 +23,9 @@ test:
 lock:
 	uv lock
 build-sb3:
-	docker build --target sb3 --build-arg SOURCE_REVISION=$$(git rev-parse HEAD) -t $(IMAGE) .
+	docker build --provenance=false --target sb3 --build-arg SOURCE_REVISION=$$(git rev-parse HEAD) -t $(IMAGE) .
 build-mjx:
-	docker build --target mjx --build-arg SOURCE_REVISION=$$(git rev-parse HEAD) -t $(IMAGE) .
+	docker build --provenance=false --target mjx --build-arg SOURCE_REVISION=$$(git rev-parse HEAD) -t $(IMAGE) .
 push:
 	docker push $(IMAGE)
 smoke:

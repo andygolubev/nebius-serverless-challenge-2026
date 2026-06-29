@@ -226,7 +226,9 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
         elif key != "network_factory":
             setattr(ppo_params, key, value)
     ppo_params.num_timesteps = 0
-    ppo_params.num_envs = config.training.n_envs
+    # Policy initialization is independent of rollout parallelism. One environment keeps the
+    # step-zero snapshot cheap while preserving the exact observation/action/network contract.
+    ppo_params.num_envs = 1
     network_factory = functools.partial(
         ppo_networks.make_ppo_networks, **ppo_params.network_factory
     )
