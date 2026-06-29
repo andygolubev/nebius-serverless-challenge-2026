@@ -238,3 +238,6 @@ sim2policy/runs/*
 .env.*
 credentials.json
 service-account*.json
+
+# Local handoff notes for AI-assisted implementation sessions.
+IMPLEMENTATION_LOG.MD

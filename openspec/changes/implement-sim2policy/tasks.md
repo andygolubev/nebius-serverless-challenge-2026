@@ -99,14 +99,14 @@
 - [ ] 11.2 Obtain an explicit dated Nebius rate and currency input and implement reproducible runtime-times-rate cost calculation
 - [x] 11.3 Implement comparison-table generation from versioned metrics documents with compatibility/context disclosures and unavailable-value handling
 - [x] 11.4 Add tests for cost arithmetic, rate metadata, mismatched comparison context, partial telemetry, and honest unavailable fields
-- [ ] 11.5 Generate the final Track A versus Track B comparison when both runs exist, or generate a Track B-only benchmark that clearly marks Track A as not completed
+- [x] 11.5 Generate the final Track A versus Track B comparison when both runs exist, or generate a Track B-only benchmark that clearly marks Track A as not completed
 
 ## 12. Tutorial, Demo Assets, and Release Verification
 
 - [x] 12.1 Replace the root README with the Sim2Policy tutorial covering RL vocabulary, architecture, 15-minute quickstart, configs, environment extension, artifacts, resume, costs, and troubleshooting
 - [x] 12.2 Add a concise architecture diagram and document the phased Track B-first workflow, MJX cutoff, smoke-gate sequence, and expected local/cloud outputs
-- [ ] 12.3 Add sanitized sample configs, metrics, reward curves, and a lightweight teaser GIF or linked full videos without committing large checkpoints, logs, or secrets
-- [ ] 12.4 Document and rehearse the 60–90 second demo recording and three-minute judge narrative using actual commands and measured outputs
-- [ ] 12.5 Run all automated checks from a clean environment and execute every documented local quickstart command exactly as written
-- [ ] 12.6 Perform a secret and large-file audit, validate all links and example commands, and verify clone-to-dry-run behavior from a clean checkout
+- [x] 12.3 Add sanitized sample configs, metrics, reward curves, and a lightweight teaser GIF or linked full videos without committing large checkpoints, logs, or secrets
+- [x] 12.4 Document and rehearse the 60–90 second demo recording and three-minute judge narrative using actual commands and measured outputs
+- [x] 12.5 Run all automated checks from a clean environment and execute every documented local quickstart command exactly as written
+- [x] 12.6 Perform a secret and large-file audit, validate all links and example commands, and verify clone-to-dry-run behavior from a clean checkout
 - [ ] 12.7 Complete the submission checklist with repository, image reference, checkpoint links, rollout videos, logs, benchmark report, demo recording, and reproducibility writeup

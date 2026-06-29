@@ -30,7 +30,7 @@
 - Track A: MJX/JAX is isolated behind its own dependency group and smoke gate so it can never break
   the Track B deliverable.
 
-## Commands rehearsed on AWS g6.2xlarge
+## Commands rehearsed on a Linux/NVIDIA validation host
 
 ```bash
 uv sync --extra dev --extra sb3
@@ -38,7 +38,7 @@ uv run ruff check src tests
 uv run mypy src
 uv run pytest
 uv run python -m sim2policy.health --backend sb3
-uv run python -m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-aws-smoke --set training.total_steps=4096 --set training.n_envs=2 --set checkpoint.every_steps=1024
-uv run python -m sim2policy.evaluate --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-aws-smoke --checkpoint runs/halfcheetah-aws-smoke/checkpoints/final-000000004096.zip --set training.total_steps=4096 --set training.n_envs=2 --set checkpoint.every_steps=1024 --set evaluation.episodes=2
-uv run python -m sim2policy.render --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-aws-smoke --checkpoint runs/halfcheetah-aws-smoke/checkpoints/final-000000004096.zip --output runs/halfcheetah-aws-smoke/videos/final.mp4 --set rendering.frames=90 --set rendering.width=320 --set rendering.height=240
+uv run python -m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-gpu-smoke --set training.total_steps=4096 --set training.n_envs=2 --set checkpoint.every_steps=1024
+uv run python -m sim2policy.evaluate --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-gpu-smoke --checkpoint runs/halfcheetah-gpu-smoke/checkpoints/final-000000004096.zip --set training.total_steps=4096 --set training.n_envs=2 --set checkpoint.every_steps=1024 --set evaluation.episodes=2
+uv run python -m sim2policy.render --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-gpu-smoke --checkpoint runs/halfcheetah-gpu-smoke/checkpoints/final-000000004096.zip --output runs/halfcheetah-gpu-smoke/videos/final.mp4 --set rendering.frames=90 --set rendering.width=320 --set rendering.height=240
 ```

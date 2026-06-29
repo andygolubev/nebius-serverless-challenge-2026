@@ -104,5 +104,7 @@ training/storage, and resume gates before a full run. Use explicit timeouts and 
 
 Show job submission, a rising reward curve, then initial / quarter / final rollouts. Report actual
 runtime, hardware, utilization, dated hourly rate, and cost; unavailable values stay unavailable.
-The planned judge narration and submission checklist live in the OpenSpec change.
-
+Use the rehearsed [demo script](sim2policy/docs/demo-script.md), lightweight
+[sample assets](sim2policy/assets/samples/README.md), and the
+[release audit](sim2policy/docs/release-audit.md) before submission. The final submission checklist
+stays open until real Nebius artifacts and links exist.

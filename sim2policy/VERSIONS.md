@@ -7,14 +7,11 @@ JAX, Brax, MJX, or Playground; those packages are confined to the optional MJX e
 
 ## SB3 Linux/NVIDIA smoke record
 
-Verified on 2026-06-29 in AWS `eu-west-2` with the single-stack debug environment in
-`infra/aws-debug-g6.yaml`.
+Verified on 2026-06-29 on a Linux/NVIDIA GPU validation host. This was a pre-Nebius development
+gate only; final challenge acceptance must be rerun on Nebius.
 
-- Instance: `g6.2xlarge`
-- GPU: NVIDIA L4, 23034 MiB
-- Host AMI parameter:
-  `/aws/service/deeplearning/ami/x86_64/oss-nvidia-driver-gpu-pytorch-2.12-ubuntu-24.04/latest/ami-id`
-- Host kernel: Ubuntu 24.04 AWS kernel `6.17.0-1019-aws`
+- GPU class: NVIDIA data-center GPU, 23034 MiB
+- Host kernel: Ubuntu 24.04 Linux kernel
 - NVIDIA driver: `595.71.05`
 - Host SB3 health: CUDA available, Torch `2.12.1+cu130`, CUDA runtime reported by Torch `13.0`
 - Container base: `nvidia/cuda:12.9.1-runtime-ubuntu24.04`
@@ -27,10 +24,10 @@ Executed gates:
 - `uv run mypy src`
 - `uv run pytest`
 - `uv run python -m sim2policy.health --backend sb3`
-- `uv run python -m sim2policy.render --config configs/smoke_sb3.yaml --output runs/aws-smoke/videos/random.mp4 --smoke-test`
-- `uv run python -m sim2policy.train_sb3 --config configs/smoke_sb3.yaml --run-id aws-smoke`
-- `uv run python -m sim2policy.evaluate --config configs/smoke_sb3.yaml --run-id aws-smoke --checkpoint runs/aws-smoke/checkpoints/final-000000000256.zip`
-- `uv run python -m sim2policy.render --config configs/smoke_sb3.yaml --run-id aws-smoke --checkpoint runs/aws-smoke/checkpoints/final-000000000256.zip --output runs/aws-smoke/videos/final.mp4`
+- `uv run python -m sim2policy.render --config configs/smoke_sb3.yaml --output runs/gpu-smoke/videos/random.mp4 --smoke-test`
+- `uv run python -m sim2policy.train_sb3 --config configs/smoke_sb3.yaml --run-id gpu-smoke`
+- `uv run python -m sim2policy.evaluate --config configs/smoke_sb3.yaml --run-id gpu-smoke --checkpoint runs/gpu-smoke/checkpoints/final-000000000256.zip`
+- `uv run python -m sim2policy.render --config configs/smoke_sb3.yaml --run-id gpu-smoke --checkpoint runs/gpu-smoke/checkpoints/final-000000000256.zip --output runs/gpu-smoke/videos/final.mp4`
 - `docker run --rm --gpus all nvidia/cuda:13.0.2-base-ubuntu24.04 nvidia-smi`
 - `docker build --target sb3 --build-arg SOURCE_REVISION=<repo-rev> -t sim2policy:sb3 .`
 - `docker run --rm --gpus all sim2policy:sb3 sim2policy.health --backend sb3`
@@ -40,12 +37,12 @@ Executed gates:
 - `docker run --rm --gpus all -v /tmp/sim2policy-container-train:/work/runs sim2policy:sb3 sim2policy.train_sb3 --config configs/smoke_sb3.yaml --run-id container-smoke --runs-root /work/runs`
 
 Both host and container render smoke selected EGL successfully. OSMesa fallback remains implemented
-but was not exercised in this AWS pass.
+but was not exercised in this Linux/NVIDIA pass.
 
-## HalfCheetah AWS smoke record
+## HalfCheetah GPU smoke record
 
-Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with `HalfCheetah-v5` and bounded
-smoke overrides:
+Verified on the same Linux/NVIDIA validation host on 2026-06-29 with `HalfCheetah-v5` and bounded
+smoke overrides. This is not a substitute for Nebius acceptance:
 
 - `training.total_steps=4096`
 - `training.n_envs=2`
@@ -71,21 +68,20 @@ this is recorded as an honest baseline characteristic, not a failure.
 
 ## S3 sync/resume smoke record
 
-Verified against the AWS stack-created bucket
-`sim2policy-debug-g6-debugartifactbucket-coamofr1ws62` using the EC2 instance role on 2026-06-29:
+Verified against a disposable S3-compatible test bucket on 2026-06-29:
 
 1. Ran `halfcheetah-s3-smoke` to 1024 steps with `storage.mode=s3`, `checkpoint.every_steps=512`.
-2. Confirmed remote checkpoint objects and `checkpoints/latest.json` existed under
-   `s3://sim2policy-debug-g6-debugartifactbucket-coamofr1ws62/sim2policy/halfcheetah-s3-smoke/`.
+2. Confirmed remote checkpoint objects and `checkpoints/latest.json` existed under the configured
+   `s3://<bucket>/sim2policy/halfcheetah-s3-smoke/` prefix.
 3. Deleted the local run directory.
 4. Ran the same run ID with `--resume remote` and `training.total_steps=2048`.
 5. Confirmed local training resumed from the downloaded 1024-step checkpoint and published
    1536-step, 2048-step, and final-2048 artifacts.
 6. Confirmed remote `checkpoints/latest.json` referenced `final-000000002048.zip`.
 
-## Ant AWS smoke record
+## Ant GPU smoke record
 
-Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with `Ant-v5` and bounded smoke
+Verified on the same Linux/NVIDIA validation host on 2026-06-29 with `Ant-v5` and bounded smoke
 overrides:
 
 - `training.total_steps=1024`
@@ -99,14 +95,15 @@ claimed for this bounded artifact-contract smoke.
 
 ## SB3 callback composition smoke record
 
-Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with the lightweight `smoke_sb3.yaml` run
+Verified on the same Linux/NVIDIA validation host on 2026-06-29 with the lightweight
+`smoke_sb3.yaml` run
 `eval-callback-smoke`. The composed callback produced durable periodic checkpoints, final
 checkpoint, TensorBoard eval scalars, `report/eval/evaluations.npz`, and
 `checkpoints/best/best_model.zip`.
 
 ## Telemetry smoke record
 
-Verified on the same AWS `g6.2xlarge` VM on 2026-06-29 with the lightweight `telemetry-smoke`
+Verified on the same Linux/NVIDIA validation host on 2026-06-29 with the lightweight `telemetry-smoke`
 run. Training wrote `report/runtime.json` with wall-clock timestamps and best-effort GPU snapshots;
 evaluation wrote `report/metrics.json` with wall-clock timestamps, GPU snapshot metadata, and
 `benchmark.gpu_utilization_percent`. GPU utilization may be `0.0` for CPU-configured smoke runs

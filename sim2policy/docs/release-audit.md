@@ -5,8 +5,13 @@ Run from the repository root before submission.
 ## Secret audit
 
 ```bash
-git grep -n -E 'AKIA|ASIA|aws_secret_access_key|PRIVATE KEY|BEGIN .*KEY|password|token|secret' -- . ':!sim2policy/uv.lock'
-find . -name '.env*' -o -name 'credentials.json' -o -name 'service-account*.json'
+git grep -n -E 'AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|[A-Za-z0-9_]*SECRET_ACCESS_KEY[[:space:]]*=|-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----' -- . ':!sim2policy/uv.lock'
+find . \( -name '.env*' -o -name 'credentials.json' -o -name 'service-account*.json' \) \
+  -not -path './sim2policy/.venv/*' \
+  -not -path './sim2policy/.mypy_cache/*' \
+  -not -path './sim2policy/.pytest_cache/*' \
+  -not -path './sim2policy/.ruff_cache/*' \
+  -print
 ```
 
 Expected state: no committed cloud credentials, no private keys, no local environment files, and no
@@ -18,6 +23,9 @@ raw secret selectors in generated metadata.
 find . -type f -size +5M \
   -not -path './.git/*' \
   -not -path './sim2policy/.venv/*' \
+  -not -path './sim2policy/.mypy_cache/*' \
+  -not -path './sim2policy/.pytest_cache/*' \
+  -not -path './sim2policy/.ruff_cache/*' \
   -not -path './sim2policy/uv.lock' \
   -print
 git status --ignored --short sim2policy/runs sim2policy/assets

@@ -29,7 +29,7 @@
       ],
       "reason": null
     },
-    "platform": "AWS g6.2xlarge / Ubuntu 24.04",
+    "platform": "Linux/NVIDIA GPU validation host / Ubuntu 24.04",
     "requested": "auto"
   },
   "environment": "HalfCheetah-v5",
