@@ -2,7 +2,7 @@
 
 - [x] 1.1 Create the `sim2policy` package layout, `src` package, configs, jobs, tests, assets, runs placeholder, and module entry points described by the design
 - [x] 1.2 Define `pyproject.toml` metadata, Python version, CLI entry points, formatting/lint/test tooling, and isolated shared, SB3, and MJX dependency groups
-- [ ] 1.3 Add a lockfile and document the initially tested Python, CUDA, MuJoCo, PyTorch, and SB3 versions without adding MJX dependencies to the SB3 group
+- [x] 1.3 Add a lockfile and document the initially tested Python, CUDA, MuJoCo, PyTorch, and SB3 versions without adding MJX dependencies to the SB3 group
 - [x] 1.4 Add ignore rules for credentials, local environment files, runs, checkpoints, TensorBoard logs, and large generated media while retaining lightweight sample assets
 - [x] 1.5 Configure unit tests and static checks and prove the shared package imports in a base-only environment
 
@@ -60,8 +60,8 @@
 
 - [x] 7.1 Implement CUDA-based SB3 and MJX container build targets with shared MuJoCo headless libraries, ffmpeg, unbuffered logs, and backend-specific locked installs
 - [x] 7.2 Add container health/smoke commands for package imports, CUDA visibility, MuJoCo environment creation, and EGL-to-OSMesa frame rendering
-- [ ] 7.3 Verify the SB3 image contains no MJX/JAX dependency and passes unit, import, random-render, and short-training smoke checks
-- [ ] 7.4 Verify the SB3 image on an NVIDIA runtime can see the GPU and produce a headless MP4, recording OSMesa-only fallback if EGL is unavailable locally
+- [x] 7.3 Verify the SB3 image contains no MJX/JAX dependency and passes unit, import, random-render, and short-training smoke checks
+- [x] 7.4 Verify the SB3 image on an NVIDIA runtime can see the GPU and produce a headless MP4, recording OSMesa-only fallback if EGL is unavailable locally
 - [x] 7.5 Add image labels or generated version output that captures source revision and locked dependency versions without embedding secrets
 
 ## 8. Nebius Submission and Operator Commands

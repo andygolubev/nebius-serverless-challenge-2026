@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 sb3 = [
   "gymnasium[mujoco]>=1.1,<2",
+  "pygame>=2.6,<3",
   "stable-baselines3>=2.6,<3",
 ]
 mjx = [

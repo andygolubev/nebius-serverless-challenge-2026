@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import subprocess
 import sys
@@ -13,13 +14,31 @@ from sim2policy.config import RunConfig, load_config
 from sim2policy.storage import ArtifactStore
 
 
+def _make_rgb_env(gym: Any, config: RunConfig) -> Any:
+    kwargs: dict[str, Any] = {
+        "render_mode": "rgb_array",
+        "width": config.rendering.width,
+        "height": config.rendering.height,
+    }
+    try:
+        return gym.make(config.environment, **kwargs)
+    except TypeError as exc:
+        message = str(exc)
+        if "unexpected keyword argument 'width'" not in message and (
+            "unexpected keyword argument 'height'" not in message
+        ):
+            raise
+        return gym.make(config.environment, render_mode="rgb_array")
+
+
 def render_sb3(
     checkpoint: Path | None, config: RunConfig, output: Path, random_policy: bool = False
 ) -> Path:
     try:
-        import gymnasium as gym  # type: ignore[import-not-found]
         import imageio.v2 as imageio
-        from stable_baselines3 import PPO  # type: ignore[import-not-found]
+
+        gym = importlib.import_module("gymnasium")
+        PPO = importlib.import_module("stable_baselines3").PPO
     except ImportError as exc:
         raise RuntimeError("rendering requires the sb3/media dependency set") from exc
     model = None
@@ -28,12 +47,7 @@ def render_sb3(
             raise ValueError("checkpoint is required")
         validate_checkpoint(checkpoint, config)
         model = PPO.load(checkpoint, device="cpu")
-    env = gym.make(
-        config.environment,
-        render_mode="rgb_array",
-        width=config.rendering.width,
-        height=config.rendering.height,
-    )
+    env = _make_rgb_env(gym, config)
     observation, _ = env.reset(seed=config.rendering.seed)
     frames: list[Any] = []
     reset_count = 0

@@ -21,11 +21,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         module = importlib.import_module(name)
         versions[name] = getattr(module, "__version__", "installed")
     if args.backend == "mjx":
-        import jax  # type: ignore[import-not-found]
+        jax = importlib.import_module("jax")
 
         versions["jax_backend"] = jax.default_backend()
     if args.backend == "sb3":
-        import torch  # type: ignore[import-not-found]
+        torch = importlib.import_module("torch")
 
         versions["cuda_available"] = torch.cuda.is_available()
         versions["cuda_version"] = torch.version.cuda

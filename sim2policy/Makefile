@@ -3,8 +3,12 @@ ENV ?= smoke_sb3
 RUN_ID ?= dev
 CONFIG := configs/$(ENV).yaml
 IMAGE ?= sim2policy:sb3
+AWS_REGION ?= eu-west-2
+AWS_STACK ?= sim2policy-debug-g6
+AWS_DEBUG_KEY ?= /tmp/$(AWS_STACK).pem
+AWS_SSH_LOCATION ?= $(shell curl -fsS https://checkip.amazonaws.com 2>/dev/null)/32
 
-.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render report cloud-dry-run cloud-train clean
+.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render report cloud-dry-run cloud-train aws-debug-validate aws-debug-deploy aws-debug-key aws-debug-ssh aws-debug-stop aws-debug-delete clean
 setup:
 	uv sync --extra dev
 check:
@@ -34,5 +38,18 @@ cloud-dry-run:
 	DRY_RUN=1 IMAGE=$(IMAGE) CONFIG=$(CONFIG) RUN_ID=$(RUN_ID) jobs/submit.sh
 cloud-train:
 	IMAGE=$(IMAGE) CONFIG=$(CONFIG) RUN_ID=$(RUN_ID) jobs/submit.sh
+aws-debug-validate:
+	aws cloudformation validate-template --region $(AWS_REGION) --template-body file://infra/aws-debug-g6.yaml
+aws-debug-deploy:
+	aws cloudformation deploy --region $(AWS_REGION) --stack-name $(AWS_STACK) --template-file infra/aws-debug-g6.yaml --capabilities CAPABILITY_IAM --parameter-overrides SSHLocation=$(AWS_SSH_LOCATION) InstanceType=g6.2xlarge
+aws-debug-key:
+	aws ssm get-parameter --region $(AWS_REGION) --name "$$(aws cloudformation describe-stacks --region $(AWS_REGION) --stack-name $(AWS_STACK) --query "Stacks[0].Outputs[?OutputKey=='PrivateKeySsmParameter'].OutputValue | [0]" --output text)" --with-decryption --query Parameter.Value --output text > $(AWS_DEBUG_KEY)
+	chmod 600 $(AWS_DEBUG_KEY)
+aws-debug-ssh:
+	ssh -i $(AWS_DEBUG_KEY) ubuntu@"$$(aws cloudformation describe-stacks --region $(AWS_REGION) --stack-name $(AWS_STACK) --query "Stacks[0].Outputs[?OutputKey=='InstancePublicIp'].OutputValue | [0]" --output text)"
+aws-debug-stop:
+	aws ec2 stop-instances --region $(AWS_REGION) --instance-ids "$$(aws cloudformation describe-stacks --region $(AWS_REGION) --stack-name $(AWS_STACK) --query "Stacks[0].Outputs[?OutputKey=='InstanceId'].OutputValue | [0]" --output text)"
+aws-debug-delete:
+	aws cloudformation delete-stack --region $(AWS_REGION) --stack-name $(AWS_STACK)
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache runs/$(RUN_ID)

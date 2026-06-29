@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import sys
 from collections.abc import Callable, Sequence
@@ -22,13 +23,13 @@ from sim2policy.storage import ArtifactStore
 
 def _imports() -> tuple[Any, Any, Any]:
     try:
-        from stable_baselines3 import PPO  # type: ignore[import-not-found]
-        from stable_baselines3.common.callbacks import (  # type: ignore[import-not-found]
-            BaseCallback,
-        )
-        from stable_baselines3.common.env_util import (  # type: ignore[import-not-found]
-            make_vec_env,
-        )
+        PPO = importlib.import_module("stable_baselines3").PPO
+        BaseCallback = importlib.import_module(
+            "stable_baselines3.common.callbacks"
+        ).BaseCallback
+        make_vec_env = importlib.import_module(
+            "stable_baselines3.common.env_util"
+        ).make_vec_env
     except ImportError as exc:
         raise RuntimeError(
             "SB3 dependencies are unavailable; install with `uv sync --extra sb3` "

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import subprocess
 from collections.abc import Sequence
@@ -13,8 +14,8 @@ from sim2policy.run import create_run_paths, write_metadata
 
 def require_mjx() -> None:
     try:
-        import jax  # type: ignore[import-not-found] # noqa: F401
-        import mujoco_playground  # type: ignore[import-not-found] # noqa: F401
+        importlib.import_module("jax")
+        importlib.import_module("mujoco_playground")
     except ImportError as exc:
         raise RuntimeError(
             "MJX dependencies unavailable; use the mjx image or `uv sync --extra mjx`"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import platform
 import time
 from collections.abc import Sequence
@@ -25,8 +26,8 @@ def seed_schedule(episodes: int, seeds: list[int]) -> list[int]:
 
 def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
     try:
-        import gymnasium as gym  # type: ignore[import-not-found]
-        from stable_baselines3 import PPO  # type: ignore[import-not-found]
+        gym = importlib.import_module("gymnasium")
+        PPO = importlib.import_module("stable_baselines3").PPO
     except ImportError as exc:
         raise RuntimeError("SB3 evaluation requires the sb3 dependency group") from exc
     validate_checkpoint(checkpoint, config)
