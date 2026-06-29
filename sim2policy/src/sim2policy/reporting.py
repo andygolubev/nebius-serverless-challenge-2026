@@ -23,6 +23,61 @@ def calculate_cost(runtime_seconds: float, hourly_rate: float | None) -> float |
     return None if hourly_rate is None else runtime_seconds / 3600 * hourly_rate
 
 
+def threshold_crossing(
+    points: list[dict[str, float | int]], threshold: float
+) -> dict[str, float | int] | None:
+    if not points:
+        return None
+    started = float(points[0]["wall_time"])
+    for point in points:
+        if float(point["value"]) >= threshold:
+            return {
+                "step": int(point["step"]),
+                "seconds": float(point["wall_time"]) - started,
+            }
+    return None
+
+
+def load_reward_points(log_dir: Path) -> list[dict[str, float | int]]:
+    try:
+        from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
+    except ImportError as exc:  # pragma: no cover - base dependency
+        raise RuntimeError("TensorBoard is required to parse reward logs") from exc
+    points: list[dict[str, float | int]] = []
+    for event_file in sorted(log_dir.rglob("events.out.tfevents.*")):
+        accumulator = EventAccumulator(str(event_file), size_guidance={"scalars": 0})
+        accumulator.Reload()
+        tags = accumulator.Tags().get("scalars", [])
+        tag = next(
+            (name for name in ("eval/mean_reward", "rollout/ep_rew_mean") if name in tags), None
+        )
+        if tag:
+            points.extend(
+                {"step": event.step, "value": event.value, "wall_time": event.wall_time}
+                for event in accumulator.Scalars(tag)
+            )
+    unique = {(int(point["step"]), float(point["wall_time"])): point for point in points}
+    return sorted(
+        unique.values(), key=lambda point: (int(point["step"]), float(point["wall_time"]))
+    )
+
+
+def write_reward_curve(points: list[dict[str, float | int]], output: Path) -> Path:
+    if not points:
+        raise ValueError("no reward points available")
+    import matplotlib.pyplot as plt
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure, axes = plt.subplots(figsize=(8, 4.5))
+    axes.plot([point["step"] for point in points], [point["value"] for point in points])
+    axes.set(title="Training reward", xlabel="Environment steps", ylabel="Mean episode reward")
+    axes.grid(alpha=0.25)
+    figure.tight_layout()
+    figure.savefig(output, dpi=150)
+    plt.close(figure)
+    return output
+
+
 def write_metrics(output: Path, metrics: dict[str, Any]) -> Path:
     output.parent.mkdir(parents=True, exist_ok=True)
     payload = {"schema_version": METRICS_SCHEMA_VERSION, **metrics}
@@ -34,8 +89,10 @@ def write_markdown_report(metrics: dict[str, Any], output: Path) -> Path:
     aggregate = metrics["aggregate"]
     success = metrics["success"]
     benchmark = metrics.get("benchmark", {})
+
     def available(value: Any, suffix: str = "") -> str:
         return "unavailable" if value is None else f"{value}{suffix}"
+
     lines = [
         f"# Sim2Policy report: {metrics['run_id']}",
         "",
@@ -53,7 +110,10 @@ def write_markdown_report(metrics: dict[str, Any], output: Path) -> Path:
     lines.append(
         "Threshold was not reached within the training budget."
         if threshold is None
-        else f"Threshold first reached at step {threshold['step']} after {threshold['seconds']} seconds."
+        else (
+            f"Threshold first reached at step {threshold['step']} "
+            f"after {threshold['seconds']} seconds."
+        )
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n")
@@ -61,16 +121,20 @@ def write_markdown_report(metrics: dict[str, Any], output: Path) -> Path:
 
 
 def comparison_table(metrics_documents: list[dict[str, Any]]) -> str:
-    rows = ["| Backend | Environment | Success | Runtime (s) | GPU util. | Cost |", "|---|---|---:|---:|---:|---:|"]
+    rows = [
+        "| Backend | Environment | Success | Runtime (s) | GPU util. | Cost |",
+        "|---|---|---:|---:|---:|---:|",
+    ]
     for item in metrics_documents:
         benchmark = item.get("benchmark", {})
         rows.append(
             "| {backend} | {environment} | {success} | {runtime} | {util} | {cost} |".format(
-                backend=item["backend"], environment=item["environment"],
-                success=item["success"]["met"], runtime=item.get("runtime_seconds", "unavailable"),
+                backend=item["backend"],
+                environment=item["environment"],
+                success=item["success"]["met"],
+                runtime=item.get("runtime_seconds", "unavailable"),
                 util=benchmark.get("gpu_utilization_percent", "unavailable"),
                 cost=benchmark.get("estimated_cost", "unavailable"),
             )
         )
     return "\n".join(rows) + "\n"
-

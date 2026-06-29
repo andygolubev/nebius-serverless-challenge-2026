@@ -13,20 +13,33 @@ from sim2policy.run import create_run_paths, write_metadata
 
 def require_mjx() -> None:
     try:
-        import jax  # noqa: F401
-        import mujoco_playground  # noqa: F401
+        import jax  # type: ignore[import-not-found] # noqa: F401
+        import mujoco_playground  # type: ignore[import-not-found] # noqa: F401
     except ImportError as exc:
-        raise RuntimeError("MJX dependencies unavailable; use the mjx image or `uv sync --extra mjx`") from exc
+        raise RuntimeError(
+            "MJX dependencies unavailable; use the mjx image or `uv sync --extra mjx`"
+        ) from exc
 
 
 def train_mjx(config: RunConfig, run_id: str, runs_root: Path) -> Path:
     require_mjx()
     paths = create_run_paths(run_id, runs_root)
     write_metadata(paths, run_id, config)
-    command = ["train-jax-ppo", "--env_name", config.environment, "--seed", str(config.seed),
-               "--num_timesteps", str(config.training.total_steps), "--checkpoint_dir", str(paths.checkpoints)]
+    command = [
+        "train-jax-ppo",
+        "--env_name",
+        config.environment,
+        "--seed",
+        str(config.seed),
+        "--num_timesteps",
+        str(config.training.total_steps),
+        "--checkpoint_dir",
+        str(paths.checkpoints),
+    ]
     subprocess.run(command, check=True)
-    candidates = sorted(paths.checkpoints.rglob("*"), key=lambda path: path.stat().st_mtime if path.is_file() else 0)
+    candidates = sorted(
+        paths.checkpoints.rglob("*"), key=lambda path: path.stat().st_mtime if path.is_file() else 0
+    )
     files = [path for path in candidates if path.is_file()]
     if not files:
         raise RuntimeError("Playground training completed without a checkpoint")
@@ -52,4 +65,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

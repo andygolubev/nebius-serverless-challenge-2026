@@ -4,7 +4,7 @@ RUN_ID ?= dev
 CONFIG := configs/$(ENV).yaml
 IMAGE ?= sim2policy:sb3
 
-.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render cloud-dry-run cloud-train clean
+.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render report cloud-dry-run cloud-train clean
 setup:
 	uv sync --extra dev
 check:
@@ -28,10 +28,11 @@ evaluate:
 	uv run python -m sim2policy.evaluate --config $(CONFIG) --run-id $(RUN_ID) --checkpoint $(CHECKPOINT)
 render:
 	uv run python -m sim2policy.render --config $(CONFIG) --run-id $(RUN_ID) --checkpoint $(CHECKPOINT) --output runs/$(RUN_ID)/videos/rollout.mp4
+report:
+	uv run python -m sim2policy.report_cli curve --config $(CONFIG) --run-root runs/$(RUN_ID)
 cloud-dry-run:
 	DRY_RUN=1 IMAGE=$(IMAGE) CONFIG=$(CONFIG) RUN_ID=$(RUN_ID) jobs/submit.sh
 cloud-train:
 	IMAGE=$(IMAGE) CONFIG=$(CONFIG) RUN_ID=$(RUN_ID) jobs/submit.sh
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache runs/$(RUN_ID)
-

@@ -8,7 +8,12 @@ from typing import Any
 
 from sim2policy.checkpoint import validate_checkpoint
 from sim2policy.config import RunConfig, load_config
-from sim2policy.reporting import aggregate_episodes, calculate_cost, write_markdown_report, write_metrics
+from sim2policy.reporting import (
+    aggregate_episodes,
+    calculate_cost,
+    write_markdown_report,
+    write_metrics,
+)
 from sim2policy.storage import ArtifactStore
 
 
@@ -26,7 +31,9 @@ def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
     model = PPO.load(checkpoint, device=config.training.device)
     episodes: list[dict[str, Any]] = []
     started = time.monotonic()
-    for index, seed in enumerate(seed_schedule(config.evaluation.episodes, config.evaluation.seeds)):
+    for index, seed in enumerate(
+        seed_schedule(config.evaluation.episodes, config.evaluation.seeds)
+    ):
         env = gym.make(config.environment)
         observation, _ = env.reset(seed=seed)
         reward_sum = 0.0
@@ -40,13 +47,22 @@ def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
             if terminated or truncated:
                 break
         env.close()
-        episodes.append({"index": index, "seed": seed, "reward": reward_sum, "length": length, "final_info": info})
+        episodes.append(
+            {
+                "index": index,
+                "seed": seed,
+                "reward": reward_sum,
+                "length": length,
+                "final_info": info,
+            }
+        )
     return episodes, time.monotonic() - started
 
 
 def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -> dict[str, Any]:
     if config.backend != "sb3":
         from sim2policy.train_mjx import evaluate_mjx
+
         episodes, runtime = evaluate_mjx(checkpoint, config)
     else:
         episodes, runtime = evaluate_sb3(checkpoint, config)
@@ -59,13 +75,22 @@ def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -
         criterion = f"velocity >= {config.success.min_velocity} and not fallen"
     estimated_cost = calculate_cost(runtime, config.reporting.hourly_rate)
     metrics = {
-        "run_id": run_id, "backend": config.backend, "environment": config.environment,
-        "checkpoint": checkpoint.name, "seeds": config.evaluation.seeds, "episodes": episodes,
-        "aggregate": aggregate, "success": {"met": met, "criterion": criterion},
+        "run_id": run_id,
+        "backend": config.backend,
+        "environment": config.environment,
+        "checkpoint": checkpoint.name,
+        "seeds": config.evaluation.seeds,
+        "episodes": episodes,
+        "aggregate": aggregate,
+        "success": {"met": met, "criterion": criterion},
         "runtime_seconds": runtime,
-        "benchmark": {"hourly_rate": config.reporting.hourly_rate, "currency": config.reporting.currency,
-                      "rate_date": config.reporting.rate_date, "estimated_cost": estimated_cost,
-                      "gpu_utilization_percent": None},
+        "benchmark": {
+            "hourly_rate": config.reporting.hourly_rate,
+            "currency": config.reporting.currency,
+            "rate_date": config.reporting.rate_date,
+            "estimated_cost": estimated_cost,
+            "gpu_utilization_percent": None,
+        },
         "threshold_crossing": None,
     }
     report_dir = run_root / "report"
@@ -88,4 +113,3 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 if __name__ == "__main__":
     main()
-

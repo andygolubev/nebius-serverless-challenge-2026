@@ -93,7 +93,11 @@ def train(
     paths = create_run_paths(run_id, runs_root)
     store = ArtifactStore(config.storage, run_id)
     if sync_hook is None and store.enabled:
-        sync_hook = lambda checkpoint: store.publish_checkpoint(checkpoint, paths.root)
+
+        def publish(checkpoint: Path) -> None:
+            store.publish_checkpoint(checkpoint, paths.root)
+
+        sync_hook = publish
     write_metadata(paths, run_id, config, {"requested": config.training.device})
     env = make_vec_env(
         config.environment,

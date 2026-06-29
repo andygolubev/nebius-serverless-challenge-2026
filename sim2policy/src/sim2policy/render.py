@@ -13,10 +13,12 @@ from sim2policy.config import RunConfig, load_config
 from sim2policy.storage import ArtifactStore
 
 
-def render_sb3(checkpoint: Path | None, config: RunConfig, output: Path, random_policy: bool = False) -> Path:
+def render_sb3(
+    checkpoint: Path | None, config: RunConfig, output: Path, random_policy: bool = False
+) -> Path:
     try:
         import gymnasium as gym  # type: ignore[import-not-found]
-        import imageio.v2 as imageio  # type: ignore[import-not-found]
+        import imageio.v2 as imageio
         from stable_baselines3 import PPO  # type: ignore[import-not-found]
     except ImportError as exc:
         raise RuntimeError("rendering requires the sb3/media dependency set") from exc
@@ -26,12 +28,21 @@ def render_sb3(checkpoint: Path | None, config: RunConfig, output: Path, random_
             raise ValueError("checkpoint is required")
         validate_checkpoint(checkpoint, config)
         model = PPO.load(checkpoint, device="cpu")
-    env = gym.make(config.environment, render_mode="rgb_array", width=config.rendering.width, height=config.rendering.height)
+    env = gym.make(
+        config.environment,
+        render_mode="rgb_array",
+        width=config.rendering.width,
+        height=config.rendering.height,
+    )
     observation, _ = env.reset(seed=config.rendering.seed)
     frames: list[Any] = []
     reset_count = 0
     for _ in range(config.rendering.frames):
-        action = env.action_space.sample() if model is None else model.predict(observation, deterministic=True)[0]
+        action = (
+            env.action_space.sample()
+            if model is None
+            else model.predict(observation, deterministic=True)[0]
+        )
         observation, _, terminated, truncated, _ = env.step(action)
         frame = env.render()
         if frame is None:
@@ -53,7 +64,12 @@ def render_with_fallback(args: list[str]) -> str:
     for backend in ("egl", "osmesa"):
         env = os.environ.copy()
         env["MUJOCO_GL"] = backend
-        process = subprocess.run([sys.executable, "-m", "sim2policy.render", "--worker", *args], env=env, text=True, capture_output=True)
+        process = subprocess.run(
+            [sys.executable, "-m", "sim2policy.render", "--worker", *args],
+            env=env,
+            text=True,
+            capture_output=True,
+        )
         if process.returncode == 0:
             return backend
         errors.append(f"{backend}: {process.stderr.strip()}")
@@ -63,7 +79,10 @@ def render_with_fallback(args: list[str]) -> str:
 def montage_command(videos: list[Path], output: Path) -> list[str]:
     inputs = [part for video in videos for part in ("-i", str(video))]
     labels = ["initial", "~25%", "final"]
-    filters = ";".join(f"[{i}:v]drawtext=text='{label}':x=20:y=20:fontsize=28:fontcolor=white[v{i}]" for i, label in enumerate(labels))
+    filters = ";".join(
+        f"[{i}:v]drawtext=text='{label}':x=20:y=20:fontsize=28:fontcolor=white[v{i}]"
+        for i, label in enumerate(labels)
+    )
     filters += ";[v0][v1][v2]hstack=inputs=3[out]"
     return ["ffmpeg", "-y", *inputs, "-filter_complex", filters, "-map", "[out]", str(output)]
 
@@ -74,10 +93,27 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--run-id", default="render")
+    parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--montage", action="store_true")
+    parser.add_argument("--checkpoints-dir", type=Path)
+    parser.add_argument("--total-steps", type=int)
     parser.add_argument("--worker", action="store_true")
     args = parser.parse_args(argv)
     config = load_config(args.config)
+    if args.montage:
+        if args.checkpoints_dir is None or args.total_steps is None:
+            parser.error("--montage requires --checkpoints-dir and --total-steps")
+        checkpoints = progression_checkpoints(args.checkpoints_dir, args.total_steps)
+        videos: list[Path] = []
+        for label, checkpoint in zip(("initial", "quarter", "final"), checkpoints, strict=True):
+            video = args.output.parent / f"{label}-{checkpoint.stem}.mp4"
+            render_with_fallback(
+                ["--config", args.config, "--checkpoint", str(checkpoint), "--output", str(video)]
+            )
+            videos.append(video)
+        subprocess.run(montage_command(videos, args.output), check=True)
+        return
     if args.worker:
         render_sb3(args.checkpoint, config, args.output, args.smoke_test)
         return
@@ -87,9 +123,11 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.smoke_test:
         child.append("--smoke-test")
     backend = render_with_fallback(child)
+    store = ArtifactStore(config.storage, args.run_id)
+    if store.enabled:
+        store.upload_file(args.output, f"videos/{args.output.name}")
     print(f"rendered with {backend}: {args.output}")
 
 
 if __name__ == "__main__":
     main()
-

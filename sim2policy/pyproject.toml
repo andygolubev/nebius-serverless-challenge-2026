@@ -45,6 +45,7 @@ sim2policy-train-sb3 = "sim2policy.train_sb3:main"
 sim2policy-train-mjx = "sim2policy.train_mjx:main"
 sim2policy-evaluate = "sim2policy.evaluate:main"
 sim2policy-render = "sim2policy.render:main"
+sim2policy-report = "sim2policy.report_cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sim2policy"]
@@ -61,6 +62,6 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 packages = ["sim2policy"]

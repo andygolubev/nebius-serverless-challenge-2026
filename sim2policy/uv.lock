@@ -1970,9 +1970,13 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
+    { name = "imageio" },
+    { name = "imageio-ffmpeg" },
+    { name = "matplotlib" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
     { name = "numpy", version = "2.5.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
     { name = "pyyaml" },
+    { name = "tensorboard" },
 ]
 
 [package.optional-dependencies]
@@ -1992,11 +1996,7 @@ mjx = [
 ]
 sb3 = [
     { name = "gymnasium", extra = ["mujoco"] },
-    { name = "imageio" },
-    { name = "imageio-ffmpeg" },
-    { name = "matplotlib" },
     { name = "stable-baselines3" },
-    { name = "tensorboard" },
 ]
 
 [package.metadata]
@@ -2004,10 +2004,10 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "brax", marker = "extra == 'mjx'", specifier = ">=0.12,<1" },
     { name = "gymnasium", extras = ["mujoco"], marker = "extra == 'sb3'", specifier = ">=1.1,<2" },
-    { name = "imageio", marker = "extra == 'sb3'", specifier = ">=2.36,<3" },
-    { name = "imageio-ffmpeg", marker = "extra == 'sb3'", specifier = ">=0.5,<1" },
+    { name = "imageio", specifier = ">=2.36,<3" },
+    { name = "imageio-ffmpeg", specifier = ">=0.5,<1" },
     { name = "jax", extras = ["cuda12"], marker = "sys_platform == 'linux' and extra == 'mjx'", specifier = ">=0.5,<1" },
-    { name = "matplotlib", marker = "extra == 'sb3'", specifier = ">=3.9,<4" },
+    { name = "matplotlib", specifier = ">=3.9,<4" },
     { name = "mujoco", marker = "extra == 'mjx'", specifier = ">=3.3,<4" },
     { name = "mujoco-mjx", marker = "extra == 'mjx'", specifier = ">=3.3,<4" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14,<2" },
@@ -2018,7 +2018,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.2,<7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9,<1" },
     { name = "stable-baselines3", marker = "extra == 'sb3'", specifier = ">=2.6,<3" },
-    { name = "tensorboard", marker = "extra == 'sb3'", specifier = ">=2.18,<3" },
+    { name = "tensorboard", specifier = ">=2.18,<3" },
     { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0.12,<7" },
 ]
 provides-extras = ["sb3", "mjx", "dev"]
