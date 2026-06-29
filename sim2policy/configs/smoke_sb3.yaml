@@ -1,0 +1,29 @@
+backend: sb3
+environment: Pendulum-v1
+seed: 0
+training:
+  total_steps: 256
+  n_envs: 1
+  device: cpu
+  hyperparameters:
+    n_steps: 64
+    batch_size: 32
+checkpoint:
+  every_steps: 128
+evaluation:
+  episodes: 2
+  seeds: [0, 1]
+success:
+  kind: mean_reward
+  threshold: -2000
+rendering:
+  frames: 10
+  fps: 10
+  width: 320
+  height: 240
+  seed: 0
+storage:
+  mode: local
+  prefix: sim2policy
+reporting: {}
+

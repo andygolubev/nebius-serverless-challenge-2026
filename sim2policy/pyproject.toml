@@ -1,0 +1,66 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sim2policy"
+version = "0.1.0"
+description = "Train and demonstrate locomotion policies in reproducible serverless jobs"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+license = { text = "MIT" }
+dependencies = [
+  "boto3>=1.35,<2",
+  "numpy>=1.26,<3",
+  "pyyaml>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+sb3 = [
+  "gymnasium[mujoco]>=1.1,<2",
+  "imageio>=2.36,<3",
+  "imageio-ffmpeg>=0.5,<1",
+  "matplotlib>=3.9,<4",
+  "stable-baselines3>=2.6,<3",
+  "tensorboard>=2.18,<3",
+]
+mjx = [
+  "brax>=0.12,<1",
+  "jax[cuda12]>=0.5,<1; platform_system == 'Linux'",
+  "mujoco>=3.3,<4",
+  "mujoco-mjx>=3.3,<4",
+  "playground>=0.0.4,<1",
+]
+dev = [
+  "mypy>=1.14,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=6,<8",
+  "ruff>=0.9,<1",
+  "types-pyyaml>=6.0.12,<7",
+]
+
+[project.scripts]
+sim2policy = "sim2policy.cli:main"
+sim2policy-train-sb3 = "sim2policy.train_sb3:main"
+sim2policy-train-mjx = "sim2policy.train_mjx:main"
+sim2policy-evaluate = "sim2policy.evaluate:main"
+sim2policy-render = "sim2policy.render:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sim2policy"]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-markers"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["sim2policy"]

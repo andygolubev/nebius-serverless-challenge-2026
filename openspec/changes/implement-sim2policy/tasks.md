@@ -1,19 +1,19 @@
 ## 1. Project Foundation
 
-- [ ] 1.1 Create the `sim2policy` package layout, `src` package, configs, jobs, tests, assets, runs placeholder, and module entry points described by the design
-- [ ] 1.2 Define `pyproject.toml` metadata, Python version, CLI entry points, formatting/lint/test tooling, and isolated shared, SB3, and MJX dependency groups
+- [x] 1.1 Create the `sim2policy` package layout, `src` package, configs, jobs, tests, assets, runs placeholder, and module entry points described by the design
+- [x] 1.2 Define `pyproject.toml` metadata, Python version, CLI entry points, formatting/lint/test tooling, and isolated shared, SB3, and MJX dependency groups
 - [ ] 1.3 Add a lockfile and document the initially tested Python, CUDA, MuJoCo, PyTorch, and SB3 versions without adding MJX dependencies to the SB3 group
-- [ ] 1.4 Add ignore rules for credentials, local environment files, runs, checkpoints, TensorBoard logs, and large generated media while retaining lightweight sample assets
-- [ ] 1.5 Configure unit tests and static checks and prove the shared package imports in a base-only environment
+- [x] 1.4 Add ignore rules for credentials, local environment files, runs, checkpoints, TensorBoard logs, and large generated media while retaining lightweight sample assets
+- [x] 1.5 Configure unit tests and static checks and prove the shared package imports in a base-only environment
 
 ## 2. Configuration and Run Lifecycle
 
-- [ ] 2.1 Implement typed YAML configuration models for backend, environment, training, checkpoint, evaluation, success, rendering, storage, and reporting settings
-- [ ] 2.2 Implement deterministic CLI override resolution and fail-fast validation for unknown, missing, unsafe, and backend-incompatible values
-- [ ] 2.3 Implement safe run-ID validation and the canonical local `checkpoints`, `tensorboard`, `videos`, and `report` directory creation
-- [ ] 2.4 Implement redacted run metadata capture for resolved config, seed, versions, source revision, device, backend, environment, and timestamps
-- [ ] 2.5 Add representative valid and invalid configuration fixtures and unit tests for resolution, redaction, compatibility checks, and run-path traversal rejection
-- [ ] 2.6 Add recorded HalfCheetah and Ant SB3 configs using cited RL Baselines3 Zoo-derived PPO values and short smoke-test overrides
+- [x] 2.1 Implement typed YAML configuration models for backend, environment, training, checkpoint, evaluation, success, rendering, storage, and reporting settings
+- [x] 2.2 Implement deterministic CLI override resolution and fail-fast validation for unknown, missing, unsafe, and backend-incompatible values
+- [x] 2.3 Implement safe run-ID validation and the canonical local `checkpoints`, `tensorboard`, `videos`, and `report` directory creation
+- [x] 2.4 Implement redacted run metadata capture for resolved config, seed, versions, source revision, device, backend, environment, and timestamps
+- [x] 2.5 Add representative valid and invalid configuration fixtures and unit tests for resolution, redaction, compatibility checks, and run-path traversal rejection
+- [x] 2.6 Add recorded HalfCheetah and Ant SB3 configs using cited RL Baselines3 Zoo-derived PPO values and short smoke-test overrides
 
 ## 3. Track B Training Baseline
 

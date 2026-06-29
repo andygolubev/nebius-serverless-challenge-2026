@@ -217,5 +217,19 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-
-sim2policy-implementation-plan.md
+# Sim2Policy local and generated artifacts
+sim2policy/runs/*
+!sim2policy/runs/.gitkeep
+**/checkpoints/
+**/tensorboard/
+*.ckpt
+*.pt
+*.pth
+*.zip
+*.mp4
+*.webm
+*.gif
+!sim2policy/assets/*.gif
+.env.*
+credentials.json
+service-account*.json

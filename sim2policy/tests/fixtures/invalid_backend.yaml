@@ -1,0 +1,8 @@
+backend: unknown
+environment: Pendulum-v1
+seed: 0
+training: {total_steps: 10, n_envs: 1}
+checkpoint: {every_steps: 5}
+evaluation: {episodes: 1, seeds: [0]}
+success: {kind: mean_reward, threshold: -1000}
+

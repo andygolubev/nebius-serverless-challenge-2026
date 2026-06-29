@@ -1,0 +1,35 @@
+# PPO values adapted from RL Baselines3 Zoo's MuJoCo PPO configuration:
+# https://github.com/DLR-RM/rl-baselines3-zoo/blob/master/hyperparams/ppo.yml
+backend: sb3
+environment: Ant-v5
+seed: 0
+training:
+  total_steps: 2000000
+  n_envs: 16
+  device: auto
+  hyperparameters:
+    batch_size: 64
+    n_steps: 512
+    gamma: 0.98
+    learning_rate: 0.0003
+    ent_coef: 0.0
+    clip_range: 0.2
+checkpoint:
+  every_steps: 50000
+  keep: 0
+evaluation:
+  episodes: 20
+  seeds: [0, 1, 2, 3, 4]
+success:
+  kind: mean_reward
+  threshold: 4000
+rendering:
+  frames: 500
+  fps: 30
+  width: 640
+  height: 480
+  seed: 0
+storage:
+  mode: local
+  prefix: sim2policy
+reporting: {}
