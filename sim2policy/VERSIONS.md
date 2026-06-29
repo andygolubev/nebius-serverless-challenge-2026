@@ -109,8 +109,55 @@ evaluation wrote `report/metrics.json` with wall-clock timestamps, GPU snapshot 
 `benchmark.gpu_utilization_percent`. GPU utilization may be `0.0` for CPU-configured smoke runs
 and telemetry unavailability is represented as structured metadata rather than a workflow failure.
 
-## MJX status
+## MJX Linux/NVIDIA smoke record
 
-The MJX dependency matrix remains a candidate until a Linux/GPU smoke gate validates JAX accelerator
-discovery and a selected MuJoCo Playground environment step/training path. Do not present Track A as
-tested until that gate passes.
+Verified on the same Linux/NVIDIA validation host on 2026-06-29. This is not a substitute for the
+final Nebius Track A run, but it validates the local pinned stack and adapter contract:
+
+- Python 3.12
+- NumPy 2.2.6
+- JAX/JAXlib 0.6.2 with CUDA 12 plugin
+- MuJoCo/MuJoCo MJX 3.10.0
+- Brax 0.14.2
+- Playground 0.2.0
+- Selected environment: `Go1JoystickFlatTerrain`
+- Required Playground implementation override: `impl=jax`
+
+Why the pins/override matter:
+
+- NumPy 2.5.0 broke `mediapy` import in `train-jax-ppo`; NumPy is capped below 2.3.
+- JAX 0.10.2 removed `jax.device_put_replicated`, which Brax 0.14.2 still calls; JAX is capped
+  below 0.7.
+- The Playground Go1 default config used `impl=warp`, which failed in this wheel set during MJX
+  model conversion; the Sim2Policy MJX config and adapter explicitly force `impl=jax`.
+
+Executed gates:
+
+- `uv sync --extra dev --extra mjx`
+- `uv run python -m sim2policy.health --backend mjx` reported JAX backend `gpu`
+- raw Playground smoke:
+  `train-jax-ppo --env_name=Go1JoystickFlatTerrain --impl=jax --num_timesteps=1024 ...`
+- Sim2Policy adapter smoke:
+  `uv run python -m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id mjx-adapter-smoke ...`
+- MJX image build:
+  `docker build --target mjx --build-arg SOURCE_REVISION=<repo-rev> -t sim2policy:mjx .`
+- MJX image smoke:
+  `docker run --rm --gpus all sim2policy:mjx sim2policy.health --backend mjx`
+- MJX image environment smoke loaded `Go1JoystickFlatTerrain` with `impl=jax`, observation sizes
+  `state=(48,)`, `privileged_state=(123,)`, and action size `12`
+
+The adapter smoke produced:
+
+- `runs/mjx-adapter-smoke/checkpoints/final-000000001280.zip`
+- `runs/mjx-adapter-smoke/checkpoints/final-000000001280.zip.json`
+- raw Playground Orbax checkpoint/log output under `runs/mjx-adapter-smoke/mjx_logs/`
+- `runs/mjx-adapter-smoke/report/runtime.json`
+
+The image includes `git` because MuJoCo Playground downloads MuJoCo Menagerie on first quadruped
+environment load.
+
+MJX initial policy snapshots are not claimed yet: the validated Playground CLI path emits Orbax
+training checkpoints, and Sim2Policy archives all emitted raw checkpoints as periodic/final common
+artifacts. Deterministic MJX evaluation and progression rendering remain gated until the Playground
+restore, inference, and rendering APIs are validated for the published zipped Orbax checkpoint
+contract.

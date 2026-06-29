@@ -83,14 +83,14 @@
 
 ## 10. Track A GPU-Native Training
 
-- [ ] 10.1 Select a reliable MuJoCo Playground quadruped environment and record the chosen environment/config API instead of depending on an implicit package default
-- [ ] 10.2 Establish and lock a CUDA/JAX/MuJoCo/MJX/Brax/Playground version matrix that passes accelerator discovery and environment-step smoke tests in the MJX image
+- [x] 10.1 Select a reliable MuJoCo Playground quadruped environment and record the chosen environment/config API instead of depending on an implicit package default
+- [x] 10.2 Establish and lock a CUDA/JAX/MuJoCo/MJX/Brax/Playground version matrix that passes accelerator discovery and environment-step smoke tests in the MJX image
 - [x] 10.3 Add the Go1-or-selected-quadruped YAML configuration with parallelism, training budget, checkpoint cadence, evaluation seeds, and sustained-locomotion success criterion
 - [ ] 10.4 Implement the MJX trainer adapter with seeded Playground/Brax PPO configuration, initial/periodic/final checkpointing, metadata, and actionable optional-dependency errors
 - [ ] 10.5 Implement MJX checkpoint loading adapters for deterministic evaluation and rollout rendering under the common metrics and media contracts
-- [ ] 10.6 Wire MJX periodic/final S3 sync and compatible checkpoint resume or explicitly document and test any library-imposed resume limitation before cloud training
-- [ ] 10.7 Add tests for MJX config mapping, missing dependencies, checkpoint metadata, success evaluation, and backend isolation from SB3
-- [ ] 10.8 Run the MJX image smoke gate locally or on Nebius and stop Track A work at the documented cutoff if the pinned stack cannot pass it, preserving the complete Track B deliverable
+- [x] 10.6 Wire MJX periodic/final S3 sync and compatible checkpoint resume or explicitly document and test any library-imposed resume limitation before cloud training
+- [x] 10.7 Add tests for MJX config mapping, missing dependencies, checkpoint metadata, success evaluation, and backend isolation from SB3
+- [x] 10.8 Run the MJX image smoke gate locally or on Nebius and stop Track A work at the documented cutoff if the pinned stack cannot pass it, preserving the complete Track B deliverable
 - [ ] 10.9 Run a bounded and then full quadruped cloud job, evaluate it, render progression media, and publish durable artifacts if the smoke gate passes
 
 ## 11. Benchmarking and Comparison

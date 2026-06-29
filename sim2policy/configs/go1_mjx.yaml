@@ -5,7 +5,21 @@ training:
   total_steps: 100000000
   n_envs: 4096
   device: gpu
-  hyperparameters: {}
+  hyperparameters:
+    impl: jax
+    num_eval_envs: 128
+    num_evals: 5
+    batch_size: 256
+    num_minibatches: 8
+    num_updates_per_batch: 8
+    unroll_length: 10
+    episode_length: 1000
+    learning_rate: 0.0003
+    entropy_cost: 0.01
+    discounting: 0.97
+    reward_scaling: 1.0
+    policy_hidden_layer_sizes: [512, 256, 128]
+    value_hidden_layer_sizes: [512, 256, 128]
 checkpoint: {every_steps: 10000000, keep: 5}
 evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
 success: {kind: locomotion, min_velocity: 0.5, require_not_fallen: true}

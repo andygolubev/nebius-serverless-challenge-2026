@@ -100,7 +100,7 @@ def test_comparison_table_context_and_partial_values() -> None:
                 "success": {"met": True, "criterion": "mean_reward >= 1"},
                 "seeds": [0, 1],
                 "runtime_seconds": 12.5,
-                "device": {"platform": "aws-g6"},
+                "device": {"platform": "linux-gpu"},
                 "benchmark": {"gpu_utilization_percent": None, "estimated_cost": 0.01},
             },
             {
@@ -111,5 +111,5 @@ def test_comparison_table_context_and_partial_values() -> None:
             },
         ]
     )
-    assert "aws-g6" in table
+    assert "linux-gpu" in table
     assert "unavailable" in table
