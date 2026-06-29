@@ -17,13 +17,18 @@ from sim2policy.checkpoint import (
 )
 from sim2policy.config import RunConfig, load_config
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
+from sim2policy.storage import ArtifactStore
 
 
 def _imports() -> tuple[Any, Any, Any]:
     try:
-        from stable_baselines3 import PPO
-        from stable_baselines3.common.callbacks import BaseCallback
-        from stable_baselines3.common.env_util import make_vec_env
+        from stable_baselines3 import PPO  # type: ignore[import-not-found]
+        from stable_baselines3.common.callbacks import (  # type: ignore[import-not-found]
+            BaseCallback,
+        )
+        from stable_baselines3.common.env_util import (  # type: ignore[import-not-found]
+            make_vec_env,
+        )
     except ImportError as exc:
         raise RuntimeError(
             "SB3 dependencies are unavailable; install with `uv sync --extra sb3` "
@@ -50,12 +55,7 @@ def build_checkpoint_callback(
     class DurableCheckpointCallback(BaseCallback):  # type: ignore[misc, valid-type]
         def __init__(self) -> None:
             super().__init__(verbose=0)
-            self.next_step = (
-                ((int(self.model.num_timesteps) // config.checkpoint.every_steps) + 1)
-                * config.checkpoint.every_steps
-                if hasattr(self, "model")
-                else config.checkpoint.every_steps
-            )
+            self.next_step = config.checkpoint.every_steps
 
         def _on_training_start(self) -> None:
             current = int(self.model.num_timesteps)
@@ -91,6 +91,9 @@ def train(
 ) -> Path:
     PPO, _, make_vec_env = _imports()
     paths = create_run_paths(run_id, runs_root)
+    store = ArtifactStore(config.storage, run_id)
+    if sync_hook is None and store.enabled:
+        sync_hook = lambda checkpoint: store.publish_checkpoint(checkpoint, paths.root)
     write_metadata(paths, run_id, config, {"requested": config.training.device})
     env = make_vec_env(
         config.environment,
@@ -102,6 +105,9 @@ def train(
         model = PPO.load(resume, env=env, device=config.training.device)
         if int(model.num_timesteps) != resume_metadata.step:
             raise RuntimeError("checkpoint timestep does not match its metadata")
+        learn_steps = config.training.total_steps - int(model.num_timesteps)
+        if learn_steps <= 0:
+            raise RuntimeError("checkpoint has already reached the configured training budget")
         reset_num_timesteps = False
     else:
         model = PPO(
@@ -115,13 +121,14 @@ def train(
         )
         initial = checkpoint_path(paths.checkpoints, "initial", 0)
         _save_model(model, initial, config)
+        learn_steps = config.training.total_steps
         reset_num_timesteps = True
 
     callback = build_checkpoint_callback(config, paths, sync_hook)
     completed = False
     try:
         model.learn(
-            total_timesteps=config.training.total_steps,
+            total_timesteps=learn_steps,
             callback=callback,
             reset_num_timesteps=reset_num_timesteps,
             tb_log_name=run_id,
@@ -142,6 +149,7 @@ def train(
     _save_model(model, final, config)
     if sync_hook:
         sync_hook(final)
+    store.sync_tree(paths.root, required=store.enabled)
     return final
 
 
@@ -169,11 +177,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         raise SystemExit("selected config is not an SB3 config")
     resume = None
     if args.resume:
-        resume = (
-            latest_checkpoint(args.runs_root / args.run_id / "checkpoints")
-            if args.resume == "latest"
-            else Path(args.resume)
-        )
+        if args.resume == "remote":
+            paths = create_run_paths(args.run_id, args.runs_root)
+            resume = ArtifactStore(config.storage, args.run_id).resume_latest(
+                paths.checkpoints, config
+            )
+        else:
+            resume = (
+                latest_checkpoint(args.runs_root / args.run_id / "checkpoints")
+                if args.resume == "latest"
+                else Path(args.resume)
+            )
     try:
         final = train(config, args.run_id, args.runs_root, resume)
     except (RuntimeError, ValueError) as exc:

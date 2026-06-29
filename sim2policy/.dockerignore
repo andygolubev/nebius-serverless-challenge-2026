@@ -1,0 +1,8 @@
+.venv
+runs
+tests
+assets
+__pycache__
+*.pyc
+.git
+
