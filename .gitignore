@@ -239,5 +239,13 @@ sim2policy/runs/*
 credentials.json
 service-account*.json
 
+# OpenTofu local cache, plans, state, and secret-bearing local inputs
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+backend.hcl
+terraform.tfvars
+
 # Local handoff notes for AI-assisted implementation sessions.
 IMPLEMENTATION_LOG.MD

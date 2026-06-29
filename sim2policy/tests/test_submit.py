@@ -22,11 +22,16 @@ def test_dry_run_and_missing_parameter() -> None:
         "SUBNET_ID": "subnet",
         "DRY_RUN": "1",
         "S3_SECRET": "secret-id",
+        "S3_BUCKET": "artifacts",
+        "S3_ENDPOINT": "https://storage.example",
+        "S3_REGION": "test-region",
     }
     preview = subprocess.run([script], capture_output=True, text=True, env=env)
     assert preview.returncode == 0
     assert "nebius" in preview.stdout
     assert "secret-id" not in preview.stdout
+    assert "storage.mode" in preview.stdout
+    assert "restart-policy never" in preview.stdout
 
     unsafe = dict(env, RUN_ID="../unsafe")
     rejected = subprocess.run([script], capture_output=True, text=True, env=unsafe)

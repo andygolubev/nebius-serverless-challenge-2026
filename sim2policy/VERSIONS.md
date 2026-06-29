@@ -5,6 +5,16 @@ Gymnasium 1.3.0, Stable-Baselines3 2.9.0, PyTorch 2.12.1, MuJoCo 3.10.0, JAX 0.1
 Brax 0.14.2, Playground 0.2.0, and Pygame 2.6.1. SB3 deliberately does not depend on
 JAX, Brax, MJX, or Playground; those packages are confined to the optional MJX extra.
 
+## Nebius L40S benchmark rate
+
+The reproducible benchmark input was recorded from the official Nebius Compute pricing page on
+2026-06-29 for the `gpu-l40s-a` `1gpu-8vcpu-32gb` preset. The non-preemptible USD hourly rate is
+`1.35 + (8 × 0.012) + (32 × 0.0032) = 1.5484 USD/hour` for GPU, vCPU, and RAM. The run configs store
+that explicit rate, currency, and access date; `estimated_cost` is runtime in hours multiplied by
+`1.5484`. The rate is a benchmark input rather than a promise of future billing, excludes taxes
+and separate storage charges, and should be replaced when another platform, preset, currency, or
+pricing date applies. Source: https://docs.nebius.com/compute/resources/pricing
+
 ## SB3 Linux/NVIDIA smoke record
 
 Verified on 2026-06-29 on a Linux/NVIDIA GPU validation host. This was a pre-Nebius development

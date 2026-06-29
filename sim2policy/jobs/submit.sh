@@ -14,24 +14,35 @@ if [[ ! "$TIMEOUT" =~ ^[0-9]+(h|m|s)([0-9]+(m|s))?$ ]]; then
   echo "TIMEOUT must be a Nebius duration such as 1h or 2h30m" >&2; exit 2
 fi
 module="sim2policy.train_${BACKEND}"
+container_args=(-m "$module" --config "$CONFIG" --run-id "$RUN_ID")
+if [[ -n "${S3_BUCKET:-}" ]]; then
+  container_args+=(--set "storage.mode=s3" --set "storage.bucket=$S3_BUCKET")
+fi
+if [[ -n "${S3_ENDPOINT:-}" ]]; then
+  container_args+=(--set "storage.endpoint_url=$S3_ENDPOINT")
+fi
+if [[ -n "${S3_REGION:-}" ]]; then
+  container_args+=(--set "storage.region=$S3_REGION")
+fi
+printf -v container_args_string '%q ' "${container_args[@]}"
+container_args_string="${container_args_string% }"
 command=(nebius ai job create
   --name "sim2policy-${RUN_ID}"
   --image "$IMAGE"
   --container-command python
-  --args "-m $module --config $CONFIG --run-id $RUN_ID"
+  --args "$container_args_string"
   --platform "$PLATFORM"
   --preset "$PRESET"
   --timeout "$TIMEOUT"
   --subnet-id "$SUBNET_ID"
-  --restart-policy on-failure)
+  --restart-policy never)
 if [[ -n "${PARENT_ID:-}" ]]; then command+=(--parent-id "$PARENT_ID"); fi
 if [[ -n "${REGISTRY_SECRET:-}" ]]; then command+=(--registry-secret "$REGISTRY_SECRET"); fi
-if [[ -n "${S3_BUCKET:-}" ]]; then command+=(--env "SIM2POLICY_S3_BUCKET=$S3_BUCKET"); fi
-if [[ -n "${S3_ENDPOINT:-}" ]]; then command+=(--env "SIM2POLICY_S3_ENDPOINT=$S3_ENDPOINT"); fi
 if [[ -n "${S3_SECRET:-}" ]]; then
-  command+=(--env-secret "AWS_ACCESS_KEY_ID=${S3_SECRET}:AWS_ACCESS_KEY_ID")
-  command+=(--env-secret "AWS_SECRET_ACCESS_KEY=${S3_SECRET}:AWS_SECRET_ACCESS_KEY")
+  command+=(--env-secret "AWS_ACCESS_KEY_ID=${S3_SECRET}")
+  command+=(--env-secret "AWS_SECRET_ACCESS_KEY=${S3_SECRET}")
 fi
+if [[ "${PREEMPTIBLE:-0}" == 1 ]]; then command+=(--preemptible); fi
 if [[ "${DRY_RUN:-0}" == 1 ]]; then
   printf '%q ' "${command[@]}" | sed -E 's/(env-secret [^ ]+=)[^ ]+/\1<redacted>/g'
   printf '\n'

@@ -32,4 +32,7 @@ rendering:
 storage:
   mode: local
   prefix: sim2policy
-reporting: {}
+reporting:
+  hourly_rate: 1.5484
+  currency: USD
+  rate_date: "2026-06-29"

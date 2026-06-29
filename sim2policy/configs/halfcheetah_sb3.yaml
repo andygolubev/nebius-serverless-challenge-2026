@@ -32,4 +32,9 @@ rendering:
 storage:
   mode: local
   prefix: sim2policy
-reporting: {}
+reporting:
+  # Nebius gpu-l40s-a / 1gpu-8vcpu-32gb, accessed 2026-06-29:
+  # 1.35 GPU + (8 * 0.012 CPU) + (32 * 0.0032 GiB RAM) USD/hour.
+  hourly_rate: 1.5484
+  currency: USD
+  rate_date: "2026-06-29"

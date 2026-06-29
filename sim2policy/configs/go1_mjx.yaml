@@ -25,4 +25,7 @@ evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
 success: {kind: locomotion, min_velocity: 0.5, require_not_fallen: true}
 rendering: {frames: 500, fps: 30, width: 640, height: 480, seed: 0}
 storage: {mode: local, prefix: sim2policy}
-reporting: {}
+reporting:
+  hourly_rate: 1.5484
+  currency: USD
+  rate_date: "2026-06-29"

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import subprocess
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -11,7 +12,7 @@ import pytest
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
-from sim2policy.train_mjx import build_playground_command, train_mjx
+from sim2policy.train_mjx import build_playground_command, evaluate_mjx, train_mjx
 
 ROOT = Path(__file__).parents[1]
 
@@ -38,6 +39,7 @@ def test_build_playground_command_maps_config_to_explicit_flags(tmp_path: Path) 
     assert "--playground_config_overrides" in command
     assert '{"impl":"jax"}' in command
     assert "--policy_hidden_layer_sizes=512,256,128" in command
+    assert "--num_evals=2" in command
 
 
 def test_build_playground_command_rejects_unknown_hyperparameters(tmp_path: Path) -> None:
@@ -68,6 +70,7 @@ def test_train_mjx_archives_latest_raw_checkpoint(
     )
 
     checkpoint = train_mjx(config, "mjx-run", tmp_path, runner=_fake_checkpoint_runner("64", "128"))
+    assert (tmp_path / "mjx-run/checkpoints/initial-000000000000.zip").is_file()
     assert (tmp_path / "mjx-run/checkpoints/step-000000000064.zip").is_file()
     assert checkpoint.name == "final-000000000128.zip"
     assert checkpoint.is_file()
@@ -134,6 +137,66 @@ def test_locomotion_success_reporting_for_mjx(
     }
 
 
+def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del tmp_path
+    config = load_config(
+        ROOT / "configs/go1_mjx.yaml",
+        {
+            "evaluation.episodes": 2,
+            "evaluation.seeds": [7, 9],
+            "training.hyperparameters": {"impl": "jax", "episode_length": 3},
+        },
+    )
+
+    class Random:
+        @staticmethod
+        def PRNGKey(seed: int) -> int:
+            return seed
+
+        @staticmethod
+        def split(key: int) -> tuple[int, int]:
+            return key + 1, key + 2
+
+    class FakeJax:
+        random = Random()
+
+        @staticmethod
+        def jit(function: Callable[..., Any]) -> Callable[..., Any]:
+            return function
+
+    class Data:
+        qvel = [0.75]
+
+    class State:
+        obs = [0.0]
+        reward = 1.25
+        done = False
+        data = Data()
+
+    class Environment:
+        def reset(self, key: int) -> State:
+            del key
+            return State()
+
+        def step(self, state: State, action: int) -> State:
+            del state, action
+            return State()
+
+    @contextmanager
+    def session(checkpoint: Path, selected: object) -> Any:
+        del checkpoint, selected
+        yield FakeJax(), Environment(), lambda obs, key: (0, {})
+
+    monkeypatch.setattr("sim2policy.train_mjx.mjx_policy_session", session)
+    episodes, _ = evaluate_mjx(Path("policy.zip"), config)
+    assert [episode["seed"] for episode in episodes] == [7, 9]
+    assert all(episode["length"] == 3 for episode in episodes)
+    assert all(episode["mean_velocity"] == 0.75 for episode in episodes)
+    assert all(episode["success"] for episode in episodes)
+
+
 def test_mjx_backend_stays_optional_in_base_environment() -> None:
     if importlib.util.find_spec("jax") is not None:  # pragma: no cover - optional env
         pytest.skip("MJX optional dependencies are installed in this environment")
@@ -146,9 +209,7 @@ def test_mjx_backend_stays_optional_in_base_environment() -> None:
 def _fake_checkpoint_runner(*steps: str) -> Callable[..., subprocess.CompletedProcess[str]]:
     def runner(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         logdir = next(
-            part.removeprefix("--logdir=")
-            for part in command
-            if part.startswith("--logdir=")
+            part.removeprefix("--logdir=") for part in command if part.startswith("--logdir=")
         )
         for step in steps:
             checkpoint_dir = Path(logdir) / "experiment" / "checkpoints" / step
@@ -157,3 +218,15 @@ def _fake_checkpoint_runner(*steps: str) -> Callable[..., subprocess.CompletedPr
         return subprocess.CompletedProcess(command, 0, "", "")
 
     return runner
+
+
+@pytest.fixture(autouse=True)
+def fake_initial_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    def create(config: object, output_root: Path) -> Path:
+        del config
+        checkpoint = output_root / "000000000000"
+        checkpoint.mkdir(parents=True)
+        (checkpoint / "manifest.ocdbt").write_text("initial", encoding="utf-8")
+        return checkpoint
+
+    monkeypatch.setattr("sim2policy.train_mjx._create_initial_checkpoint_isolated", create)

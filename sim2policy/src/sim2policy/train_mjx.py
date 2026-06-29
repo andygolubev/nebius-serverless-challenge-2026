@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import functools
 import importlib
 import json
+import math
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import zipfile
 from collections.abc import Callable, Sequence
@@ -49,6 +53,10 @@ _PLAYGROUND_FLAG_MAP = {
 }
 
 
+def _environment_overrides(config: RunConfig) -> dict[str, Any]:
+    return {"impl": str(config.training.hyperparameters.get("impl", "jax"))}
+
+
 def _json_flag(value: Any) -> str:
     return json.dumps(value, separators=(",", ":"))
 
@@ -71,7 +79,7 @@ def require_mjx() -> None:
 def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
     require_mjx()
     registry = importlib.import_module("mujoco_playground").registry
-    env_overrides = {"impl": str(config.training.hyperparameters.get("impl", "jax"))}
+    env_overrides = _environment_overrides(config)
     try:
         env = registry.load(config.environment, config_overrides=env_overrides)
     except Exception as exc:
@@ -95,6 +103,9 @@ def build_playground_command(
 ) -> list[str]:
     hyperparameters = dict(config.training.hyperparameters)
     impl = str(hyperparameters.pop("impl", "jax"))
+    hyperparameters["num_evals"] = max(
+        2, math.ceil(config.training.total_steps / config.checkpoint.every_steps) + 1
+    )
     command = [
         "train-jax-ppo",
         f"--env_name={config.environment}",
@@ -142,6 +153,16 @@ def _archive_checkpoint(raw_checkpoint: Path, output: Path) -> Path:
     return output
 
 
+def _safe_extract_checkpoint(checkpoint: Path, destination: Path) -> None:
+    with zipfile.ZipFile(checkpoint) as archive:
+        root = destination.resolve()
+        for member in archive.infolist():
+            target = (destination / member.filename).resolve()
+            if not target.is_relative_to(root):
+                raise RuntimeError(f"unsafe path in MJX checkpoint: {member.filename}")
+        archive.extractall(destination)
+
+
 def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPaths) -> Path:
     if checkpoint.is_dir():
         return checkpoint
@@ -154,9 +175,105 @@ def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPa
     if destination.exists():
         shutil.rmtree(destination)
     destination.mkdir(parents=True)
-    with zipfile.ZipFile(checkpoint) as archive:
-        archive.extractall(destination)
+    _safe_extract_checkpoint(checkpoint, destination)
     return destination
+
+
+@contextlib.contextmanager
+def mjx_policy_session(checkpoint: Path, config: RunConfig) -> Any:
+    """Load a zipped Brax PPO policy and its matching Playground environment."""
+    require_mjx()
+    validate_checkpoint(checkpoint, config)
+    with tempfile.TemporaryDirectory(prefix="sim2policy-mjx-") as temporary:
+        raw_checkpoint = Path(temporary) / checkpoint.stem
+        raw_checkpoint.mkdir()
+        _safe_extract_checkpoint(checkpoint, raw_checkpoint)
+        try:
+            load_policy = importlib.import_module("brax.training.agents.ppo.checkpoint").load_policy
+            registry = importlib.import_module("mujoco_playground").registry
+            jax = importlib.import_module("jax")
+            policy = load_policy(raw_checkpoint, deterministic=True)
+            environment = registry.load(
+                config.environment, config_overrides=_environment_overrides(config)
+            )
+        except Exception as exc:
+            raise RuntimeError(
+                "MJX checkpoint restore failed. Use the pinned MJX image and a checkpoint "
+                "created by the same Brax/Playground version matrix."
+            ) from exc
+        yield jax, environment, jax.jit(policy)
+
+
+def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
+    """Create the step-zero Brax policy checkpoint used for progression media."""
+    require_mjx()
+    jax = importlib.import_module("jax")
+    registry = importlib.import_module("mujoco_playground").registry
+    wrapper = importlib.import_module("mujoco_playground").wrapper
+    playground_train = importlib.import_module("learning.train_jax_ppo")
+    ppo = importlib.import_module("brax.training.agents.ppo.train")
+    ppo_networks = importlib.import_module("brax.training.agents.ppo.networks")
+    ppo_checkpoint = importlib.import_module("brax.training.agents.ppo.checkpoint")
+
+    environment = registry.load(config.environment, config_overrides=_environment_overrides(config))
+    ppo_params = playground_train.get_rl_config(config.environment)
+    hyperparameters = dict(config.training.hyperparameters)
+    hyperparameters.pop("impl", None)
+    for key, value in hyperparameters.items():
+        if key in {"policy_hidden_layer_sizes", "value_hidden_layer_sizes"}:
+            setattr(ppo_params.network_factory, key, value)
+        elif key != "network_factory":
+            setattr(ppo_params, key, value)
+    ppo_params.num_timesteps = 0
+    ppo_params.num_envs = config.training.n_envs
+    network_factory = functools.partial(
+        ppo_networks.make_ppo_networks, **ppo_params.network_factory
+    )
+    training_params = dict(ppo_params)
+    training_params.pop("network_factory", None)
+    num_eval_envs = training_params.pop("num_eval_envs", 1)
+    make_policy, params, _ = ppo.train(
+        environment=environment,
+        network_factory=network_factory,
+        seed=config.seed,
+        wrap_env_fn=wrapper.wrap_for_brax_training,
+        num_eval_envs=num_eval_envs,
+        **training_params,
+    )
+    del make_policy
+    network_config = ppo_checkpoint.network_config(
+        observation_size=environment.observation_size,
+        action_size=environment.action_size,
+        normalize_observations=bool(ppo_params.normalize_observations),
+        network_factory=network_factory,
+    )
+    ppo_checkpoint.save(output_root, 0, jax.device_get(params), network_config)
+    return output_root / "000000000000"
+
+
+def _create_initial_checkpoint_isolated(config: RunConfig, output_root: Path) -> Path:
+    """Create the initial policy in a fresh process so its JAX GPU memory is released."""
+    resolved_config = output_root.parent / "initial-policy-config.yaml"
+    resolved_config.parent.mkdir(parents=True, exist_ok=True)
+    resolved_config.write_text(config.to_yaml(), encoding="utf-8")
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sim2policy.train_mjx",
+            "--initial-worker",
+            "--config",
+            str(resolved_config),
+            "--initial-output",
+            str(output_root),
+        ],
+        check=True,
+        text=True,
+    )
+    checkpoint = output_root / "000000000000"
+    if not checkpoint.is_dir():
+        raise RuntimeError("MJX initial policy worker produced no step-zero checkpoint")
+    return checkpoint
 
 
 def train_mjx(
@@ -165,6 +282,7 @@ def train_mjx(
     runs_root: Path,
     resume: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
+    initial_checkpoint_factory: Callable[[RunConfig, Path], Path] | None = None,
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
@@ -182,6 +300,15 @@ def train_mjx(
         },
     )
     raw_resume = _prepare_resume_checkpoint(resume, config, paths) if resume is not None else None
+    initial_raw_root = paths.root / "mjx_initial"
+    initial_raw = (initial_checkpoint_factory or _create_initial_checkpoint_isolated)(
+        config, initial_raw_root
+    )
+    initial = checkpoint_path(paths.checkpoints, "initial", 0)
+    _archive_checkpoint(initial_raw, initial)
+    write_checkpoint_metadata(initial, config, 0)
+    if store.enabled:
+        store.publish_checkpoint(initial, paths.root)
     command = build_playground_command(config, paths, resume=raw_resume)
     runner(command, check=True, text=True)
     raw_checkpoints = _playground_checkpoints(paths.root / "mjx_logs")
@@ -212,11 +339,49 @@ def train_mjx(
 
 
 def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
-    require_mjx()
-    raise RuntimeError(
-        "MJX deterministic evaluation is intentionally gated until the pinned Playground "
-        "checkpoint restore API is validated on the target Linux/GPU image."
-    )
+    episodes: list[dict[str, Any]] = []
+    started = time.monotonic()
+    episode_length = int(config.training.hyperparameters.get("episode_length", 1000))
+    seeds = [
+        config.evaluation.seeds[index % len(config.evaluation.seeds)]
+        for index in range(config.evaluation.episodes)
+    ]
+    with mjx_policy_session(checkpoint, config) as (jax, environment, policy):
+        reset = jax.jit(environment.reset)
+        step = jax.jit(environment.step)
+        for index, seed in enumerate(seeds):
+            key = jax.random.PRNGKey(seed)
+            state = reset(key)
+            reward_sum = 0.0
+            velocities: list[float] = []
+            fell = False
+            length = 0
+            for episode_step in range(1, episode_length + 1):
+                length = episode_step
+                key, action_key = jax.random.split(key)
+                action, _ = policy(state.obs, action_key)
+                state = step(state, action)
+                reward_sum += float(state.reward)
+                velocities.append(float(state.data.qvel[0]))
+                if bool(state.done):
+                    fell = True
+                    break
+            mean_velocity = sum(velocities) / len(velocities)
+            success = mean_velocity >= float(config.success.min_velocity or 0)
+            if config.success.require_not_fallen:
+                success = success and not fell
+            episodes.append(
+                {
+                    "index": index,
+                    "seed": seed,
+                    "reward": reward_sum,
+                    "length": length,
+                    "mean_velocity": mean_velocity,
+                    "fell": fell,
+                    "success": success,
+                }
+            )
+    return episodes, time.monotonic() - started
 
 
 def _override(value: str) -> tuple[str, Any]:
@@ -237,7 +402,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    args = build_parser().parse_args(argv)
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    if "--initial-worker" in raw_args:
+        worker = argparse.ArgumentParser()
+        worker.add_argument("--initial-worker", action="store_true")
+        worker.add_argument("--config", required=True)
+        worker.add_argument("--initial-output", required=True, type=Path)
+        worker_args = worker.parse_args(raw_args)
+        _create_initial_checkpoint(load_config(worker_args.config), worker_args.initial_output)
+        return
+    args = build_parser().parse_args(raw_args)
     config = load_config(args.config, dict(args.overrides))
     if config.backend != "mjx":
         raise SystemExit("selected config is not an MJX config")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -109,6 +110,65 @@ def test_checkpoint_mismatch_rejected(tmp_path: Path, monkeypatch: pytest.Monkey
     checkpoint = make_checkpoint(tmp_path, "Other-v1")
     with pytest.raises(ValueError, match="checkpoint is for"):
         render.render_sb3(checkpoint, config, tmp_path / "bad.mp4")
+
+
+def test_render_mjx_uses_restored_policy_and_playground_renderer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = load_config(
+        ROOT / "configs/go1_mjx.yaml",
+        {"rendering.frames": 10, "rendering.width": 8, "rendering.height": 6},
+    )
+
+    class Random:
+        @staticmethod
+        def PRNGKey(seed: int) -> int:
+            return seed
+
+        @staticmethod
+        def split(key: int) -> tuple[int, int]:
+            return key + 1, key + 2
+
+    class FakeJax:
+        random = Random()
+
+        @staticmethod
+        def jit(function: Any) -> Any:
+            return function
+
+    class State:
+        obs = [0.0]
+        done = False
+
+    class Environment:
+        action_size = 2
+
+        def reset(self, key: int) -> State:
+            del key
+            return State()
+
+        def step(self, state: State, action: int) -> State:
+            del state, action
+            return State()
+
+        def render(self, trajectory: list[State], **size: int) -> list[Any]:
+            assert len(trajectory) == 10
+            assert size == {"height": 6, "width": 8}
+            return [[[[0, 0, 0]]]] * 10
+
+    @contextmanager
+    def session(checkpoint: Path, selected: object) -> Any:
+        del checkpoint, selected
+        yield FakeJax(), Environment(), lambda obs, key: (0, {})
+
+    monkeypatch.setattr("sim2policy.train_mjx.mjx_policy_session", session)
+    monkeypatch.setattr(
+        imageio,
+        "mimsave",
+        lambda output, frames, fps: Path(output).write_bytes(b"mp4"),
+    )
+    output = render.render_mjx(Path("policy.zip"), config, tmp_path / "mjx.mp4")
+    assert output.is_file()
 
 
 def test_make_rgb_env_retries_without_size_for_classic_control() -> None:

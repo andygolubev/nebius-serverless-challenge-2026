@@ -88,6 +88,51 @@ def render_sb3(
     return output
 
 
+def render_mjx(
+    checkpoint: Path | None, config: RunConfig, output: Path, random_policy: bool = False
+) -> Path:
+    try:
+        import imageio.v2 as imageio
+
+        from sim2policy.train_mjx import mjx_policy_session
+    except ImportError as exc:
+        raise RuntimeError("MJX rendering requires the mjx dependency group") from exc
+    if checkpoint is None:
+        raise ValueError("checkpoint is required for MJX rendering")
+    with mjx_policy_session(checkpoint, config) as (jax, environment, policy):
+        reset = jax.jit(environment.reset)
+        step = jax.jit(environment.step)
+        key = jax.random.PRNGKey(config.rendering.seed)
+        state = reset(key)
+        trajectory: list[Any] = []
+        for _ in range(config.rendering.frames):
+            key, action_key = jax.random.split(key)
+            if random_policy:
+                action = jax.random.uniform(
+                    action_key,
+                    (environment.action_size,),
+                    minval=-1.0,
+                    maxval=1.0,
+                )
+            else:
+                action, _ = policy(state.obs, action_key)
+            state = step(state, action)
+            trajectory.append(state)
+            if bool(state.done):
+                key, reset_key = jax.random.split(key)
+                state = reset(reset_key)
+        frames = environment.render(
+            trajectory,
+            height=config.rendering.height,
+            width=config.rendering.width,
+        )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    imageio.mimsave(output, frames, fps=config.rendering.fps)
+    if not output.is_file() or output.stat().st_size == 0:
+        raise RuntimeError("video encoder produced no output")
+    return output
+
+
 def render_with_fallback(args: list[str]) -> str:
     errors: list[str] = []
     for backend in ("egl", "osmesa"):
@@ -154,7 +199,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         subprocess.run(montage_command(videos, args.output), check=True)
         return
     if args.worker:
-        render_sb3(args.checkpoint, config, args.output, args.smoke_test)
+        if config.backend == "mjx":
+            render_mjx(args.checkpoint, config, args.output, args.smoke_test)
+        else:
+            render_sb3(args.checkpoint, config, args.output, args.smoke_test)
         return
     child = ["--config", args.config, "--output", str(args.output)]
     if args.checkpoint:
