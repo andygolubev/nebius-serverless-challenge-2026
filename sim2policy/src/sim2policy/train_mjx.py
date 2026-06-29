@@ -26,6 +26,7 @@ from sim2policy.checkpoint import (
 )
 from sim2policy.config import RunConfig, load_config
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
+from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
 from sim2policy.telemetry import gpu_snapshot, runtime_record, utc_now_iso, write_runtime_record
 
@@ -283,6 +284,7 @@ def train_mjx(
     resume: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     initial_checkpoint_factory: Callable[[RunConfig, Path], Path] | None = None,
+    state: RunStateStore | None = None,
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
@@ -290,6 +292,11 @@ def train_mjx(
     environment_probe = validate_mjx_environment(config)
     paths = create_run_paths(run_id, runs_root)
     store = ArtifactStore(config.storage, run_id)
+    if state is not None:
+        state.update_status(
+            STATUS_TRAINING,
+            progress={"backend": config.backend, "environment": config.environment},
+        )
     write_metadata(
         paths,
         run_id,
@@ -335,6 +342,13 @@ def train_mjx(
         ),
     )
     store.sync_tree(paths.root, required=store.enabled)
+    if state is not None:
+        manifest = state.discover_artifacts()
+        if manifest:
+            state.write_manifest(manifest)
+        state.update_status(
+            STATUS_TRAINING, progress={"latest_checkpoint": final.name, "trained_steps": final_step}
+        )
     return final
 
 
@@ -428,9 +442,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 if args.resume == "latest"
                 else Path(args.resume)
             )
+    state = RunStateStore(config.storage, args.run_id, args.runs_root)
     try:
-        final = train_mjx(config, args.run_id, args.runs_root, resume=resume)
+        final = train_mjx(config, args.run_id, args.runs_root, resume=resume, state=state)
     except (RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
+        state.update_status(STATUS_FAILED, error=str(exc))
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)
         raise SystemExit(2) from exc
     print(json.dumps({"status": "complete", "checkpoint": str(final)}))

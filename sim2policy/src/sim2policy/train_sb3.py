@@ -19,6 +19,7 @@ from sim2policy.checkpoint import (
 )
 from sim2policy.config import RunConfig, load_config
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
+from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
 from sim2policy.telemetry import gpu_snapshot, runtime_record, utc_now_iso, write_runtime_record
 
@@ -111,6 +112,7 @@ def train(
     runs_root: Path,
     resume: Path | None = None,
     sync_hook: Callable[[Path], None] | None = None,
+    state: RunStateStore | None = None,
 ) -> Path:
     PPO, _, _, _, make_vec_env = _imports()
     started_at = utc_now_iso()
@@ -124,7 +126,23 @@ def train(
             store.publish_checkpoint(checkpoint, paths.root)
 
         sync_hook = publish
+    if state is not None:
+        inner_hook = sync_hook
+
+        def _state_hook(checkpoint: Path) -> None:
+            if inner_hook is not None:
+                inner_hook(checkpoint)
+            state.update_status(
+                STATUS_TRAINING, progress={"latest_checkpoint": checkpoint.name}
+            )
+
+        sync_hook = _state_hook
     write_metadata(paths, run_id, config, {"requested": config.training.device})
+    if state is not None:
+        state.update_status(
+            STATUS_TRAINING,
+            progress={"backend": config.backend, "environment": config.environment},
+        )
     env = make_vec_env(
         config.environment,
         n_envs=config.training.n_envs,
@@ -197,6 +215,14 @@ def train(
         ),
     )
     store.sync_tree(paths.root, required=store.enabled)
+    if state is not None:
+        manifest = state.discover_artifacts()
+        if manifest:
+            state.write_manifest(manifest)
+        state.update_status(
+            STATUS_TRAINING,
+            progress={"latest_checkpoint": final.name, "trained_steps": int(model.num_timesteps)},
+        )
     return final
 
 
@@ -235,9 +261,11 @@ def main(argv: Sequence[str] | None = None) -> None:
                 if args.resume == "latest"
                 else Path(args.resume)
             )
+    state = RunStateStore(config.storage, args.run_id, args.runs_root)
     try:
-        final = train(config, args.run_id, args.runs_root, resume)
+        final = train(config, args.run_id, args.runs_root, resume, state=state)
     except (RuntimeError, ValueError) as exc:
+        state.update_status(STATUS_FAILED, error=str(exc))
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)
         raise SystemExit(2) from exc
     print(json.dumps({"status": "complete", "checkpoint": str(final)}))

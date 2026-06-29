@@ -49,13 +49,54 @@ make evaluate ENV=smoke_sb3 RUN_ID=smoke CHECKPOINT=runs/smoke/checkpoints/final
 Build and preview a cloud job:
 
 ```bash
-make build-sb3 IMAGE=<registry>/sim2policy:sb3
-export PLATFORM=gpu-l40s-d PRESET=1gpu-16vcpu-200gb TIMEOUT=1h SUBNET_ID=<id>
-make cloud-dry-run IMAGE=<registry>/sim2policy:sb3 ENV=halfcheetah_sb3 RUN_ID=hc-001
-make cloud-train IMAGE=<registry>/sim2policy:sb3 ENV=halfcheetah_sb3 RUN_ID=hc-001
+cd sim2policy/infra/nebius
+source ~/.config/sim2policy/tofu-backend.env
+export NEBIUS_IAM_TOKEN="$(nebius iam get-access-token)"
+tofu init -backend-config=backend.hcl && tofu apply
+export IMAGE="$(tofu output -raw sb3_image)"
+export S3_BUCKET="$(tofu output -raw artifact_bucket)"
+export S3_SECRET="$(tofu output -raw artifact_secret_selector)"
+export S3_ENDPOINT=https://storage.eu-north1.nebius.cloud S3_REGION=eu-north1
+export PLATFORM=gpu-l40s-a PRESET=1gpu-8vcpu-32gb TIMEOUT=1h SUBNET_ID=<id>
+cd ../..
+make cloud-dry-run IMAGE="$IMAGE" ENV=halfcheetah_sb3 RUN_ID=hc-001
+make cloud-train IMAGE="$IMAGE" ENV=halfcheetah_sb3 RUN_ID=hc-001
 ```
 
-See [job operations](sim2policy/jobs/README.md) before the first submission.
+See [OpenTofu infrastructure](sim2policy/infra/nebius/README.md) and
+[job operations](sim2policy/jobs/README.md) before the first submission.
+
+## Two ways to use Sim2Policy
+
+**1. Hosted demo API.** A thin HTTP service lets demo users start a *predefined* training run
+and fetch its artifacts without cloning the repo or owning Nebius infrastructure. Users pick from
+an allowlisted set of presets (`halfcheetah-demo`, `ant-demo`, `ant-quality`, and a
+feature-flagged `go1-mjx-demo`) and may only override safe parameters such as `seed`. No custom
+code, environments, images, or reward functions are accepted. The API never trains; it validates
+input, creates a run, and triggers a Nebius Serverless AI Job (or a local mock).
+
+```bash
+cd sim2policy
+uv sync --extra dev --extra api
+make api                      # serves on 127.0.0.1:8000 with the no-credentials mock backend
+# in another shell:
+curl localhost:8000/health
+curl localhost:8000/training-options
+curl -X POST localhost:8000/train -H 'content-type: application/json' \
+  -d '{"preset":"ant-demo","seed":42}'
+curl localhost:8000/runs/<run_id>
+curl localhost:8000/runs/<run_id>/artifacts
+```
+
+The mock backend runs the full status lifecycle locally and writes placeholder artifacts, so the
+entire API can be exercised with no Nebius credentials or GPU. Set `SIM2POLICY_API_BACKEND=nebius`
+(plus `IMAGE`, `PLATFORM`, `PRESET`, `SUBNET_ID`, and `SIM2POLICY_API_SUBMIT_SCRIPT=jobs/submit.sh`)
+to launch real jobs. See the [demo API reference](sim2policy/docs/api.md) for endpoints, request
+shapes, presets, and security limits.
+
+**2. Bring-your-own-Nebius template.** Clone the repo and run training in your own account with the
+backend, environment, and budget you choose. This is the workflow in the Quickstart above and the
+rest of this document.
 
 ## Run contract
 

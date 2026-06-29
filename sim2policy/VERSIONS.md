@@ -166,8 +166,17 @@ The adapter smoke produced:
 The image includes `git` because MuJoCo Playground downloads MuJoCo Menagerie on first quadruped
 environment load.
 
-MJX initial policy snapshots are not claimed yet: the validated Playground CLI path emits Orbax
-training checkpoints, and Sim2Policy archives all emitted raw checkpoints as periodic/final common
-artifacts. Deterministic MJX evaluation and progression rendering remain gated until the Playground
-restore, inference, and rendering APIs are validated for the published zipped Orbax checkpoint
-contract.
+The adapter now creates a true step-zero Brax policy in an isolated process, derives periodic save
+cadence from the common checkpoint config, restores published zipped Orbax checkpoints through
+`brax.training.agents.ppo.checkpoint.load_policy`, performs deterministic multi-seed locomotion
+evaluation, and renders Playground trajectories through the common media command. The new adapter
+paths are unit-tested; final Nebius GPU acceptance is recorded separately once the pushed image
+passes its bounded cloud gate.
+
+## Nebius Serverless AI GPU visibility record
+
+The official `nvidia-smi` quickstart completed on 2026-06-29 as Nebius job
+`aijob-e00sescyvnw0qat56h` using CLI 0.12.216, platform `gpu-l40s-a`, preset
+`1gpu-8vcpu-32gb`, and a one-hour safety timeout. It reported NVIDIA L40S with 46,068 MiB,
+driver 580.159.04, and CUDA 13.1. The workload started at `20:30:07.012590730Z` and finished at
+`20:30:07.391463500Z`.

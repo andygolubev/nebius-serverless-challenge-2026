@@ -66,7 +66,7 @@
 
 ## 8. Nebius Submission and Operator Commands
 
-- [ ] 8.1 Verify current Nebius Serverless AI Job CLI syntax, authentication, secret/environment support, GPU platform/preset identifiers, subnet requirements, and timeout behavior against official documentation
+- [x] 8.1 Verify current Nebius Serverless AI Job CLI syntax, authentication, secret/environment support, GPU platform/preset identifiers, subnet requirements, and timeout behavior against official documentation
 - [x] 8.2 Implement `jobs/submit.sh` with required-value validation, argument-array construction, backend module selection, mandatory timeout, and no shell evaluation of inputs
 - [x] 8.3 Implement redacted dry-run output and tests for command construction, whitespace/special-character handling, missing parameters, backend selection, and secret suppression
 - [x] 8.4 Implement Make targets for setup, checks, tests, backend builds, push, local smoke/train, cloud dry-run/train, render, evaluate, report, and cleanup
@@ -74,7 +74,7 @@
 
 ## 9. Track B Cloud Acceptance
 
-- [ ] 9.1 Run the official Nebius GPU visibility quickstart and record the verified CLI version, GPU platform/preset, and non-secret command settings
+- [x] 9.1 Run the official Nebius GPU visibility quickstart and record the verified CLI version, GPU platform/preset, and non-secret command settings
 - [ ] 9.2 Push the SB3 image and run a minimal job that verifies registry pull, package imports, CUDA visibility, and headless rendering
 - [ ] 9.3 Run a bounded ten-minute HalfCheetah job and verify checkpoints and TensorBoard files appear incrementally in object storage
 - [ ] 9.4 Interrupt or time-limit a smoke run, resume it from the remote latest checkpoint, and verify cumulative progress and artifact continuity
@@ -86,8 +86,8 @@
 - [x] 10.1 Select a reliable MuJoCo Playground quadruped environment and record the chosen environment/config API instead of depending on an implicit package default
 - [x] 10.2 Establish and lock a CUDA/JAX/MuJoCo/MJX/Brax/Playground version matrix that passes accelerator discovery and environment-step smoke tests in the MJX image
 - [x] 10.3 Add the Go1-or-selected-quadruped YAML configuration with parallelism, training budget, checkpoint cadence, evaluation seeds, and sustained-locomotion success criterion
-- [ ] 10.4 Implement the MJX trainer adapter with seeded Playground/Brax PPO configuration, initial/periodic/final checkpointing, metadata, and actionable optional-dependency errors
-- [ ] 10.5 Implement MJX checkpoint loading adapters for deterministic evaluation and rollout rendering under the common metrics and media contracts
+- [x] 10.4 Implement the MJX trainer adapter with seeded Playground/Brax PPO configuration, initial/periodic/final checkpointing, metadata, and actionable optional-dependency errors
+- [x] 10.5 Implement MJX checkpoint loading adapters for deterministic evaluation and rollout rendering under the common metrics and media contracts
 - [x] 10.6 Wire MJX periodic/final S3 sync and compatible checkpoint resume or explicitly document and test any library-imposed resume limitation before cloud training
 - [x] 10.7 Add tests for MJX config mapping, missing dependencies, checkpoint metadata, success evaluation, and backend isolation from SB3
 - [x] 10.8 Run the MJX image smoke gate locally or on Nebius and stop Track A work at the documented cutoff if the pinned stack cannot pass it, preserving the complete Track B deliverable
@@ -96,7 +96,7 @@
 ## 11. Benchmarking and Comparison
 
 - [x] 11.1 Capture wall-clock timestamps and GPU telemetry for comparable Track A and Track B runs without blocking training when telemetry is unavailable
-- [ ] 11.2 Obtain an explicit dated Nebius rate and currency input and implement reproducible runtime-times-rate cost calculation
+- [x] 11.2 Obtain an explicit dated Nebius rate and currency input and implement reproducible runtime-times-rate cost calculation
 - [x] 11.3 Implement comparison-table generation from versioned metrics documents with compatibility/context disclosures and unavailable-value handling
 - [x] 11.4 Add tests for cost arithmetic, rate metadata, mismatched comparison context, partial telemetry, and honest unavailable fields
 - [x] 11.5 Generate the final Track A versus Track B comparison when both runs exist, or generate a Track B-only benchmark that clearly marks Track A as not completed

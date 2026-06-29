@@ -33,7 +33,12 @@ mjx = [
   "mujoco-mjx>=3.3,<4",
   "playground>=0.0.4,<1",
 ]
+api = [
+  "fastapi>=0.115,<1",
+  "uvicorn>=0.32,<1",
+]
 dev = [
+  "httpx>=0.27,<1",
   "mypy>=1.14,<2",
   "pytest>=8.3,<9",
   "pytest-cov>=6,<8",
@@ -48,6 +53,7 @@ sim2policy-train-mjx = "sim2policy.train_mjx:main"
 sim2policy-evaluate = "sim2policy.evaluate:main"
 sim2policy-render = "sim2policy.render:main"
 sim2policy-report = "sim2policy.report_cli:main"
+sim2policy-api = "sim2policy.api.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sim2policy"]

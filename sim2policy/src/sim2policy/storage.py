@@ -126,6 +126,57 @@ class ArtifactStore:
             )
         return manifest
 
+    def put_json(self, relative: str | PurePosixPath, payload: dict[str, Any]) -> str:
+        """Write a small JSON object directly to durable storage.
+
+        Used for run metadata (status, request, artifact manifest) that must be
+        readable mid-run, independently of the local run tree and final sync.
+        """
+        key = self.key_for(relative)
+        if not self.enabled:
+            return key
+        body = json.dumps(payload, indent=2, sort_keys=True).encode()
+        self._attempt(
+            f"put {relative}",
+            lambda: self.client.put_object(
+                Bucket=self.config.bucket,
+                Key=key,
+                Body=body,
+                ContentType="application/json",
+            ),
+        )
+        return key
+
+    def get_json_optional(self, relative: str | PurePosixPath) -> dict[str, Any] | None:
+        """Read a JSON object, returning None when it does not yet exist.
+
+        A single attempt is made (no retry): a missing object is an expected
+        state for in-progress runs, not a transient failure to retry.
+        """
+        if not self.enabled:
+            return None
+        key = self.key_for(relative)
+        try:
+            response = self.client.get_object(Bucket=self.config.bucket, Key=key)
+        except Exception:  # missing key or transient error -> treat as absent
+            return None
+        result = json.loads(response["Body"].read())
+        if not isinstance(result, dict):
+            raise StorageError(f"invalid JSON object at {relative}")
+        return result
+
+    def presigned_url(self, relative: str | PurePosixPath, *, expires: int = 3600) -> str:
+        """Return a time-limited GET URL for an object under the run prefix."""
+        key = self.key_for(relative)
+        if not self.enabled:
+            return key
+        url = self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.config.bucket, "Key": key},
+            ExpiresIn=expires,
+        )
+        return str(url)
+
     def _get_json(self, relative: str) -> dict[str, Any]:
         if not self.enabled:
             raise StorageError("remote resume requires S3 storage mode")

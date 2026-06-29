@@ -1,0 +1,84 @@
+# Allowlisted demo training presets for the hosted Sim2Policy API.
+#
+# Each preset pins a fixed, project-controlled training configuration (backend,
+# environment, algorithm, base run-config file, and hard limits). Demo users may
+# only choose a preset name and override the small set of `safe_params` declared
+# here; no environment IDs, images, commands, code, or reward functions are ever
+# accepted from request input. This file IS the allowlist.
+version: 1
+presets:
+  halfcheetah-demo:
+    description: >-
+      Quick HalfCheetah PPO run. Fast local/cloud smoke test producing a final
+      checkpoint, a short rollout video, and metrics.
+    enabled: true
+    backend: sb3
+    environment: HalfCheetah-v5
+    algorithm: PPO
+    base_config: configs/halfcheetah_sb3.yaml
+    overrides:
+      training.total_steps: 300000
+    limits:
+      max_total_steps: 500000
+      max_duration: "1h"
+    expected_artifacts: [final_policy, metrics_json, report_md, video_final]
+    safe_params:
+      seed: {type: int, min: 0, max: 2147483647, default: 0}
+      render_progress_video: {type: bool, default: true}
+
+  ant-demo:
+    description: >-
+      Ant PPO demo at a budget that yields a visually understandable walking
+      result, with untrained/mid/final videos, metrics, and a report.
+    enabled: true
+    backend: sb3
+    environment: Ant-v5
+    algorithm: PPO
+    base_config: configs/ant_sb3.yaml
+    overrides:
+      training.total_steps: 2000000
+    limits:
+      max_total_steps: 3000000
+      max_duration: "3h"
+    expected_artifacts:
+      [final_policy, metrics_json, report_md, video_untrained, video_mid, video_final, progression_montage]
+    safe_params:
+      seed: {type: int, min: 0, max: 2147483647, default: 0}
+      render_progress_video: {type: bool, default: true}
+
+  ant-quality:
+    description: >-
+      Longer Ant PPO run aimed at a higher-quality final policy for demo
+      recording. Slower; produces the same artifacts as ant-demo.
+    enabled: true
+    backend: sb3
+    environment: Ant-v5
+    algorithm: PPO
+    base_config: configs/ant_sb3.yaml
+    overrides:
+      training.total_steps: 5000000
+    limits:
+      max_total_steps: 6000000
+      max_duration: "8h"
+    expected_artifacts:
+      [final_policy, metrics_json, report_md, video_untrained, video_mid, video_final, progression_montage]
+    safe_params:
+      seed: {type: int, min: 0, max: 2147483647, default: 0}
+      render_progress_video: {type: bool, default: true}
+
+  go1-mjx-demo:
+    description: >-
+      GPU-native Go1 quadruped PPO demo on the MJX/Brax backend. Feature-flagged;
+      enable only when the MJX track is supported reliably in your deployment.
+    enabled: false
+    backend: mjx
+    environment: Go1JoystickFlatTerrain
+    algorithm: PPO
+    base_config: configs/go1_mjx.yaml
+    limits:
+      max_total_steps: 100000000
+      max_duration: "4h"
+    expected_artifacts: [final_policy, metrics_json, report_md, video_final, progression_montage]
+    safe_params:
+      seed: {type: int, min: 0, max: 2147483647, default: 0}
+      render_progress_video: {type: bool, default: true}

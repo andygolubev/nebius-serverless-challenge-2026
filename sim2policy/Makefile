@@ -8,9 +8,13 @@ AWS_STACK ?= sim2policy-debug-g6
 AWS_DEBUG_KEY ?= /tmp/$(AWS_STACK).pem
 AWS_SSH_LOCATION ?= $(shell curl -fsS https://checkip.amazonaws.com 2>/dev/null)/32
 
-.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render report cloud-dry-run cloud-train aws-debug-validate aws-debug-deploy aws-debug-key aws-debug-ssh aws-debug-stop aws-debug-delete clean
+API_HOST ?= 127.0.0.1
+API_PORT ?= 8000
+BACKEND ?= mock
+
+.PHONY: setup check test lock build-sb3 build-mjx push smoke train evaluate render report api cloud-dry-run cloud-train aws-debug-validate aws-debug-deploy aws-debug-key aws-debug-ssh aws-debug-stop aws-debug-delete clean
 setup:
-	uv sync --extra dev
+	uv sync --extra dev --extra api
 check:
 	uv run ruff check src tests
 	uv run mypy src
@@ -34,6 +38,8 @@ render:
 	uv run python -m sim2policy.render --config $(CONFIG) --run-id $(RUN_ID) --checkpoint $(CHECKPOINT) --output runs/$(RUN_ID)/videos/rollout.mp4
 report:
 	uv run python -m sim2policy.report_cli curve --config $(CONFIG) --run-root runs/$(RUN_ID)
+api:
+	SIM2POLICY_API_BACKEND=$(BACKEND) SIM2POLICY_API_HOST=$(API_HOST) SIM2POLICY_API_PORT=$(API_PORT) uv run sim2policy-api
 cloud-dry-run:
 	DRY_RUN=1 IMAGE=$(IMAGE) CONFIG=$(CONFIG) RUN_ID=$(RUN_ID) jobs/submit.sh
 cloud-train:

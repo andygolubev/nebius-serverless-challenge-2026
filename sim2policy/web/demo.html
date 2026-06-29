@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sim2Policy demo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+      h1 { font-size: 1.4rem; }
+      fieldset { border: 1px solid #ccc; border-radius: 8px; margin: 1rem 0; }
+      label { display: inline-block; min-width: 7rem; }
+      select, input, button { padding: 0.35rem 0.5rem; font-size: 1rem; }
+      button { cursor: pointer; }
+      #status { font-family: ui-monospace, monospace; white-space: pre-wrap; background: #f6f6f6; padding: 0.75rem; border-radius: 6px; }
+      .muted { color: #666; font-size: 0.85rem; }
+      ul { padding-left: 1.2rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Sim2Policy demo</h1>
+    <p class="muted">
+      Start a predefined robot training run and watch it progress. This page only calls the demo
+      API; it never uploads code or environments.
+    </p>
+
+    <fieldset>
+      <legend>Service</legend>
+      <label for="base">API base</label>
+      <input id="base" value="http://127.0.0.1:8000" size="32" />
+      <label for="token">Token</label>
+      <input id="token" placeholder="(optional)" size="16" />
+    </fieldset>
+
+    <fieldset>
+      <legend>Start a run</legend>
+      <label for="preset">Preset</label>
+      <select id="preset"></select>
+      <label for="seed">Seed</label>
+      <input id="seed" type="number" value="42" min="0" />
+      <p><button id="start">Start training</button></p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Status</legend>
+      <div id="status">No run yet.</div>
+    </fieldset>
+
+    <fieldset id="artifacts-box" style="display:none">
+      <legend>Result</legend>
+      <video id="video" controls width="640" style="max-width:100%"></video>
+      <div id="metrics" class="muted"></div>
+      <ul id="artifacts"></ul>
+    </fieldset>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const headers = () => {
+        const h = { "content-type": "application/json" };
+        const t = $("token").value.trim();
+        if (t) h["Authorization"] = `Bearer ${t}`;
+        return h;
+      };
+      const base = () => $("base").value.replace(/\/$/, "");
+
+      async function loadPresets() {
+        try {
+          const res = await fetch(`${base()}/training-options`, { headers: headers() });
+          const data = await res.json();
+          $("preset").innerHTML = "";
+          for (const p of data.presets) {
+            const opt = document.createElement("option");
+            opt.value = p.name;
+            opt.textContent = `${p.name} — ${p.environment}`;
+            $("preset").appendChild(opt);
+          }
+        } catch (e) {
+          $("status").textContent = `Could not load presets: ${e}`;
+        }
+      }
+
+      async function poll(runId) {
+        for (;;) {
+          const res = await fetch(`${base()}/runs/${runId}`, { headers: headers() });
+          const s = await res.json();
+          $("status").textContent = JSON.stringify(s, null, 2);
+          if (s.status === "completed" || s.status === "failed") return s;
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+
+      async function showArtifacts(runId) {
+        const res = await fetch(`${base()}/runs/${runId}/artifacts`, { headers: headers() });
+        const data = await res.json();
+        const a = data.artifacts || {};
+        $("artifacts-box").style.display = a && Object.keys(a).length ? "block" : "none";
+        const final = a.progression_montage || a.video_final;
+        if (final) $("video").src = final;
+        $("artifacts").innerHTML = "";
+        for (const [name, url] of Object.entries(a)) {
+          const li = document.createElement("li");
+          const link = document.createElement("a");
+          link.href = url; link.textContent = name; link.target = "_blank";
+          li.appendChild(link);
+          $("artifacts").appendChild(li);
+        }
+      }
+
+      $("start").addEventListener("click", async () => {
+        $("artifacts-box").style.display = "none";
+        const body = JSON.stringify({ preset: $("preset").value, seed: Number($("seed").value) });
+        const res = await fetch(`${base()}/train`, { method: "POST", headers: headers(), body });
+        if (!res.ok) {
+          $("status").textContent = `Start failed (${res.status}): ${await res.text()}`;
+          return;
+        }
+        const { run_id } = await res.json();
+        const final = await poll(run_id);
+        if (final.status === "completed") await showArtifacts(run_id);
+      });
+
+      loadPresets();
+    </script>
+  </body>
+</html>
