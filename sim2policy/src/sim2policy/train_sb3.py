@@ -124,6 +124,7 @@ def train(
 
         def publish(checkpoint: Path) -> None:
             store.publish_checkpoint(checkpoint, paths.root)
+            store.sync_runtime_artifacts(paths.root)
 
         sync_hook = publish
     if state is not None:

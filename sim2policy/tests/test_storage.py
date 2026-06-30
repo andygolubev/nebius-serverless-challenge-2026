@@ -76,6 +76,21 @@ def test_checkpoint_is_uploaded_before_manifest(tmp_path: Path) -> None:
     assert [event[0] for event in client.events] == ["upload", "upload", "put"]
 
 
+def test_runtime_sync_uploads_tensorboard_but_not_checkpoints(tmp_path: Path) -> None:
+    client = FakeS3()
+    store = ArtifactStore(s3_config(), "run-1", client=client)
+    checkpoint = make_checkpoint(tmp_path)
+    event = tmp_path / "tensorboard" / "events.out.tfevents.test"
+    event.parent.mkdir()
+    event.write_bytes(b"events")
+
+    uploaded = store.sync_runtime_artifacts(tmp_path)
+
+    assert uploaded == ["sim2policy/run-1/tensorboard/events.out.tfevents.test"]
+    assert ("test", uploaded[0]) in client.objects
+    assert all(checkpoint.name not in key for _, key in client.events)
+
+
 def test_retry_and_degraded_state(tmp_path: Path) -> None:
     artifact = tmp_path / "report" / "metrics.json"
     artifact.parent.mkdir()

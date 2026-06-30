@@ -98,6 +98,23 @@ class ArtifactStore:
             raise StorageError("required final artifacts remain local: " + "; ".join(failures))
         return uploaded
 
+    def sync_runtime_artifacts(self, run_root: Path) -> list[str]:
+        """Upload mutable non-checkpoint artifacts during a running job.
+
+        Checkpoints use :meth:`publish_checkpoint` so their latest manifest is only advanced after
+        a complete upload. This companion sync makes TensorBoard events and run/report metadata
+        observable at the same checkpoint cadence without treating mutable files as checkpoints.
+        """
+        if not self.enabled:
+            return []
+        uploaded: list[str] = []
+        for local in sorted(path for path in run_root.rglob("*") if path.is_file()):
+            relative = local.relative_to(run_root)
+            if relative.parts[0] == "checkpoints":
+                continue
+            uploaded.append(self.upload_file(local, relative.as_posix()))
+        return uploaded
+
     def publish_checkpoint(self, checkpoint: Path, run_root: Path) -> dict[str, Any]:
         metadata = load_checkpoint_metadata(checkpoint)
         relative_checkpoint = checkpoint.relative_to(run_root).as_posix()
