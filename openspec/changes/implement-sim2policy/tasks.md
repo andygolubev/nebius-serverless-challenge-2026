@@ -76,8 +76,8 @@
 
 - [x] 9.1 Run the official Nebius GPU visibility quickstart and record the verified CLI version, GPU platform/preset, and non-secret command settings
 - [x] 9.2 Push the SB3 image and run a minimal job that verifies registry pull, package imports, CUDA visibility, and headless rendering
-- [ ] 9.3 Run a bounded ten-minute HalfCheetah job and verify checkpoints and TensorBoard files appear incrementally in object storage
-- [ ] 9.4 Interrupt or time-limit a smoke run, resume it from the remote latest checkpoint, and verify cumulative progress and artifact continuity
+- [x] 9.3 Run a bounded ten-minute HalfCheetah job and verify checkpoints and TensorBoard files appear incrementally in object storage
+- [x] 9.4 Interrupt or time-limit a smoke run, resume it from the remote latest checkpoint, and verify cumulative progress and artifact continuity
 - [ ] 9.5 Run the full HalfCheetah configuration, evaluate the final checkpoint, render initial/mid/final rollouts, and publish the run report
 - [ ] 9.6 Run the bounded Ant configuration through training, evaluation, rendering, and durable publication; record actual success or failure without altering results
 

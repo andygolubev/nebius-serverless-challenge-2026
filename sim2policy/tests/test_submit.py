@@ -21,6 +21,7 @@ def test_dry_run_and_missing_parameter() -> None:
         "TIMEOUT": "1h",
         "SUBNET_ID": "subnet",
         "DRY_RUN": "1",
+        "RESUME": "remote",
         "S3_ACCESS_KEY_ID": "NAKITESTACCESSKEYID",
         "S3_SECRET": "secret-id",
         "S3_BUCKET": "artifacts",
@@ -35,6 +36,7 @@ def test_dry_run_and_missing_parameter() -> None:
     assert "AWS_SECRET_ACCESS_KEY=<redacted>" in preview.stdout
     assert "storage.mode" in preview.stdout
     assert "restart-policy never" in preview.stdout
+    assert "--resume\\ remote" in preview.stdout
 
     unsafe = dict(env, RUN_ID="../unsafe")
     rejected = subprocess.run([script], capture_output=True, text=True, env=unsafe)
@@ -52,3 +54,10 @@ def test_dry_run_and_missing_parameter() -> None:
     )
     assert rejected_credentials.returncode == 2
     assert "S3_ACCESS_KEY_ID is required" in rejected_credentials.stderr
+
+    invalid_resume = dict(env, RESUME="latest")
+    rejected_resume = subprocess.run(
+        [script], capture_output=True, text=True, env=invalid_resume
+    )
+    assert rejected_resume.returncode == 2
+    assert "RESUME must be remote" in rejected_resume.stderr

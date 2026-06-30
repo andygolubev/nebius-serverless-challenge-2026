@@ -15,6 +15,12 @@ if [[ ! "$TIMEOUT" =~ ^[0-9]+(h|m|s)([0-9]+(m|s))?$ ]]; then
 fi
 module="sim2policy.train_${BACKEND}"
 container_args=(-m "$module" --config "$CONFIG" --run-id "$RUN_ID")
+if [[ -n "${RESUME:-}" ]]; then
+  if [[ "$RESUME" != remote ]]; then
+    echo "RESUME must be remote for cloud jobs" >&2; exit 2
+  fi
+  container_args+=(--resume remote)
+fi
 if [[ -n "${S3_BUCKET:-}" ]]; then
   container_args+=(--set "storage.mode=s3" --set "storage.bucket=$S3_BUCKET")
 fi
