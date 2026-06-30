@@ -19,6 +19,8 @@ tofu plan -out=sim2policy.tfplan
 tofu apply sim2policy.tfplan
 ```
 
-Use `tofu output -raw sb3_image`, `artifact_bucket`, and `artifact_secret_selector` when building,
-pushing, and submitting jobs. The artifact bucket is capped at 50 GiB and aborts incomplete
-multipart uploads after one day to bound accidental storage growth.
+Use `tofu output -raw sb3_image`, `artifact_bucket`, `artifact_access_key_id`, and
+`artifact_secret_selector` when building, pushing, and submitting jobs. The access key ID is
+non-secret; the selector resolves only the secret access key and must be supplied with
+`--env-secret`. The artifact bucket is capped at 50 GiB and aborts incomplete multipart uploads
+after one day to bound accidental storage growth.

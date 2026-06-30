@@ -8,7 +8,8 @@ interface supports `--env`, `--env-secret`, `--platform`, `--preset`, `--subnet-
 
 The wrapper targets the current `nebius ai job create` interface. It requires `IMAGE`, `CONFIG`,
 `RUN_ID`, `PLATFORM`, `PRESET`, `TIMEOUT`, and `SUBNET_ID`. Use `DRY_RUN=1` first; secret selectors
-are accepted through `REGISTRY_SECRET` and `S3_SECRET` and redacted from previews.
+are accepted through `REGISTRY_SECRET` and `S3_SECRET` and redacted from previews. S3 jobs also
+require the paired, non-secret `S3_ACCESS_KEY_ID` output from OpenTofu.
 
 Run gates in order: official NVIDIA visibility quickstart, Sim2Policy image health command, render
 smoke, ten-minute training/storage sync, resume drill, then a full run. Check tenant GPU quotas and
@@ -21,10 +22,10 @@ Never pass raw registry or S3 credentials on the command line. Put them in Myste
 selectors to the wrapper.
 
 Infrastructure is managed in `infra/nebius` using OpenTofu 1.12.3 and Nebius provider 0.6.22.
-Use `tofu output -raw sb3_image`, `artifact_bucket`, and `artifact_secret_selector` rather than
-copying resource identifiers into source files. The wrapper maps the bucket, endpoint, and region
-to validated config overrides and passes one MysteryBox selector to both standard AWS credential
-environment variables.
+Use `tofu output -raw sb3_image`, `artifact_bucket`, `artifact_access_key_id`, and
+`artifact_secret_selector` rather than copying resource identifiers into source files. The wrapper
+maps the bucket, endpoint, and region to validated config overrides, passes the non-secret access
+key ID with `--env`, and injects only the secret access key from MysteryBox with `--env-secret`.
 
 The official visibility gate completed on 2026-06-29 as job `aijob-e00sescyvnw0qat56h` using
 `gpu-l40s-a`, `1gpu-8vcpu-32gb`, subnet `vpcsubnet-e00ka7ggch340z2eyj`, and a one-hour safety

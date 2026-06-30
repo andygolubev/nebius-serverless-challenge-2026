@@ -38,8 +38,14 @@ command=(nebius ai job create
   --restart-policy never)
 if [[ -n "${PARENT_ID:-}" ]]; then command+=(--parent-id "$PARENT_ID"); fi
 if [[ -n "${REGISTRY_SECRET:-}" ]]; then command+=(--registry-secret "$REGISTRY_SECRET"); fi
-if [[ -n "${S3_SECRET:-}" ]]; then
-  command+=(--env-secret "AWS_ACCESS_KEY_ID=${S3_SECRET}")
+if [[ -n "${S3_SECRET:-}" || -n "${S3_ACCESS_KEY_ID:-}" ]]; then
+  if [[ -z "${S3_SECRET:-}" ]]; then
+    echo "S3_SECRET is required when S3_ACCESS_KEY_ID is set" >&2; exit 2
+  fi
+  if [[ -z "${S3_ACCESS_KEY_ID:-}" ]]; then
+    echo "S3_ACCESS_KEY_ID is required when S3_SECRET is set" >&2; exit 2
+  fi
+  command+=(--env "AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID}")
   command+=(--env-secret "AWS_SECRET_ACCESS_KEY=${S3_SECRET}")
 fi
 if [[ "${PREEMPTIBLE:-0}" == 1 ]]; then command+=(--preemptible); fi

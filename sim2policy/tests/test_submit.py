@@ -21,6 +21,7 @@ def test_dry_run_and_missing_parameter() -> None:
         "TIMEOUT": "1h",
         "SUBNET_ID": "subnet",
         "DRY_RUN": "1",
+        "S3_ACCESS_KEY_ID": "NAKITESTACCESSKEYID",
         "S3_SECRET": "secret-id",
         "S3_BUCKET": "artifacts",
         "S3_ENDPOINT": "https://storage.example",
@@ -30,6 +31,8 @@ def test_dry_run_and_missing_parameter() -> None:
     assert preview.returncode == 0
     assert "nebius" in preview.stdout
     assert "secret-id" not in preview.stdout
+    assert "AWS_ACCESS_KEY_ID=NAKITESTACCESSKEYID" in preview.stdout
+    assert "AWS_SECRET_ACCESS_KEY=<redacted>" in preview.stdout
     assert "storage.mode" in preview.stdout
     assert "restart-policy never" in preview.stdout
 
@@ -41,3 +44,11 @@ def test_dry_run_and_missing_parameter() -> None:
     escaped = subprocess.run([script], capture_output=True, text=True, env=spaced)
     assert escaped.returncode == 0
     assert "team\\ image" in escaped.stdout
+
+    missing_access_id = dict(env)
+    missing_access_id.pop("S3_ACCESS_KEY_ID")
+    rejected_credentials = subprocess.run(
+        [script], capture_output=True, text=True, env=missing_access_id
+    )
+    assert rejected_credentials.returncode == 2
+    assert "S3_ACCESS_KEY_ID is required" in rejected_credentials.stderr

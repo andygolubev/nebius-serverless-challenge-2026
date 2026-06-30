@@ -249,3 +249,5 @@ terraform.tfvars
 
 # Local handoff notes for AI-assisted implementation sessions.
 IMPLEMENTATION_LOG.MD
+
+.DS_Store

@@ -7,8 +7,13 @@ output "artifact_bucket_id" {
 }
 
 output "artifact_secret_selector" {
-  description = "MysteryBox selector accepted by the Serverless AI --env-secret flag."
+  description = "MysteryBox selector containing the AWS secret access key for --env-secret."
   value       = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
+}
+
+output "artifact_access_key_id" {
+  description = "Non-secret AWS access key ID paired with artifact_secret_selector."
+  value       = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
 }
 
 output "registry_fqdn" {

@@ -24,6 +24,20 @@ flowchart LR
   A --> E["Evaluation + progression montage"]
 ```
 
+## How this differs from the robotics fine-tuning recipes
+
+Sim2Policy learns a policy by **reinforcement learning inside a physics simulator**: PPO collects
+its own transitions from MuJoCo/MJX rollouts and improves from reward alone — no demonstration
+dataset, no teleoperation, no labels. This is deliberately different from imitation-learning
+recipes such as the LeRobot ACT/Diffusion and SmolVLA fine-tuning examples in the
+[Nebius serverless-ai-cookbook](https://github.com/nebius/serverless-ai-cookbook), which
+*supervise* a network on pre-recorded real-robot demonstrations. There is no overlap with the
+cookbook on the pieces that define this project: RL with PPO, MuJoCo/MJX GPU-parallel simulation,
+sim-to-real locomotion, and a **hosted training-as-a-service API** that exposes allowlisted presets
+(with a credential-free mock backend) rather than clone-and-run scripts. If you have demonstration
+data and want supervised fine-tuning, use the cookbook's LeRobot/SmolVLA jobs; if you want a policy
+trained from simulation and reward, use Sim2Policy.
+
 ## Quickstart
 
 Use Linux with Python 3.11/3.12. A GPU is optional for shared tests and required for the intended
@@ -55,6 +69,7 @@ export NEBIUS_IAM_TOKEN="$(nebius iam get-access-token)"
 tofu init -backend-config=backend.hcl && tofu apply
 export IMAGE="$(tofu output -raw sb3_image)"
 export S3_BUCKET="$(tofu output -raw artifact_bucket)"
+export S3_ACCESS_KEY_ID="$(tofu output -raw artifact_access_key_id)"
 export S3_SECRET="$(tofu output -raw artifact_secret_selector)"
 export S3_ENDPOINT=https://storage.eu-north1.nebius.cloud S3_REGION=eu-north1
 export PLATFORM=gpu-l40s-a PRESET=1gpu-8vcpu-32gb TIMEOUT=1h SUBNET_ID=<id>
