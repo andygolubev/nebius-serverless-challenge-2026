@@ -22,6 +22,7 @@ def test_dry_run_and_missing_parameter() -> None:
         "SUBNET_ID": "subnet",
         "DRY_RUN": "1",
         "RESUME": "remote",
+        "TOTAL_STEPS": "200000",
         "S3_ACCESS_KEY_ID": "NAKITESTACCESSKEYID",
         "S3_SECRET": "secret-id",
         "S3_BUCKET": "artifacts",
@@ -37,6 +38,7 @@ def test_dry_run_and_missing_parameter() -> None:
     assert "storage.mode" in preview.stdout
     assert "restart-policy never" in preview.stdout
     assert "--resume\\ remote" in preview.stdout
+    assert "training.total_steps=200000" in preview.stdout
 
     unsafe = dict(env, RUN_ID="../unsafe")
     rejected = subprocess.run([script], capture_output=True, text=True, env=unsafe)
@@ -61,3 +63,10 @@ def test_dry_run_and_missing_parameter() -> None:
     )
     assert rejected_resume.returncode == 2
     assert "RESUME must be remote" in rejected_resume.stderr
+
+    invalid_steps = dict(env, TOTAL_STEPS="0")
+    rejected_steps = subprocess.run(
+        [script], capture_output=True, text=True, env=invalid_steps
+    )
+    assert rejected_steps.returncode == 2
+    assert "TOTAL_STEPS must be a positive integer" in rejected_steps.stderr

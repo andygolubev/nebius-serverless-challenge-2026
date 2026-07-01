@@ -21,6 +21,12 @@ if [[ -n "${RESUME:-}" ]]; then
   fi
   container_args+=(--resume remote)
 fi
+if [[ -n "${TOTAL_STEPS:-}" ]]; then
+  if [[ ! "$TOTAL_STEPS" =~ ^[1-9][0-9]*$ ]]; then
+    echo "TOTAL_STEPS must be a positive integer" >&2; exit 2
+  fi
+  container_args+=(--set "training.total_steps=$TOTAL_STEPS")
+fi
 if [[ -n "${S3_BUCKET:-}" ]]; then
   container_args+=(--set "storage.mode=s3" --set "storage.bucket=$S3_BUCKET")
 fi

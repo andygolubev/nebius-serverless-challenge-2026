@@ -19,6 +19,8 @@ be cancelled as soon as their gate passes. Inspect jobs with `nebius ai job list
 `s3://<bucket>/sim2policy/<run-id>/`; cancelling a job does not delete them.
 Set `RESUME=remote` with the same `RUN_ID` and config to validate and continue from that run's
 published `checkpoints/latest.json` manifest.
+For an explicitly bounded acceptance run, set positive integer `TOTAL_STEPS`; the wrapper passes it
+as a validated `training.total_steps` override without editing the recorded base config.
 
 Never pass raw registry or S3 credentials on the command line. Put them in MysteryBox and supply
 selectors to the wrapper.

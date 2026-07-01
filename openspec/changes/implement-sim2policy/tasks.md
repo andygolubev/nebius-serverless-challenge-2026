@@ -78,7 +78,7 @@
 - [x] 9.2 Push the SB3 image and run a minimal job that verifies registry pull, package imports, CUDA visibility, and headless rendering
 - [x] 9.3 Run a bounded ten-minute HalfCheetah job and verify checkpoints and TensorBoard files appear incrementally in object storage
 - [x] 9.4 Interrupt or time-limit a smoke run, resume it from the remote latest checkpoint, and verify cumulative progress and artifact continuity
-- [ ] 9.5 Run the full HalfCheetah configuration, evaluate the final checkpoint, render initial/mid/final rollouts, and publish the run report
+- [x] 9.5 Run the full HalfCheetah configuration, evaluate the final checkpoint, render initial/mid/final rollouts, and publish the run report
 - [ ] 9.6 Run the bounded Ant configuration through training, evaluation, rendering, and durable publication; record actual success or failure without altering results
 
 ## 10. Track A GPU-Native Training
