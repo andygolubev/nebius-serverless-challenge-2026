@@ -14,6 +14,10 @@ cloud credentials, Terraform/OpenTofu state, plans, or local environment files.
 
 ## Nebius build and GPU workflow
 
+**Always stop or delete every VM once its task is done.** Do not leave GPU or CPU instances
+running after the work that needed them completes — stop the CPU builder when its cached disk is
+still useful, and delete instances you no longer need so they stop incurring cost.
+
 Use separate machines for image construction and GPU execution:
 
 - Build SB3 and MJX images on a reusable `cpu-d3` VM in `eu-north1`, normally
