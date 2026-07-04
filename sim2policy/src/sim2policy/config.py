@@ -173,6 +173,23 @@ def _validate(config: RunConfig) -> None:
         raise ConfigError("SB3 configs currently require mean_reward success")
     if config.backend == "mjx" and config.success.kind != "locomotion":
         raise ConfigError("MJX configs currently require locomotion success")
+    if config.backend == "mjx":
+        batch_size = config.training.hyperparameters.get("batch_size")
+        num_minibatches = config.training.hyperparameters.get("num_minibatches")
+        if batch_size is not None and num_minibatches is not None:
+            if (
+                not isinstance(batch_size, int)
+                or isinstance(batch_size, bool)
+                or batch_size <= 0
+                or not isinstance(num_minibatches, int)
+                or isinstance(num_minibatches, bool)
+                or num_minibatches <= 0
+            ):
+                raise ConfigError("MJX batch_size and num_minibatches must be positive integers")
+            if batch_size * num_minibatches % config.training.n_envs != 0:
+                raise ConfigError(
+                    "MJX batch_size multiplied by num_minibatches must be divisible by n_envs"
+                )
     if config.storage.mode == "s3" and not config.storage.bucket:
         raise ConfigError("S3 storage mode requires bucket")
     validate_prefix(config.storage.prefix)

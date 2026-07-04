@@ -38,6 +38,21 @@ def test_unknown_override_is_rejected() -> None:
         load_config(ROOT / "configs/smoke_sb3.yaml", {"not.real": 1})
 
 
+def test_rejects_incompatible_mjx_batch_geometry() -> None:
+    with pytest.raises(ConfigError, match="must be divisible by n_envs"):
+        load_config(
+            ROOT / "configs/go1_mjx.yaml",
+            {
+                "training.n_envs": 4096,
+                "training.hyperparameters": {
+                    "impl": "jax",
+                    "batch_size": 256,
+                    "num_minibatches": 8,
+                },
+            },
+        )
+
+
 def test_redacts_nested_secrets() -> None:
     assert redact_mapping({"token": "secret", "nested": {"password": "secret"}}) == {
         "token": "<redacted>",

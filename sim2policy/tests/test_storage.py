@@ -42,6 +42,14 @@ class FakeS3:
     def download_file(self, bucket: str, key: str, filename: str) -> None:
         Path(filename).write_bytes(self.objects[(bucket, key)])
 
+    def list_objects_v2(self, *, Bucket: str, Prefix: str, **_: Any) -> dict[str, Any]:
+        keys = sorted(
+            key
+            for bucket, key in self.objects
+            if bucket == Bucket and key.startswith(Prefix)
+        )
+        return {"Contents": [{"Key": key} for key in keys], "IsTruncated": False}
+
 
 def s3_config(retries: int = 2) -> StorageConfig:
     return StorageConfig(mode="s3", bucket="test", prefix="sim2policy", retries=retries)
@@ -89,6 +97,22 @@ def test_runtime_sync_uploads_tensorboard_but_not_checkpoints(tmp_path: Path) ->
     assert uploaded == ["sim2policy/run-1/tensorboard/events.out.tfevents.test"]
     assert ("test", uploaded[0]) in client.objects
     assert all(checkpoint.name not in key for _, key in client.events)
+
+
+def test_download_tree_restores_selected_run_subtrees(tmp_path: Path) -> None:
+    client = FakeS3()
+    store = ArtifactStore(s3_config(), "run-1", client=client)
+    client.objects[("test", store.key_for("checkpoints/final.zip"))] = b"policy"
+    client.objects[("test", store.key_for("tensorboard/events"))] = b"events"
+    client.objects[("test", store.key_for("report/ignored.json"))] = b"{}"
+
+    restored = store.download_tree(tmp_path, ("checkpoints", "tensorboard"))
+
+    assert [path.relative_to(tmp_path).as_posix() for path in restored] == [
+        "checkpoints/final.zip",
+        "tensorboard/events",
+    ]
+    assert (tmp_path / "checkpoints/final.zip").read_bytes() == b"policy"
 
 
 def test_retry_and_degraded_state(tmp_path: Path) -> None:

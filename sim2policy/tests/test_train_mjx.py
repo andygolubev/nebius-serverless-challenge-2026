@@ -12,7 +12,12 @@ import pytest
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
-from sim2policy.train_mjx import build_playground_command, evaluate_mjx, train_mjx
+from sim2policy.train_mjx import (
+    _parse_initial_worker_flags,
+    build_playground_command,
+    evaluate_mjx,
+    train_mjx,
+)
 
 ROOT = Path(__file__).parents[1]
 
@@ -50,6 +55,28 @@ def test_build_playground_command_rejects_unknown_hyperparameters(tmp_path: Path
     paths = create_run_paths("mjx-bad-command", tmp_path)
     with pytest.raises(RuntimeError, match="unsupported MJX hyperparameter"):
         build_playground_command(config, paths)
+
+
+def test_initial_worker_parses_playground_impl_before_config_access() -> None:
+    config = load_config(ROOT / "configs/go1_mjx.yaml")
+
+    class FlagValues:
+        parsed = False
+        argv: list[str] | None = None
+
+        def is_parsed(self) -> bool:
+            return self.parsed
+
+        def __call__(self, argv: list[str]) -> None:
+            self.argv = argv
+            self.parsed = True
+
+    flags = FlagValues()
+    _parse_initial_worker_flags(flags, config)
+    assert flags.argv == ["sim2policy-mjx-initial", "--impl=jax"]
+
+    _parse_initial_worker_flags(flags, config)
+    assert flags.argv == ["sim2policy-mjx-initial", "--impl=jax"]
 
 
 def test_train_mjx_archives_latest_raw_checkpoint(

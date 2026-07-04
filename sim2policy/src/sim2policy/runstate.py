@@ -59,10 +59,13 @@ ARTIFACT_KEYS: dict[str, str] = {
     "final_policy": "checkpoints/final.zip",
     "metrics_json": "report/metrics.json",
     "report_md": "report/report.md",
+    "reward_curve": "report/reward-curve.png",
+    "backend_comparison": "report/backend-comparison.md",
     "video_untrained": "videos/untrained.mp4",
     "video_mid": "videos/mid.mp4",
     "video_final": "videos/final.mp4",
     "progression_montage": "videos/progression_montage.mp4",
+    "demo_recording": "videos/demo-recording.mp4",
 }
 
 

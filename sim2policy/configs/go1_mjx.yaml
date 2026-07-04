@@ -10,7 +10,7 @@ training:
     num_eval_envs: 128
     num_evals: 5
     batch_size: 256
-    num_minibatches: 8
+    num_minibatches: 16
     num_updates_per_batch: 8
     unroll_length: 10
     episode_length: 1000
@@ -26,6 +26,6 @@ success: {kind: locomotion, min_velocity: 0.5, require_not_fallen: true}
 rendering: {frames: 500, fps: 30, width: 640, height: 480, seed: 0}
 storage: {mode: local, prefix: sim2policy}
 reporting:
-  hourly_rate: 1.5484
+  hourly_rate: 2.95
   currency: USD
-  rate_date: "2026-06-29"
+  rate_date: "2026-07-04"

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import shutil
 import time
@@ -114,6 +115,53 @@ class ArtifactStore:
                 continue
             uploaded.append(self.upload_file(local, relative.as_posix()))
         return uploaded
+
+    def download_tree(self, run_root: Path, prefixes: tuple[str, ...]) -> list[Path]:
+        """Download selected run subtrees while preserving the canonical relative layout."""
+        if not self.enabled:
+            return []
+        run_prefix = PurePosixPath(self.prefix) / self.run_id
+        downloaded: list[Path] = []
+        for relative_prefix in prefixes:
+            safe_prefix = PurePosixPath(relative_prefix)
+            if safe_prefix.is_absolute() or any(
+                part in {"", ".", ".."} for part in safe_prefix.parts
+            ):
+                raise StorageError(f"unsafe artifact prefix: {relative_prefix}")
+            continuation: str | None = None
+            while True:
+                request: dict[str, Any] = {
+                    "Bucket": self.config.bucket,
+                    "Prefix": f"{run_prefix / safe_prefix}",
+                }
+                if continuation is not None:
+                    request["ContinuationToken"] = continuation
+                response = self._attempt(
+                    f"list {relative_prefix}",
+                    functools.partial(self.client.list_objects_v2, **request),
+                )
+                for item in response.get("Contents", []):
+                    key = PurePosixPath(str(item["Key"]))
+                    try:
+                        relative = key.relative_to(run_prefix)
+                    except ValueError as exc:
+                        raise StorageError(f"remote key escaped run prefix: {key}") from exc
+                    local = run_root.joinpath(*relative.parts)
+                    local.parent.mkdir(parents=True, exist_ok=True)
+                    self._attempt(
+                        f"download {relative}",
+                        functools.partial(
+                            self.client.download_file,
+                            self.config.bucket,
+                            str(key),
+                            str(local),
+                        ),
+                    )
+                    downloaded.append(local)
+                continuation = response.get("NextContinuationToken")
+                if not response.get("IsTruncated") or continuation is None:
+                    break
+        return downloaded
 
     def publish_checkpoint(self, checkpoint: Path, run_root: Path) -> dict[str, Any]:
         metadata = load_checkpoint_metadata(checkpoint)

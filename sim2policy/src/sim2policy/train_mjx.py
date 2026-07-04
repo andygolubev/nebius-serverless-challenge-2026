@@ -216,6 +216,12 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     ppo_networks = importlib.import_module("brax.training.agents.ppo.networks")
     ppo_checkpoint = importlib.import_module("brax.training.agents.ppo.checkpoint")
 
+    # Playground's get_rl_config reads its Abseil --impl flag. The initial-policy worker invokes
+    # the library directly rather than through absl.app.run, so parse that one explicit setting
+    # before accessing the config. This runs in a dedicated subprocess and cannot consume the
+    # parent training command's arguments.
+    _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
+
     environment = registry.load(config.environment, config_overrides=_environment_overrides(config))
     ppo_params = playground_train.get_rl_config(config.environment)
     hyperparameters = dict(config.training.hyperparameters)
@@ -252,6 +258,12 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     )
     ppo_checkpoint.save(output_root, 0, jax.device_get(params), network_config)
     return output_root / "000000000000"
+
+
+def _parse_initial_worker_flags(flag_values: Any, config: RunConfig) -> None:
+    if not flag_values.is_parsed():
+        impl = str(config.training.hyperparameters.get("impl", "jax"))
+        flag_values(["sim2policy-mjx-initial", f"--impl={impl}"])
 
 
 def _create_initial_checkpoint_isolated(config: RunConfig, output_root: Path) -> Path:
