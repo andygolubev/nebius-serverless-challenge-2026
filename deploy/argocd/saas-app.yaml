@@ -1,0 +1,24 @@
+# Child Application managed by the root app-of-apps (see cloud-init root Application).
+# Deploys the tenant-facing SaaS app from deploy/manifests/saas.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: saas
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/REPLACE_ORG/REPLACE_REPO.git # overridden by the repo ArgoCD is bound to
+    targetRevision: main
+    path: deploy/manifests/saas
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: saas
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,22 @@
+# Example variables for the saas-server control plane (add-saas-server change).
+# Copy to a gitignored tfvars and fill in. Do NOT commit real values.
+
+saas_subnet_id   = "vpcsubnet-e00ka7ggch340z2eyj"
+saas_network_id  = "vpcnetwork-xxxxxxxxxxxxxxxxxx" # parent network of the subnet
+saas_platform    = "cpu-e2"
+saas_preset      = "2vcpu-8gb"
+
+saas_ssh_public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA... andy@mbp15"
+
+# Narrow this to operator IPs — SSH is the only cluster-management path.
+saas_ssh_ingress_cidrs = ["0.0.0.0/0"]
+
+saas_argocd_repo_url      = "https://github.com/REPLACE_ORG/REPLACE_REPO.git"
+saas_argocd_repo_path     = "deploy/argocd"
+saas_argocd_repo_revision = "main"
+
+# Provide via `-var` or an untracked *.auto.tfvars, never in Git.
+# github_token = "ghp_xxx"
+
+# Leave false to use the VM service account's registry.puller role for image pull.
+saas_use_registry_pull_secret = false

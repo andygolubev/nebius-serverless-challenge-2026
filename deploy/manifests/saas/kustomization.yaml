@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: saas
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+
+# CI updates the tag with: `kustomize edit set image sim2policy-saas=<registry>/sim2policy-saas:<sha>`
+# newName must be the Nebius Registry FQDN + repo (see `tofu output registry_fqdn`).
+images:
+  - name: sim2policy-saas
+    newName: REPLACE_REGISTRY_FQDN/sim2policy-saas
+    newTag: latest

@@ -1,0 +1,20 @@
+# Exposes the SaaS app on 443 via k3s's built-in Traefik. TLS starts as Traefik's default
+# (self-signed) cert; wire cert-manager/Let's Encrypt (HTTP-01 on port 80) for a real cert.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: saas
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: saas
+                port:
+                  number: 80

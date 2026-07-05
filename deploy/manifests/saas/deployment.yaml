@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saas
+  labels:
+    app: saas
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: saas
+  template:
+    metadata:
+      labels:
+        app: saas
+    spec:
+      # Uncomment only if node-identity registry pull is insufficient; the imagePullSecret
+      # `nebius-registry` is created by cloud-init when saas_use_registry_pull_secret=true.
+      # imagePullSecrets:
+      #   - name: nebius-registry
+      containers:
+        - name: saas
+          image: sim2policy-saas # replaced by kustomize images: mapping
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: SAAS_ORCHESTRATION_BACKEND
+              value: mock
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
