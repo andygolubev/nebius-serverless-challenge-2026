@@ -16,6 +16,10 @@ multi-tenant GPU execution is wired in.
   pull the app manifests / private repo) and a **Nebius Registry** pull credential — the latter only
   if registry access cannot be granted to the VM's service account by IAM role (documented decision
   in design.md).
+- **Restrict network access** to the `saas-server` to only what is necessary: inbound **SSH (22)**
+  and **HTTPS (443)** (plus HTTP/80 only for ACME/redirect). The Kubernetes API server and ArgoCD
+  admin UI are **not** exposed publicly — the operator manages the cluster over an **SSH tunnel**
+  (`kubectl`/ArgoCD bound to localhost, reached via `ssh -L`).
 - Add a **GitHub Actions** pipeline that builds the SaaS app container and pushes it to the existing
   Nebius Registry, including the documented **registry authentication** method for CI.
 - Add a GitOps repository layout (ArgoCD `Application` / app-of-apps + Kubernetes manifests) that
