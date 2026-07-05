@@ -56,6 +56,7 @@ multi-tenant GPU execution is wired in.
   auth.
 - **New app code**: a `saas/` (or `web/`) application tree — frontend, backend, Kubernetes manifests,
   ArgoCD `Application` definitions.
-- **Security surface**: a publicly reachable server and stored long-lived credentials; threat model
-  and least-privilege boundaries are defined in design.md and specs.
+- **Security surface**: a publicly reachable server and stored long-lived credentials; threat model,
+  least-privilege boundaries, and a minimal ingress firewall (SSH + HTTPS only, k8s/ArgoCD via SSH
+  tunnel) are defined in design.md and specs.
 - **Docs**: README / infra README updates describing the control plane and CI auth.

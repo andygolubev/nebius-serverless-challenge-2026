@@ -32,6 +32,23 @@ existing cluster.
 - **THEN** it completes without error and does not delete or duplicate the existing k3s cluster or
   ArgoCD installation
 
+### Requirement: Minimal ingress and tunnel-only cluster management
+The `saas-server` SHALL restrict inbound network access to only the necessary ports: SSH (22) and
+HTTPS (443), with HTTP (80) permitted only for ACME challenge / redirect to HTTPS. The Kubernetes API
+server and the ArgoCD admin interface SHALL NOT be reachable from the public internet; operators
+SHALL manage the cluster over an SSH tunnel (services bound to loopback and reached via `ssh -L`).
+
+#### Scenario: Only SSH and HTTPS are reachable
+- **WHEN** the server's public IP is port-scanned from the internet
+- **THEN** only 22 and 443 (and optionally 80 for ACME/redirect) accept connections, and all other
+  ports — including the Kubernetes API and the ArgoCD UI — are refused/filtered
+
+#### Scenario: Cluster is managed via SSH tunnel
+- **WHEN** an operator forwards the local port to the cluster API/ArgoCD with
+  `ssh -L <local>:localhost:<remote>` and runs `kubectl` / opens ArgoCD against the forwarded port
+- **THEN** management succeeds through the tunnel while the same endpoints remain unreachable
+  directly from the public IP
+
 ### Requirement: MysteryBox-backed credentials and least-privilege IAM
 The infra SHALL store the GitHub access token and, when required, the Nebius Registry pull
 credential as Nebius MysteryBox secrets, and SHALL grant the `saas-server` service account only the

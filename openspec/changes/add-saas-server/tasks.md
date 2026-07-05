@@ -4,7 +4,9 @@
 - [ ] 1.2 Parameterize into `variables.tf`: `saas_subnet_id`, `saas_platform` (default `cpu-e2`), `saas_preset` (default `2vcpu-8gb`), `saas_ssh_public_key`, `saas_service_account_id`
 - [ ] 1.3 Fix the cloud-init user-data YAML (the `EOT`/`ssh_authorized_keys` indentation bug) and move it into `cloud-init/saas-server.yaml.tftpl` rendered via `templatefile()`
 - [ ] 1.4 Add output `saas_server_public_ip` to `outputs.tf`
-- [ ] 1.5 `tofu validate` and `tofu plan` clean against a real project/tenant/subnet (no apply yet)
+- [ ] 1.5 Restrict inbound network access to SSH (22) + HTTPS (443) (and 80 for ACME/redirect) via the Nebius security-group/allowlist on the instance NIC; add a host firewall (ufw/nftables) in cloud-init as defense-in-depth
+- [ ] 1.6 Ensure the k3s API (6443) and ArgoCD server are bound to loopback/private only (install k3s without public API exposure; ArgoCD without a public LoadBalancer/ingress) and document the `ssh -L` tunnel workflow for kubectl/ArgoCD
+- [ ] 1.7 `tofu validate` and `tofu plan` clean against a real project/tenant/subnet (no apply yet)
 
 ## 2. Terraform: credentials and IAM
 
@@ -56,4 +58,5 @@
 - [ ] 8.1 `tofu apply`; verify SSH, k3s Ready, and ArgoCD healthy on the VM
 - [ ] 8.2 Trigger the CI pipeline; confirm an image is pushed and ArgoCD deploys it
 - [ ] 8.3 Hit the app health endpoint through the ingress on the public IP; run the mock job lifecycle end to end
+- [ ] 8.3a Port-scan the public IP to confirm only 22/443 (and 80) are open; confirm k8s API/ArgoCD are unreachable directly and manageable only via the SSH tunnel
 - [ ] 8.4 Update README / infra README with the control-plane architecture, registry CI auth, rebuild/rollback, and open questions (OIDC, IAM pull role name, domain/TLS)

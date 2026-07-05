@@ -118,7 +118,23 @@ Recommendation, chosen to reuse what the repo already has and minimize new langu
 Next.js full-stack (heavier, SSR unneeded for a dashboard); Go backend (fast/small but abandons the
 existing Python orchestration code).
 
-### Decision 6: Terraform layout and parameterization
+### Decision 6: Minimal ingress firewall; k8s/ArgoCD over SSH tunnel
+The VM exposes only what tenants and the operator need: inbound **22 (SSH)** and **443 (HTTPS)** for
+the SaaS app, plus **80** solely for ACME/HTTP→HTTPS redirect. Everything else — the k3s API server
+(6443), the ArgoCD server, NodePorts, kubelet — is closed to the internet. This is enforced at the
+Nebius network layer (security-group / allowlist on the instance's network interface); a host
+firewall (`ufw`/nftables via cloud-init) is a defense-in-depth backup, not the primary control.
+**Cluster administration is tunnel-only:** ArgoCD's service and the kube API stay on the private
+network / loopback, and the operator reaches them with
+`ssh -L 8080:localhost:<argocd-port> saas-server` (and `kubectl` via the k3s kubeconfig over a
+forwarded 6443, or by running `kubectl` on the host through SSH). ArgoCD is therefore configured
+**not** to expose a public LoadBalancer/ingress; only the tenant SaaS app gets an ingress on 443.
+**Alternatives:** exposing ArgoCD behind auth on 443 (larger attack surface, another public endpoint
+to harden — rejected for now); a VPN/bastion (heavier than needed for a single operator — SSH tunnel
+is sufficient); Nebius IAP-style access if available (revisit later). Note the k3s installer must be
+told not to expose the API publicly and ArgoCD installed without a public service.
+
+### Decision 7: Terraform layout and parameterization
 Add `saas.tf` (VM, service account or reuse of the provided one, static IP, MysteryBox secrets, IAM
 permits, cloud-init from `templatefile()`), extend `variables.tf` (`saas_subnet_id`,
 `saas_platform`, `saas_preset`, `saas_ssh_public_key`, `github_token` as a sensitive var or external
