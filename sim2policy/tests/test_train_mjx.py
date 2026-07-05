@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
 from sim2policy.train_mjx import (
     _parse_initial_worker_flags,
+    _repair_brax_checkpoint_config,
     build_playground_command,
     evaluate_mjx,
     train_mjx,
@@ -77,6 +79,20 @@ def test_initial_worker_parses_playground_impl_before_config_access() -> None:
 
     _parse_initial_worker_flags(flags, config)
     assert flags.argv == ["sim2policy-mjx-initial", "--impl=jax"]
+
+
+def test_repair_brax_checkpoint_config_removes_null_initializers(tmp_path: Path) -> None:
+    config_path = tmp_path / "ppo_network_config.json"
+    config_path.write_text(
+        '{"network_factory_kwargs":{"policy_network_kernel_init_fn":null,'
+        '"value_network_kernel_init_fn":null,"activation":"swish"}}',
+        encoding="utf-8",
+    )
+
+    _repair_brax_checkpoint_config(tmp_path)
+
+    repaired = json.loads(config_path.read_text(encoding="utf-8"))
+    assert repaired["network_factory_kwargs"] == {"activation": "swish"}
 
 
 def test_train_mjx_archives_latest_raw_checkpoint(

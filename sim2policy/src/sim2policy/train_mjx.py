@@ -31,6 +31,12 @@ from sim2policy.storage import ArtifactStore
 from sim2policy.telemetry import gpu_snapshot, runtime_record, utc_now_iso, write_runtime_record
 
 _MJX_MODULES = ("jax", "mujoco", "mujoco_playground", "brax")
+_BRAX_OPTIONAL_INITIALIZERS = (
+    "policy_network_kernel_init_fn",
+    "value_network_kernel_init_fn",
+    "q_network_kernel_init_fn",
+    "mean_kernel_init_fn",
+)
 _PLAYGROUND_FLAG_MAP = {
     "num_eval_envs",
     "num_evals",
@@ -164,6 +170,24 @@ def _safe_extract_checkpoint(checkpoint: Path, destination: Path) -> None:
         archive.extractall(destination)
 
 
+def _repair_brax_checkpoint_config(checkpoint: Path) -> None:
+    """Remove null initializer entries that Brax 0.14.2 cannot deserialize."""
+    config_path = checkpoint / "ppo_network_config.json"
+    if not config_path.is_file():
+        return
+    raw = json.loads(config_path.read_text(encoding="utf-8"))
+    network = raw.get("network_factory_kwargs")
+    if not isinstance(network, dict):
+        return
+    changed = False
+    for name in _BRAX_OPTIONAL_INITIALIZERS:
+        if name in network and network[name] is None:
+            del network[name]
+            changed = True
+    if changed:
+        config_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPaths) -> Path:
     if checkpoint.is_dir():
         return checkpoint
@@ -189,6 +213,7 @@ def mjx_policy_session(checkpoint: Path, config: RunConfig) -> Any:
         raw_checkpoint = Path(temporary) / checkpoint.stem
         raw_checkpoint.mkdir()
         _safe_extract_checkpoint(checkpoint, raw_checkpoint)
+        _repair_brax_checkpoint_config(raw_checkpoint)
         try:
             load_policy = importlib.import_module("brax.training.agents.ppo.checkpoint").load_policy
             registry = importlib.import_module("mujoco_playground").registry
