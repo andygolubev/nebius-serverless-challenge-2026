@@ -53,3 +53,11 @@ Rendering tries EGL and retries once with OSMesa in a fresh process. Cloud accep
 cheap gates to expensive ones: image health/render smoke, bounded training plus storage sync,
 interruption/resume, then full training and publication. Credentials stay in local configuration or
 Nebius MysteryBox; generated artifacts and infrastructure state never belong in Git.
+
+Container images are built on a disposable CPU VM and consumed by separate disposable H100 AI
+Jobs. This keeps Docker compilation and registry upload off costly accelerator time. The full Track
+A flow uses `Go1JoystickFlatTerrain`, Brax PPO on MJX, immutable image digests, periodic S3
+checkpoints, and a finalizer that downloads the durable run, restores progression checkpoints,
+renders media, evaluates the final policy, writes reports/comparison data, and republishes the
+completed manifest. See `sim2policy/docs/submission-checklist.md` for the verified run and artifact
+references.

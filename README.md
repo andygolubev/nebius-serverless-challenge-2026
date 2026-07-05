@@ -162,5 +162,6 @@ Show job submission, a rising reward curve, then initial / quarter / final rollo
 runtime, hardware, utilization, dated hourly rate, and cost; unavailable values stay unavailable.
 Use the rehearsed [demo script](sim2policy/docs/demo-script.md), lightweight
 [sample assets](sim2policy/assets/samples/README.md), and the
-[release audit](sim2policy/docs/release-audit.md) before submission. The final submission checklist
-stays open until real Nebius artifacts and links exist.
+[release audit](sim2policy/docs/release-audit.md) before submission. The completed
+[submission checklist](sim2policy/docs/submission-checklist.md) records the verified Nebius jobs,
+immutable image, measured results, and durable artifacts.

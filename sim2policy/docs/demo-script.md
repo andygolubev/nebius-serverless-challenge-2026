@@ -5,13 +5,13 @@
 1. Open with the one-line promise: “Sim2Policy turns a YAML locomotion config into durable policy
    checkpoints, evaluation metrics, and rollout media from a disposable GPU job.”
 2. Show the config:
-   `configs/halfcheetah_sb3.yaml`
+   `configs/go1_mjx.yaml`
 3. Show the smoke command:
-   `uv run python -m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id demo --set training.total_steps=4096 --set training.n_envs=2 --set checkpoint.every_steps=1024`
+   `uv run python -m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id demo --set training.total_steps=1228800 --set training.n_envs=256 --set training.hyperparameters.num_eval_envs=16 --set checkpoint.every_steps=614400`
 4. Show the artifact tree:
    `runs/demo/{metadata.json,checkpoints,tensorboard,videos,report}`
 5. Show `report/metrics.json` and `report/summary.md`.
-6. Play or show the progression montage: initial, nearest-quarter, final.
+6. Play the published 60-second Go1 progression recording: initial, nearest-quarter, final.
 7. End with the reliability point: checkpoints publish before `latest.json`, so interrupted jobs can
    resume only from completed compatible checkpoints.
 
@@ -29,6 +29,14 @@
   failures once in a fresh OSMesa process.
 - Track A: MJX/JAX is isolated behind its own dependency group and smoke gate so it can never break
   the Track B deliverable.
+
+## Measured Go1 cloud result
+
+- Nebius H100 full job: `aijob-e00z7km5vrxqcwgfnc`
+- Effective training steps: `102,400,000`
+- Final training reward reported by Brax: `27.515`
+- Training loop: `464.963` seconds after `82.84` seconds of JIT compilation
+- Durable run: `s3://sim2policy-artifacts/sim2policy/go1-mjx-full-20260704/`
 
 ## Commands rehearsed on a Linux/NVIDIA validation host
 

@@ -91,7 +91,7 @@
 - [x] 10.6 Wire MJX periodic/final S3 sync and compatible checkpoint resume or explicitly document and test any library-imposed resume limitation before cloud training
 - [x] 10.7 Add tests for MJX config mapping, missing dependencies, checkpoint metadata, success evaluation, and backend isolation from SB3
 - [x] 10.8 Run the MJX image smoke gate locally or on Nebius and stop Track A work at the documented cutoff if the pinned stack cannot pass it, preserving the complete Track B deliverable
-- [ ] 10.9 Run a bounded and then full quadruped cloud job, evaluate it, render progression media, and publish durable artifacts if the smoke gate passes
+- [x] 10.9 Run a bounded and then full quadruped cloud job, evaluate it, render progression media, and publish durable artifacts if the smoke gate passes
 
 ## 11. Benchmarking and Comparison
 
@@ -109,4 +109,4 @@
 - [x] 12.4 Document and rehearse the 60–90 second demo recording and three-minute judge narrative using actual commands and measured outputs
 - [x] 12.5 Run all automated checks from a clean environment and execute every documented local quickstart command exactly as written
 - [x] 12.6 Perform a secret and large-file audit, validate all links and example commands, and verify clone-to-dry-run behavior from a clean checkout
-- [ ] 12.7 Complete the submission checklist with repository, image reference, checkpoint links, rollout videos, logs, benchmark report, demo recording, and reproducibility writeup
+- [x] 12.7 Complete the submission checklist with repository, image reference, checkpoint links, rollout videos, logs, benchmark report, demo recording, and reproducibility writeup
