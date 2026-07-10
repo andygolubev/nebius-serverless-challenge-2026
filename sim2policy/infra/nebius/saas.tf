@@ -44,6 +44,14 @@ resource "nebius_iam_v1_group" "saas_server_access" {
 
 resource "nebius_iam_v1_group_membership" "saas_server" {
   parent_id = nebius_iam_v1_group.saas_server_access.id
+  member_id = nebius_iam_v1_service_account.saas_server.id
+}
+
+# The VM identity needs the same runtime read permissions. Keep the legacy
+# account in the group as well because the existing CONTAINER_REGISTRY static
+# token was issued for it and remains the k3s image-pull credential.
+resource "nebius_iam_v1_group_membership" "saas_orchestrator_runtime_access" {
+  parent_id = nebius_iam_v1_group.saas_server_access.id
   member_id = nebius_iam_v1_service_account.saas_orchestrator.id
 }
 
