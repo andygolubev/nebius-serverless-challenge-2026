@@ -56,7 +56,7 @@
 ## 8. Wire-up, docs, and verification
 
 - [x] 8.1 `tofu apply`; verify SSH, k3s Ready, ArgoCD healthy — verified 2026-07-10 after correcting current Nebius role identifiers and bootstrap compatibility
-- [ ] 8.2 Trigger CI; confirm image pushed and ArgoCD deploys it — PENDING
+- [x] 8.2 Trigger CI; confirm image pushed and ArgoCD deploys it — verified 2026-07-11: `workflow_dispatch` run 29128836350 pushed `sim2policy-saas:7f4ecc2bcc73` + `:main`; ArgoCD `saas` app Synced/Healthy running the git-pinned CI image `e8f87cefd11e` (no live kustomize override)
 - [x] 8.3 Hit `/health` through the ingress on the public IP; run the mock lifecycle end to end on-cluster — verified 2026-07-10 (health 200, completed job + artifacts, cross-tenant 404)
 - [x] 8.3a Port-scan the public IP to confirm only 22/443 (and 80) open and k8s/ArgoCD unreachable except via the SSH tunnel — verified 2026-07-10; 6443/8080/NodePorts filtered
 - [x] 8.4 Updated infra README (control-plane architecture, CI auth, rebuild/rollback) and `saas/README.md`; open questions remain in design.md

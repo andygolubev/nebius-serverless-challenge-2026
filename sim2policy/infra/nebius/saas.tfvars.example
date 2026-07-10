@@ -18,11 +18,9 @@ saas_argocd_repo_revision = "main"
 # Provide via `-var` or an untracked *.auto.tfvars, never in Git.
 # github_token = "ghp_xxx"
 
-# k3s requires a Registry static-key token. Supply both secret values through
-# TF_VAR environment variables as documented in README.md; never put them here.
+# k3s requires a Registry static-key token. OpenTofu creates the empty MysteryBox
+# containers; add and rotate payload versions directly in Nebius Cloud.
 saas_use_registry_pull_secret = true
-saas_artifact_secret_generation = "1"
-saas_registry_secret_generation = "1"
 
 # Domain/TLS: nothing to configure here. DNS (sim-policy-trainer-challenge.info -> server
 # public IP) lives at the registrar, and Let's Encrypt certs are handled by cert-manager via

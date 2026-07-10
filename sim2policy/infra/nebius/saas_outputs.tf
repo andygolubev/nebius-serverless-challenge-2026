@@ -14,17 +14,27 @@ output "saas_orchestrator_service_account_id" {
 
 output "registry_pull_secret_selector" {
   description = "Versioned MysteryBox selector used for private runtime image pulls, or empty when disabled."
-  value       = var.saas_use_registry_pull_secret ? "${nebius_mysterybox_v1_secret.saas_registry_pull.id}/${nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id}" : ""
+  value       = var.saas_use_registry_pull_secret && nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_registry_pull.id}/${nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id}" : ""
 }
 
 output "saas_artifact_secret_selector" {
   description = "Versioned selector for the Terraform-managed SaaS artifact S3 secret."
-  value       = "${nebius_mysterybox_v1_secret.saas_artifact_s3.id}/${nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id}"
+  value       = nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_artifact_s3.id}/${nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id}" : ""
 }
 
 output "saas_registry_secret_selector" {
   description = "Versioned selector for the Terraform-managed registry token."
-  value       = "${nebius_mysterybox_v1_secret.saas_registry_pull.id}/${nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id}"
+  value       = nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_registry_pull.id}/${nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id}" : ""
+}
+
+output "saas_artifact_secret_id" {
+  description = "MysteryBox container whose versions are managed directly in Nebius Cloud."
+  value       = nebius_mysterybox_v1_secret.saas_artifact_s3.id
+}
+
+output "saas_registry_secret_id" {
+  description = "MysteryBox container whose versions are managed directly in Nebius Cloud."
+  value       = nebius_mysterybox_v1_secret.saas_registry_pull.id
 }
 
 output "saas_nebius_contract" {
@@ -34,8 +44,8 @@ output "saas_nebius_contract" {
     NEBIUS_PROJECT_ID          = var.project_id
     NEBIUS_SUBNET_ID           = var.saas_subnet_id
     SIM2POLICY_JOB_IMAGE       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    NEBIUS_S3_SECRET_SELECTOR  = "${nebius_mysterybox_v1_secret.saas_artifact_s3.id}/${nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id}"
-    NEBIUS_REGISTRY_SECRET     = var.saas_use_registry_pull_secret ? nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id : ""
+    NEBIUS_S3_SECRET_SELECTOR  = nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_artifact_s3.id}/${nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id}" : ""
+    NEBIUS_REGISTRY_SECRET     = var.saas_use_registry_pull_secret && nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id != null ? nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id : ""
     AWS_ACCESS_KEY_ID          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
     AWS_ENDPOINT_URL_S3        = "https://storage.eu-north1.nebius.cloud"
     AWS_DEFAULT_REGION         = "eu-north1"

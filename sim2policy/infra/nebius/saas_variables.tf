@@ -65,29 +65,3 @@ variable "saas_use_registry_pull_secret" {
   type        = bool
   default     = false
 }
-
-variable "saas_artifact_secret_access_key" {
-  description = "Secret half of the existing artifact S3 access key. Supplied only at apply time and written to MysteryBox through a write-only field."
-  type        = string
-  sensitive   = true
-  ephemeral   = true
-}
-
-variable "saas_artifact_secret_generation" {
-  description = "Non-secret rotation generation for the write-only artifact payload; increment when changing the value."
-  type        = string
-  default     = "1"
-}
-
-variable "saas_registry_pull_token" {
-  description = "CONTAINER_REGISTRY static-key token. Supplied only at apply time and written to MysteryBox through a write-only field."
-  type        = string
-  sensitive   = true
-  ephemeral   = true
-}
-
-variable "saas_registry_secret_generation" {
-  description = "Non-secret rotation generation for the write-only registry payload; increment when changing the value."
-  type        = string
-  default     = "1"
-}
