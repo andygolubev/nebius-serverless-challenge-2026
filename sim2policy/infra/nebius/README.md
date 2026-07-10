@@ -45,15 +45,28 @@ and 80 (ACME/redirect). The k3s API (6443) and ArgoCD UI are **not** public — 
 over an SSH tunnel (`ssh -L`, see `saas/README.md`). A host `ufw` firewall in cloud-init is
 defense-in-depth. Narrow `saas_ssh_ingress_cidrs` to operator IPs.
 
-**Registry auth for the server.** The VM service account is granted `registry.puller` so k3s pulls
-the app image by node identity — no imagePullSecret. Set `saas_use_registry_pull_secret = true`
-only if node-identity pull is unavailable; cloud-init then wires a `dockerconfigjson` secret.
+**Registry auth for the server.** A real k3s boot test confirmed that containerd cannot exchange
+the VM identity directly with Nebius Registry. Grant the VM service account `viewer` on the
+registry, issue a `CONTAINER_REGISTRY` static key with `nebius iam static-key issue`, store its
+token in MysteryBox under the key `token`, and set `saas_use_registry_pull_secret = true` plus
+`saas_registry_pull_secret_id = "mbsec-..."`. Cloud-init reads that token and creates the
+`dockerconfigjson` imagePullSecret with username `iam`.
 
-**Registry auth for GitHub Actions.** Create a Nebius service account with `registry.pusher` on the
-registry plus an access key, and set repo secrets `NEBIUS_REGISTRY` (FQDN from
-`tofu output -raw registry_fqdn`), `NEBIUS_SA_KEY_ID`, and `NEBIUS_SA_SECRET`. The workflow logs in
-with `docker login --password-stdin` (no secret echoed). Alternative: install the Nebius CLI in CI
-and `docker login <registry> -u iam --password-stdin` with `nebius iam get-access-token`.
+**Registry auth for GitHub Actions.** Create a Nebius service account with `editor` on the registry,
+issue a `CONTAINER_REGISTRY` static key, and set repo secrets `NEBIUS_REGISTRY` (FQDN plus registry
+ID) and `NEBIUS_REGISTRY_TOKEN`. The workflow logs in as `iam` with
+`docker login --password-stdin`. Alternative: install the Nebius CLI in CI and mint a short-lived
+token with `nebius iam get-access-token`.
+
+The stack creates the dedicated `sim2policy-saas-ci` service account and grants it registry-scoped
+`editor` access. Issue its token with:
+
+```bash
+nebius iam static-key issue \
+  --parent-id <project-id> \
+  --account-service-account-id "$(tofu output -raw saas_ci_service_account_id)" \
+  --service container_registry
+```
 
 **Rebuild / rollback.** All durable state is in Git (manifests) and S3 (artifacts), so the server is
 disposable: `tofu destroy -target=nebius_compute_v1_instance.saas_server` and re-apply to rebuild,

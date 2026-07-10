@@ -13,5 +13,5 @@ resources:
 # newName must be the Nebius Registry FQDN + repo (see `tofu output registry_fqdn`).
 images:
   - name: sim2policy-saas
-    newName: REPLACE_REGISTRY_FQDN/sim2policy-saas
-    newTag: latest
+    newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
+    newTag: 5e90b7bad34d

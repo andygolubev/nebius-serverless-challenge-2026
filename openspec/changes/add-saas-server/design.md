@@ -63,33 +63,31 @@ Terraform creates MysteryBox secrets for (a) a **GitHub token** (repo read for A
 account is granted secret-read) and materializes them as Kubernetes Secrets: the GitHub token as an
 ArgoCD repo-credential secret; the registry credential as a `kubernetes.io/dockerconfigjson`
 `imagePullSecret` referenced by the SaaS Deployment.
-**Registry auth — prefer IAM, fall back to secret:** grant the `saas-server` service account the
-`registry.puller`/artifact-registry viewer role on the registry so the node can pull *without* a
-secret. Nebius nodes can obtain registry credentials from their service-account identity; if that
-path works, **no `imagePullSecret` is needed** and the MysteryBox registry credential is skipped.
-The `imagePullSecret` path is the documented fallback for when node-identity pull is unavailable.
+**Registry auth — verified fallback:** grant the `saas-server` service account `viewer` on the
+registry. A real k3s test showed that containerd cannot exchange the VM identity directly with
+Nebius Registry, so the fallback is required: issue a `CONTAINER_REGISTRY` static key for that
+service account, store its token in MysteryBox, and materialize it as an `imagePullSecret` using
+username `iam`. IAM v2 access keys are S3-style credentials and do not authenticate to Registry.
 **Alternatives:** External Secrets Operator wired to MysteryBox (cleaner long-term, but more
 infrastructure than a single-node demo needs); committing a sealed secret (adds sealed-secrets
 controller and key management).
 
-### Decision 4: GitHub Actions authenticates to Nebius Registry via a service-account key
+### Decision 4: GitHub Actions authenticates to Nebius Registry via a static-key token
 The pipeline logs in to the registry FQDN (from `tofu output registry_fqdn`) with `docker login`
-using a **Nebius service-account access-key/secret stored as GitHub Actions secrets**, then builds
+using a **Nebius service-account `CONTAINER_REGISTRY` static-key token stored as a GitHub Actions secret**, then builds
 and pushes tagged with the commit SHA. **Recommended concrete method** (documented in the workflow
 and infra README):
 
-1. Create (or reuse) a Nebius service account with `registry.pusher` role on the registry, and an
-   access key for it (Terraform can output the access key id; the secret goes to MysteryBox or is
-   read once and stored as a GH secret — never committed).
-2. In the repo, set GitHub Actions secrets, e.g. `NEBIUS_REGISTRY`, `NEBIUS_SA_KEY_ID`,
-   `NEBIUS_SA_SECRET` (or a single `NEBIUS_IAM_TOKEN` minted in-workflow via the Nebius CLI).
+1. Create (or reuse) a Nebius service account with `editor` on the registry and issue a
+   `CONTAINER_REGISTRY` static key. Store its one-time token as a GitHub secret.
+2. In the repo, set `NEBIUS_REGISTRY` and `NEBIUS_REGISTRY_TOKEN`.
 3. Workflow step:
    ```yaml
    - name: Log in to Nebius Registry
      run: |
-       echo "${{ secrets.NEBIUS_SA_SECRET }}" | \
+       echo "${{ secrets.NEBIUS_REGISTRY_TOKEN }}" | \
          docker login "${{ secrets.NEBIUS_REGISTRY }}" \
-           --username "${{ secrets.NEBIUS_SA_KEY_ID }}" --password-stdin
+           --username iam --password-stdin
    ```
    Alternative (token-based): install the Nebius CLI, run
    `nebius iam get-access-token`, and `docker login <registry> -u iam --password-stdin` with that
@@ -175,9 +173,8 @@ duplicated.
 
 - Does Nebius support **GitHub OIDC federation** so CI can avoid a long-lived registry key? (If yes,
   prefer it over Decision 4's stored key.)
-- Can the `saas-server` service account pull from the registry via **node identity alone** (IAM), or
-  is the `imagePullSecret` fallback required? Confirm the exact `registry.puller`-equivalent role
-  name in the Nebius provider.
+- Registry authentication was resolved by the 2026-07-10 boot test: k3s requires the MysteryBox
+  static-token `imagePullSecret`; `viewer` is the pull-capable role.
 - Should the GitOps manifests live in **this repo** (a `deploy/` dir) or a **separate manifests
   repo**? This changes the ArgoCD repo credential and the GitHub token scope.
 - Domain/TLS: start on HTTP/IP, or provision a domain + cert-manager/Let's Encrypt now?

@@ -1,0 +1,11 @@
+# Traefik middleware referenced by the saas ingress: permanent redirect of plain-HTTP
+# requests to HTTPS. Scoped to the saas router only so ACME HTTP-01 solver ingresses are
+# unaffected.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

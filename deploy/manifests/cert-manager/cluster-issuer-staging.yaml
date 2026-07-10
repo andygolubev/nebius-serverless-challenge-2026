@@ -1,0 +1,17 @@
+# Staging Let's Encrypt issuer: untrusted certs, but far higher rate limits. Point an
+# ingress's cert-manager.io/cluster-issuer annotation here while troubleshooting issuance so
+# failures don't burn the production limit (5 failed validations/hour).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: andygolubevremit@gmail.com
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

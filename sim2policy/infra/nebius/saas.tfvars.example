@@ -18,5 +18,6 @@ saas_argocd_repo_revision = "main"
 # Provide via `-var` or an untracked *.auto.tfvars, never in Git.
 # github_token = "ghp_xxx"
 
-# Leave false to use the VM service account's registry.puller role for image pull.
-saas_use_registry_pull_secret = false
+# k3s requires a Registry static-key token. Store it in MysteryBox under key `token`.
+saas_use_registry_pull_secret = true
+# saas_registry_pull_secret_id = "mbsec-..."

@@ -3,8 +3,8 @@ name: saas-image
 # Builds the tenant-facing SaaS app image and pushes it to the Nebius Registry.
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   NEBIUS_REGISTRY   - registry FQDN + repo, e.g. cr.eu-north1.nebius.cloud/<registry-id>
-#   NEBIUS_SA_KEY_ID  - Nebius service-account access key id (SA needs registry.pusher)
-#   NEBIUS_SA_SECRET  - the paired secret access key
+#   NEBIUS_REGISTRY_TOKEN - CONTAINER_REGISTRY static-key token for a service account
+#                           with editor access to the registry
 # Auth uses --password-stdin so nothing is printed; GitHub masks secrets in logs.
 
 on:
@@ -38,12 +38,11 @@ jobs:
       - name: Log in to Nebius Registry
         env:
           NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
-          NEBIUS_SA_KEY_ID: ${{ secrets.NEBIUS_SA_KEY_ID }}
-          NEBIUS_SA_SECRET: ${{ secrets.NEBIUS_SA_SECRET }}
+          NEBIUS_REGISTRY_TOKEN: ${{ secrets.NEBIUS_REGISTRY_TOKEN }}
         run: |
           registry_host="${NEBIUS_REGISTRY%%/*}"
-          echo "$NEBIUS_SA_SECRET" | docker login "$registry_host" \
-            --username "$NEBIUS_SA_KEY_ID" --password-stdin
+          echo "$NEBIUS_REGISTRY_TOKEN" | docker login "$registry_host" \
+            --username iam --password-stdin
 
       - name: Tag and push (commit SHA + moving tag)
         env:

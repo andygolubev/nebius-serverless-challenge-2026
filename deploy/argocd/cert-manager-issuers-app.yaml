@@ -1,9 +1,11 @@
 # Child Application managed by the root app-of-apps (see cloud-init root Application).
-# Deploys the tenant-facing SaaS app from deploy/manifests/saas.
+# Applies the Let's Encrypt ClusterIssuers from deploy/manifests/cert-manager. Runs after the
+# cert-manager app (default sync-wave 0 vs -1); on a cold bootstrap the first sync can fail
+# until the ClusterIssuer CRD exists, so automated sync retries until it converges.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: saas
+  name: cert-manager-issuers
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -12,13 +14,16 @@ spec:
   source:
     repoURL: https://github.com/andygolubev/nebius-serverless-challenge-2026.git
     targetRevision: main
-    path: deploy/manifests/saas
+    path: deploy/manifests/cert-manager
   destination:
     server: https://kubernetes.default.svc
-    namespace: saas
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

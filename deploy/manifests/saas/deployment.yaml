@@ -14,10 +14,8 @@ spec:
       labels:
         app: saas
     spec:
-      # Uncomment only if node-identity registry pull is insufficient; the imagePullSecret
-      # `nebius-registry` is created by cloud-init when saas_use_registry_pull_secret=true.
-      # imagePullSecrets:
-      #   - name: nebius-registry
+      imagePullSecrets:
+        - name: nebius-registry
       containers:
         - name: saas
           image: sim2policy-saas # replaced by kustomize images: mapping

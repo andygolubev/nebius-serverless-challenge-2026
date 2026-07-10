@@ -6,14 +6,14 @@
 - [x] 1.4 Add output `saas_server_public_ip` (in `saas_outputs.tf`)
 - [x] 1.5 Restrict inbound to SSH (22) + HTTPS (443) (and 80 for ACME/redirect) via `nebius_vpc_v1_security_group`/`_security_rule` on the instance NIC; add a host `ufw` firewall in cloud-init as defense-in-depth
 - [x] 1.6 k3s API (6443) and ArgoCD kept private (k3s `--tls-san localhost`, ArgoCD ClusterIP; no public LB/ingress); `ssh -L` tunnel workflow documented in `saas/README.md` and infra README
-- [ ] 1.7 `tofu plan` clean against a real project/tenant/subnet — PENDING (needs your Nebius state backend creds; `tofu validate` passes locally with only the documented write-only warning)
+- [x] 1.7 `tofu plan` clean against a real project/tenant/subnet — verified 2026-07-10: 19 creates, 0 changes, 0 destroys; project/subnet/network boundary checked
 
 ## 2. Terraform: credentials and IAM
 
 - [x] 2.1 Create a MysteryBox secret for the GitHub token (from sensitive `github_token` var; no plaintext in Git)
-- [x] 2.2 Grant the saas-server SA `registry.puller` via an access group (node-identity image pull) — VERIFY node-identity pull works before enabling the secret fallback (operational, at apply time)
-- [ ] 2.3 Registry pull-credential fallback — scaffolded only: `saas_use_registry_pull_secret` var + cloud-init `dockerconfigjson` branch exist; the MysteryBox registry-credential resource is intentionally not created (default path is IAM). Implement if node-identity pull proves insufficient.
-- [x] 2.4 Grant the SA group `mysterybox.secrets.payloadViewer` on the GitHub-token secret; no broad admin roles attached
+- [x] 2.2 Grant the saas-server SA `viewer` on the registry via an access group (current Nebius pull-capable least-privilege role) — VERIFY node-identity pull works before enabling the secret fallback (operational, at apply time)
+- [x] 2.3 Registry pull-credential fallback — verified required on k3s 2026-07-10; `CONTAINER_REGISTRY` static token stored in MysteryBox and materialized as an `iam` dockerconfigjson secret
+- [x] 2.4 Grant the SA group `mysterybox.payload-viewer` on the GitHub-token secret; no broad admin roles attached
 
 ## 3. Cloud-init: k3s + ArgoCD bootstrap
 
@@ -21,7 +21,7 @@
 - [x] 3.2 Installs ArgoCD into `argocd` via declarative `kubectl apply`; idempotent; logs to `/var/log/saas-bootstrap.log`
 - [x] 3.3 Reads MysteryBox secrets at boot and materializes them as Kubernetes Secrets (ArgoCD repo credential; `dockerconfigjson` imagePullSecret only when the fallback is enabled)
 - [x] 3.4 Applies the root app-of-apps ArgoCD `Application` pointing at `deploy/argocd`
-- [ ] 3.5 `cloud-init schema` validation + boot-test on the VM — PENDING (needs the running VM). NOTE: confirm the exact `nebius mysterybox` CLI verb used to fetch the secret payload.
+- [x] 3.5 `cloud-init schema` validation + boot-test on the VM — verified 2026-07-10; fixed current MysteryBox verb/JSON shape and ArgoCD server-side CRD apply
 
 ## 4. GitOps manifests
 
@@ -29,7 +29,7 @@
 - [x] 4.2 Root `Application` (app-of-apps, in cloud-init) + child `saas` `Application` (`deploy/argocd/saas-app.yaml`)
 - [x] 4.3 Kubernetes manifests: `Deployment` (kustomize image mapping + optional imagePullSecret), `Service`, Traefik `Ingress` on 443
 - [x] 4.4 Readiness + liveness probes on `/health`
-- [ ] 4.5 Verify ArgoCD syncs and self-heals a manual edit — PENDING (needs the cluster)
+- [x] 4.5 Verify ArgoCD syncs and self-heals a manual edit — verified 2026-07-10 by drifting the child Application revision and observing root restore `main`
 
 ## 5. GitHub Actions image pipeline
 
@@ -55,8 +55,8 @@
 
 ## 8. Wire-up, docs, and verification
 
-- [ ] 8.1 `tofu apply`; verify SSH, k3s Ready, ArgoCD healthy — PENDING (needs your Nebius account)
+- [x] 8.1 `tofu apply`; verify SSH, k3s Ready, ArgoCD healthy — verified 2026-07-10 after correcting current Nebius role identifiers and bootstrap compatibility
 - [ ] 8.2 Trigger CI; confirm image pushed and ArgoCD deploys it — PENDING
-- [ ] 8.3 Hit `/health` through the ingress on the public IP; run the mock lifecycle end to end on-cluster — PENDING (lifecycle already verified locally)
-- [ ] 8.3a Port-scan the public IP to confirm only 22/443 (and 80) open and k8s/ArgoCD unreachable except via the SSH tunnel — PENDING
+- [x] 8.3 Hit `/health` through the ingress on the public IP; run the mock lifecycle end to end on-cluster — verified 2026-07-10 (health 200, completed job + artifacts, cross-tenant 404)
+- [x] 8.3a Port-scan the public IP to confirm only 22/443 (and 80) open and k8s/ArgoCD unreachable except via the SSH tunnel — verified 2026-07-10; 6443/8080/NodePorts filtered
 - [x] 8.4 Updated infra README (control-plane architecture, CI auth, rebuild/rollback) and `saas/README.md`; open questions remain in design.md

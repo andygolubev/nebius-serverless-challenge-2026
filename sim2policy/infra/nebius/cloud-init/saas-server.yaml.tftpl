@@ -27,6 +27,7 @@ write_files:
 
       GITHUB_SECRET_ID="${github_secret_id}"
       REGISTRY_SECRET_ID="${registry_secret_id}"
+      REGISTRY_HOST="${registry_host}"
       USE_REGISTRY_PULL="${use_registry_pull}"
       ARGOCD_REPO_URL="${argocd_repo_url}"
       ARGOCD_REPO_PATH="${argocd_repo_path}"
@@ -61,17 +62,15 @@ write_files:
       kubectl get nodes
 
       # --- Fetch secrets from MysteryBox using the VM service-account identity ---
-      # NOTE: confirm the exact CLI verb against the installed nebius CLI version.
-      # Expected shape: `nebius mysterybox v1 payload get --secret-id <id>` returning
-      # a JSON payload with a `token` key. Adjust here if the CLI differs.
+      # The primary secret version is selected when --version-id is omitted.
       if ! command -v nebius >/dev/null 2>&1; then
         curl -sSL https://storage.eu-north1.nebius.cloud/nebius-cli/install.sh | bash || true
         export PATH="$PATH:/root/.nebius/bin:/usr/local/bin"
       fi
       fetch_secret_key() {
         local secret_id="$1" key="$2"
-        nebius mysterybox v1 payload get --secret-id "$secret_id" --format json \
-          | jq -r --arg k "$key" '.payload[] | select(.key==$k) | .string_value // .value'
+        nebius mysterybox payload get --secret-id "$secret_id" --format json \
+          | jq -r --arg k "$key" '.data[] | select(.key==$k) | .string_value // .value'
       }
 
       GITHUB_TOKEN="$(fetch_secret_key "$GITHUB_SECRET_ID" token)"
@@ -82,7 +81,8 @@ write_files:
 
       # --- ArgoCD (private ClusterIP; access via ssh -L to the argocd-server service) ---
       kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-      kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      kubectl apply --server-side --force-conflicts -n argocd \
+        -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
       kubectl -n argocd rollout status deploy/argocd-server --timeout=300s || true
 
       # ArgoCD repository credential (private repo read) from the GitHub token.
@@ -103,13 +103,13 @@ write_files:
 
       # Optional registry imagePullSecret (only when node-identity pull is insufficient).
       if [ "$USE_REGISTRY_PULL" = "true" ] && [ -n "$REGISTRY_SECRET_ID" ]; then
-        REG_USER="$(fetch_secret_key "$REGISTRY_SECRET_ID" username)"
-        REG_PASS="$(fetch_secret_key "$REGISTRY_SECRET_ID" password)"
-        REG_HOST="$(fetch_secret_key "$REGISTRY_SECRET_ID" registry)"
+        REG_PASS="$(fetch_secret_key "$REGISTRY_SECRET_ID" token)"
         kubectl create namespace saas --dry-run=client -o yaml | kubectl apply -f -
         kubectl -n saas create secret docker-registry nebius-registry \
-          --docker-server="$REG_HOST" --docker-username="$REG_USER" \
+          --docker-server="$REGISTRY_HOST" --docker-username=iam \
           --docker-password="$REG_PASS" --dry-run=client -o yaml | kubectl apply -f -
+        kubectl -n saas patch serviceaccount default --type merge \
+          -p '{"imagePullSecrets":[{"name":"nebius-registry"}]}'
       fi
 
       # --- Root app-of-apps: hand ongoing delivery to ArgoCD/Git ---
