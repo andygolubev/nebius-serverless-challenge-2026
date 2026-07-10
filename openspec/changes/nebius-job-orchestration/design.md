@@ -86,6 +86,6 @@ New env vars consumed only by the `nebius` backend: the S3 set above plus `NEBIU
 
 ## Open Questions
 
-- Exact pysdk job-spec field names and status enum values (`nebius.api.nebius.ai.v1`) — verify against the installed SDK version at implementation time.
-- Whether MysteryBox secret references in SDK-created jobs use the same selector syntax as the CLI's `--env-secret`.
-- Per-preset image/platform matrix: single training image for all presets or per-preset entries in the catalog.
+- ~~Exact pysdk job-spec field names and status enum values~~ **Resolved against nebius 0.3.92**: `CreateJobRequest(metadata=ResourceMetadata(parent_id, name), spec=JobSpec(...))`; `JobSpec` takes `container_command` (str), `args` (single string), `timeout` (timedelta), `restart_attempts` (int, 0 = never), `environment_variables` (`JobSpec.EnvironmentVariable(name, value | mysterybox_secret=JobSpec.MysteryBoxSecretRef(secret_id, version_id))`), `registry_credentials=JobSpec.RegistryCredentials(mysterybox_secret_version=...)`. `JobStatus.State` values: `STATE_UNSPECIFIED, PROVISIONING, STARTING, RUNNING, CANCELLING, DELETING, COMPLETED, FAILED, CANCELLED, ERROR`. `create()` returns an Operation whose `resource_id` is the `aijob-*` ID.
+- MysteryBox secret references: the SDK takes `secret_id`/`version_id` explicitly (`split_secret_selector` parses the infra `artifact_secret_selector` output, `secret/version` form). Confirm the exact selector value during the cluster smoke test.
+- Per-preset image/platform matrix: resolved as a single `SIM2POLICY_JOB_IMAGE` env for now, with platform/preset/timeouts per (environment, algorithm) in `catalog.JOB_SPECS`. MJX runs need the `mjx_image` — split per-spec images if go1 is enabled for real submission.

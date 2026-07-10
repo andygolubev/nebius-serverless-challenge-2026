@@ -102,9 +102,9 @@ a dedicated account — do not reuse `sim2policy-saas-server` (registry viewer o
 `sim2policy-saas-ci` (image pushes only) — and revisit when a narrower role ships.
 
 ```bash
-nebius iam service-account create --parent-id <project-id> --name sim2policy-saas-orchestrator
+nebius iam service-account create --parent-id project-e00wkbbppr00tab5fhhmz7 --name sim2policy-saas-orchestrator
 nebius iam access-binding create \
-  --resource-id <project-id> \
+  --resource-id project-e00wkbbppr00tab5fhhmz7 \
   --role editor \
   --subject-service-account-id <orchestrator-sa-id>
 nebius iam auth-public-key generate \
@@ -123,23 +123,30 @@ whole orchestration env contract from an optional Secret named `saas-nebius`; wh
 absent the app runs the built-in `mock` backend. Create it on the k3s server (over the SSH
 tunnel) from MysteryBox-resolved values — never commit it, never put the values in a manifest:
 
+Values below were verified with the CLI on 2026-07-11 (`tofu output` returns the same ones):
+
 ```bash
 kubectl -n saas create secret generic saas-nebius \
   --from-literal=SAAS_ORCHESTRATION_BACKEND=nebius \
-  --from-literal=NEBIUS_PROJECT_ID=<project-id> \
-  --from-literal=NEBIUS_SUBNET_ID=<subnet-id> \
-  --from-literal=SIM2POLICY_JOB_IMAGE="$(tofu output -raw sb3_image)" \
-  --from-literal=NEBIUS_S3_SECRET_SELECTOR="$(tofu output -raw artifact_secret_selector)" \
-  --from-literal=NEBIUS_REGISTRY_SECRET=<registry-pull-secret-selector> \
-  --from-literal=AWS_ACCESS_KEY_ID="$(tofu output -raw artifact_access_key_id)" \
+  --from-literal=NEBIUS_PROJECT_ID=project-e00wkbbppr00tab5fhhmz7 \
+  --from-literal=NEBIUS_SUBNET_ID=vpcsubnet-e00re7tmw1apqd4pmm \
+  --from-literal=SIM2POLICY_JOB_IMAGE=cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-runtime \
+  --from-literal=NEBIUS_S3_SECRET_SELECTOR=mbsec-e00k8grag4ncstap26/mbsecver-e00g8rehc7tsgxgahh \
+  --from-literal=NEBIUS_REGISTRY_SECRET=mbsecver-e00v7zgpchp9apmy7m \
+  --from-literal=AWS_ACCESS_KEY_ID=NAKIDE3R86YSA3ANIHIT \
   --from-literal=AWS_SECRET_ACCESS_KEY=<resolved from MysteryBox, e.g. via nebius mysterybox> \
   --from-literal=AWS_ENDPOINT_URL_S3=https://storage.eu-north1.nebius.cloud \
   --from-literal=AWS_DEFAULT_REGION=eu-north1 \
-  --from-literal=SIM2POLICY_S3_BUCKET="$(tofu output -raw artifact_bucket)" \
+  --from-literal=SIM2POLICY_S3_BUCKET=sim2policy-artifacts \
   --from-literal=NEBIUS_CREDENTIALS_FILE=/var/run/secrets/nebius/credentials.json \
   --from-file=NEBIUS_CREDENTIALS_JSON="$HOME/.config/sim2policy/saas-orchestrator-credentials.json"
 kubectl -n saas rollout restart deployment saas
 ```
+
+> **Prerequisite — training image.** As of 2026-07-11 the `sim2policy-images` registry
+> contains only `sim2policy-saas` (the control-plane app), not the training runtime.
+> Build and push `sim2policy:sb3-runtime` from `sim2policy/Dockerfile` before submitting
+> real jobs, or every submission will fail at image pull.
 
 The deployment mounts the Secret's `NEBIUS_CREDENTIALS_JSON` key at
 `/var/run/secrets/nebius/credentials.json`, which is where the
