@@ -21,3 +21,7 @@ saas_argocd_repo_revision = "main"
 # k3s requires a Registry static-key token. Store it in MysteryBox under key `token`.
 saas_use_registry_pull_secret = true
 # saas_registry_pull_secret_id = "mbsec-..."
+
+# Domain/TLS: nothing to configure here. DNS (sim-policy-trainer-challenge.info -> server
+# public IP) lives at the registrar, and Let's Encrypt certs are handled by cert-manager via
+# ArgoCD. Ports 80/443 are already open in saas.tf; no firewall variable changes needed.

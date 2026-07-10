@@ -8,6 +8,7 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - middleware-redirect-https.yaml
 
 # CI updates the tag with: `kustomize edit set image sim2policy-saas=<registry>/sim2policy-saas:<sha>`
 # newName must be the Nebius Registry FQDN + repo (see `tofu output registry_fqdn`).

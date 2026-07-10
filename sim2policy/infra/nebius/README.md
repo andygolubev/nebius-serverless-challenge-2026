@@ -45,6 +45,16 @@ and 80 (ACME/redirect). The k3s API (6443) and ArgoCD UI are **not** public — 
 over an SSH tunnel (`ssh -L`, see `saas/README.md`). A host `ufw` firewall in cloud-init is
 defense-in-depth. Narrow `saas_ssh_ingress_cidrs` to operator IPs.
 
+**Domain and TLS.** The site is served at `https://sim-policy-trainer-challenge.info`. DNS is
+managed manually at the registrar (not Terraform): an A record for
+`sim-policy-trainer-challenge.info` must point at `tofu output -raw saas_server_public_ip`
+(re-check after any re-provision, since the public IP can change). Certificates come from
+Let's Encrypt via cert-manager, installed GitOps-style through ArgoCD
+(`deploy/argocd/cert-manager-app.yaml` + issuers in `deploy/manifests/cert-manager/`); the
+ACME HTTP-01 challenge uses the already-open port 80, so no firewall change is involved. To
+change the domain, update the host in `deploy/manifests/saas/ingress.yaml` and the registrar's
+A record.
+
 **Registry auth for the server.** A real k3s boot test confirmed that containerd cannot exchange
 the VM identity directly with Nebius Registry. Grant the VM service account `viewer` on the
 registry, issue a `CONTAINER_REGISTRY` static key with `nebius iam static-key issue`, store its

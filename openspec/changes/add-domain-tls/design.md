@@ -119,5 +119,9 @@ HelmChartConfig redirect option. This is a polish task, not a blocker.
 
 ## Open Questions
 
-- Exact cert-manager chart version to pin at implementation time (use latest stable `v1.x`).
-- Whether to enable the global 80→443 redirect in this change or defer (Decision 4).
+- ~~Exact cert-manager chart version to pin~~ — resolved: `v1.21.0` (latest stable at
+  implementation time).
+- ~~Whether to enable the 80→443 redirect~~ — resolved: enabled per-router, not globally. The
+  saas ingress listens on `web,websecure` with a namespace-scoped Traefik `redirectScheme`
+  Middleware; cert-manager's solver ingress is a separate, more specific router without the
+  middleware, so ACME challenges are never redirected.
