@@ -11,6 +11,10 @@ artifact and is intentionally gitignored; never put credentials or secret select
 SSH access details for the SaaS server (host, user, key path, kubectl usage) live in the log's
 "Operations: SaaS server access" section.
 
+An authenticated `gh` CLI is available for this repository. Use it to check GitHub Actions runs
+and logs (e.g. `gh run list --workflow saas-image.yml`, `gh run view <id> --log-failed`) instead
+of guessing whether CI built or why it failed.
+
 Preserve unrelated worktree changes. Do not commit generated runs, checkpoints, logs, large media,
 cloud credentials, Terraform/OpenTofu state, plans, or local environment files.
 
