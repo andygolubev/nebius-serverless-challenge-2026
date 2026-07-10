@@ -58,9 +58,9 @@ A record.
 **Registry auth for the server.** A real k3s boot test confirmed that containerd cannot exchange
 the VM identity directly with Nebius Registry. Grant the VM service account `viewer` on the
 registry, issue a `CONTAINER_REGISTRY` static key with `nebius iam static-key issue`, store its
-token in MysteryBox under the key `token`, and set `saas_use_registry_pull_secret = true` plus
-`saas_registry_pull_secret_id = "mbsec-..."`. Cloud-init reads that token and creates the
-`dockerconfigjson` imagePullSecret with username `iam`.
+token through the write-only `TF_VAR_saas_registry_pull_token` input documented below, and set
+`saas_use_registry_pull_secret = true`. OpenTofu creates the MysteryBox secret; cloud-init reads
+its versioned selector and creates the `dockerconfigjson` imagePullSecret with username `iam`.
 
 **Registry auth for GitHub Actions.** Create a Nebius service account with `editor` on the registry,
 issue a `CONTAINER_REGISTRY` static key, and set repo secrets `NEBIUS_REGISTRY` (FQDN plus registry
@@ -97,11 +97,36 @@ identity because Nebius has no job-scoped create/cancel role. Replace it when on
 Apply with the gitignored remote backend and variables, then inspect the selector-only contract:
 
 ```bash
+read -rsp "Artifact S3 secret access key: " TF_VAR_saas_artifact_secret_access_key; echo
+export TF_VAR_saas_artifact_secret_access_key
+read -rsp "Registry static-key token: " TF_VAR_saas_registry_pull_token; echo
+export TF_VAR_saas_registry_pull_token
+
 tofu init -reconfigure -backend-config=backend.hcl
 tofu plan -out=saas-orchestration.tfplan
 tofu apply saas-orchestration.tfplan
 tofu output -json saas_nebius_contract | jq 'keys'
+unset TF_VAR_saas_artifact_secret_access_key TF_VAR_saas_registry_pull_token
 ```
+
+OpenTofu creates two managed MysteryBox secrets: `sim2policy-saas-artifact-s3` with payload key
+`secret`, and `sim2policy-saas-registry-pull` with payload key `token`. The input variables are
+`sensitive` and `ephemeral`; the provider receives them only through
+`sensitive.secret_version.payload`, so their values are not retained in the plan or state.
+The artifact value must be the secret half paired with `tofu output -raw artifact_access_key_id`;
+using an unrelated S3 secret will authenticate as the wrong key and fail object access.
+
+To rotate either value, increment its non-secret generation in the gitignored tfvars, provide both
+current values again through the hidden prompts above, then plan and apply. For example:
+
+```hcl
+saas_artifact_secret_generation = "2" # increment only when rotating the S3 secret
+saas_registry_secret_generation = "2" # increment only when rotating the registry token
+```
+
+The generation forces the write-only payload update and makes the new primary version IDs flow into
+`saas_nebius_contract`. After apply, rerun `saas-nebius-sync.service`. Do not put either value in a
+`.tfvars` file, a `-var` argument, or a committed workflow file.
 
 Cloud-init installs `saas-nebius-sync.service`. It uses the VM identity to resolve the versioned
 artifact credential from MysteryBox and applies `saas-nebius` without placing secret values in Git,

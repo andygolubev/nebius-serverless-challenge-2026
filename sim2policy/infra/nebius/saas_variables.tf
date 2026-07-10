@@ -66,24 +66,28 @@ variable "saas_use_registry_pull_secret" {
   default     = false
 }
 
-variable "saas_registry_pull_secret_id" {
-  description = "MysteryBox secret containing a CONTAINER_REGISTRY static-key token under key `token`; required when saas_use_registry_pull_secret is true."
+variable "saas_artifact_secret_access_key" {
+  description = "Secret half of the existing artifact S3 access key. Supplied only at apply time and written to MysteryBox through a write-only field."
   type        = string
-  default     = ""
-
-  validation {
-    condition     = !var.saas_use_registry_pull_secret || var.saas_registry_pull_secret_id != ""
-    error_message = "saas_registry_pull_secret_id is required when saas_use_registry_pull_secret is true."
-  }
+  sensitive   = true
+  ephemeral   = true
 }
 
-variable "saas_registry_pull_secret_version_id" {
-  description = "Immutable primary version of the registry pull token; required with the registry pull secret."
+variable "saas_artifact_secret_generation" {
+  description = "Non-secret rotation generation for the write-only artifact payload; increment when changing the value."
   type        = string
-  default     = ""
+  default     = "1"
+}
 
-  validation {
-    condition     = !var.saas_use_registry_pull_secret || var.saas_registry_pull_secret_version_id != ""
-    error_message = "saas_registry_pull_secret_version_id is required when saas_use_registry_pull_secret is true."
-  }
+variable "saas_registry_pull_token" {
+  description = "CONTAINER_REGISTRY static-key token. Supplied only at apply time and written to MysteryBox through a write-only field."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
+variable "saas_registry_secret_generation" {
+  description = "Non-secret rotation generation for the write-only registry payload; increment when changing the value."
+  type        = string
+  default     = "1"
 }

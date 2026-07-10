@@ -8,6 +8,8 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing system boundaries or clo
 Record progress, commands, observed results, blockers, and safe next steps in
 `IMPLEMENTATION_LOG.MD` so another agent can resume without guessing. The log is a local handoff
 artifact and is intentionally gitignored; never put credentials or secret selectors in it.
+SSH access details for the SaaS server (host, user, key path, kubectl usage) live in the log's
+"Operations: SaaS server access" section.
 
 Preserve unrelated worktree changes. Do not commit generated runs, checkpoints, logs, large media,
 cloud credentials, Terraform/OpenTofu state, plans, or local environment files.
