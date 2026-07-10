@@ -8,8 +8,10 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing system boundaries or clo
 Record progress, commands, observed results, blockers, and safe next steps in
 `IMPLEMENTATION_LOG.MD` so another agent can resume without guessing. The log is a local handoff
 artifact and is intentionally gitignored; never put credentials or secret selectors in it.
-SSH access details for the SaaS server (host, user, key path, kubectl usage) live in the log's
-"Operations: SaaS server access" section.
+SSH access to the SaaS server uses user `saas-server` (not `ubuntu`) at
+`sim-policy-trainer-challenge.info` / `89.169.125.243`, with the gitignored key
+`ssh-keys/saas-server-key` and `-o IdentitiesOnly=yes`; `kubectl` on the box requires `sudo`.
+Full details live in the log's "Operations: SaaS server access" section.
 
 An authenticated `gh` CLI is available for this repository. Use it to check GitHub Actions runs
 and logs (e.g. `gh run list --workflow saas-image.yml`, `gh run view <id> --log-failed`) instead
