@@ -1,0 +1,82 @@
+name: sb3-runtime-image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sim2policy/**"
+      - ".github/workflows/sb3-runtime-image.yml"
+  pull_request:
+    paths:
+      - "sim2policy/**"
+      - ".github/workflows/sb3-runtime-image.yml"
+  workflow_dispatch: {}
+
+concurrency:
+  group: sb3-runtime-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-validate-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build SB3 runtime
+        uses: docker/build-push-action@v6
+        with:
+          context: ./sim2policy
+          file: ./sim2policy/Dockerfile
+          target: sb3
+          load: true
+          push: false
+          tags: sim2policy:sb3-ci
+          build-args: SOURCE_REVISION=${{ github.sha }}
+          cache-from: type=gha,scope=sb3-runtime
+          cache-to: type=gha,mode=max,scope=sb3-runtime
+
+      - name: Validate runtime imports
+        run: |
+          docker run --rm --entrypoint python sim2policy:sb3-ci -c \
+            'import gymnasium, mujoco, sim2policy, stable_baselines3; print("sb3 runtime imports: ok")'
+
+      - name: Log in to Nebius Registry
+        if: github.event_name != 'pull_request'
+        env:
+          NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
+          NEBIUS_REGISTRY_TOKEN: ${{ secrets.NEBIUS_REGISTRY_TOKEN }}
+        run: |
+          registry_host="${NEBIUS_REGISTRY%%/*}"
+          echo "$NEBIUS_REGISTRY_TOKEN" | docker login "$registry_host" \
+            --username iam --password-stdin
+
+      - name: Push immutable image
+        if: github.event_name != 'pull_request'
+        env:
+          NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
+        run: |
+          immutable_ref="$NEBIUS_REGISTRY/sim2policy:${GITHUB_SHA}"
+          docker tag sim2policy:sb3-ci "$immutable_ref"
+          docker push "$immutable_ref"
+
+      - name: Update compatibility tag
+        if: github.event_name != 'pull_request'
+        env:
+          NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
+        run: |
+          immutable_ref="$NEBIUS_REGISTRY/sim2policy:${GITHUB_SHA}"
+          compatibility_ref="$NEBIUS_REGISTRY/sim2policy:sb3-runtime"
+          docker tag sim2policy:sb3-ci "$compatibility_ref"
+          docker push "$compatibility_ref"
+          digest="$(docker buildx imagetools inspect "$immutable_ref" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          {
+            echo "### SB3 runtime published"
+            echo "- Immutable: \`$immutable_ref\`"
+            echo "- Compatibility: \`$compatibility_ref\`"
+            echo "- Digest: \`$digest\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -89,66 +89,36 @@ existing Serverless-job infra.
 
 ## Serverless job orchestration for the SaaS backend (nebius-job-orchestration)
 
-The SaaS app's `nebius` orchestration backend submits tenant training runs as Serverless AI
-jobs and reads their artifacts from the `sim2policy-artifacts` bucket. It needs a dedicated
-service account plus a Kubernetes Secret assembled from MysteryBox values. None of this is in
-Terraform yet; run the steps below with the Nebius CLI.
+The stack creates `sim2policy-saas-orchestrator`, grants that account project `editor`, and
+attaches it to the SaaS VM. The Nebius SDK authenticates through instance metadata; there is no
+credentials file or long-lived orchestrator key. `editor` remains deliberately isolated to this
+identity because Nebius has no job-scoped create/cancel role. Replace it when one is available.
 
-**1. Service account.** Create `sim2policy-saas-orchestrator` and grant it `editor` on the
-project. `editor` is deliberately broad: Nebius currently requires at least `editor` to
-create/cancel Serverless AI jobs and documents no job-scoped role (see the
-[Serverless AI jobs quickstart](https://docs.nebius.com/serverless/quickstart/jobs)). Keep it
-a dedicated account — do not reuse `sim2policy-saas-server` (registry viewer only) or
-`sim2policy-saas-ci` (image pushes only) — and revisit when a narrower role ships.
+Apply with the gitignored remote backend and variables, then inspect the selector-only contract:
 
 ```bash
-nebius iam service-account create --parent-id project-e00wkbbppr00tab5fhhmz7 --name sim2policy-saas-orchestrator
-nebius iam access-binding create \
-  --resource-id project-e00wkbbppr00tab5fhhmz7 \
-  --role editor \
-  --subject-service-account-id <orchestrator-sa-id>
-nebius iam auth-public-key generate \
-  --service-account-id <orchestrator-sa-id> \
-  --output ~/.config/sim2policy/saas-orchestrator-credentials.json
+tofu init -reconfigure -backend-config=backend.hcl
+tofu plan -out=saas-orchestration.tfplan
+tofu apply saas-orchestration.tfplan
+tofu output -json saas_nebius_contract | jq 'keys'
 ```
 
-**2. MysteryBox.** Store the orchestrator credentials file in MysteryBox (same pattern as the
-registry token). The artifact S3 credentials already exist: the non-secret access key ID is
-`tofu output -raw artifact_access_key_id` and the secret access key is resolvable through the
-MysteryBox selector `tofu output -raw artifact_secret_selector` — that selector is also what
-the backend passes into each training job as the `AWS_SECRET_ACCESS_KEY` env-secret.
-
-**3. Kubernetes Secret.** The deployment (`deploy/manifests/saas/deployment.yaml`) reads the
-whole orchestration env contract from an optional Secret named `saas-nebius`; while it is
-absent the app runs the built-in `mock` backend. Create it on the k3s server (over the SSH
-tunnel) from MysteryBox-resolved values — never commit it, never put the values in a manifest:
-
-Values below were verified with the CLI on 2026-07-11 (`tofu output` returns the same ones):
+Cloud-init installs `saas-nebius-sync.service`. It uses the VM identity to resolve the versioned
+artifact credential from MysteryBox and applies `saas-nebius` without placing secret values in Git,
+OpenTofu inputs, command arguments, or operator shell history. Rerun it after selector rotation:
 
 ```bash
-kubectl -n saas create secret generic saas-nebius \
-  --from-literal=SAAS_ORCHESTRATION_BACKEND=nebius \
-  --from-literal=NEBIUS_PROJECT_ID=project-e00wkbbppr00tab5fhhmz7 \
-  --from-literal=NEBIUS_SUBNET_ID=vpcsubnet-e00re7tmw1apqd4pmm \
-  --from-literal=SIM2POLICY_JOB_IMAGE=cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-runtime \
-  --from-literal=NEBIUS_S3_SECRET_SELECTOR=mbsec-e00k8grag4ncstap26/mbsecver-e00g8rehc7tsgxgahh \
-  --from-literal=NEBIUS_REGISTRY_SECRET=mbsecver-e00v7zgpchp9apmy7m \
-  --from-literal=AWS_ACCESS_KEY_ID=NAKIDE3R86YSA3ANIHIT \
-  --from-literal=AWS_SECRET_ACCESS_KEY=<resolved from MysteryBox, e.g. via nebius mysterybox> \
-  --from-literal=AWS_ENDPOINT_URL_S3=https://storage.eu-north1.nebius.cloud \
-  --from-literal=AWS_DEFAULT_REGION=eu-north1 \
-  --from-literal=SIM2POLICY_S3_BUCKET=sim2policy-artifacts \
-  --from-literal=NEBIUS_CREDENTIALS_FILE=/var/run/secrets/nebius/credentials.json \
-  --from-file=NEBIUS_CREDENTIALS_JSON="$HOME/.config/sim2policy/saas-orchestrator-credentials.json"
-kubectl -n saas rollout restart deployment saas
+sudo systemctl restart saas-nebius-sync.service
+sudo systemctl --no-pager --full status saas-nebius-sync.service
+kubectl -n saas get secret saas-nebius -o json | jq -r '.data | keys[]'
 ```
 
-> **Prerequisite — training image.** As of 2026-07-11 the `sim2policy-images` registry
-> contains only `sim2policy-saas` (the control-plane app), not the training runtime.
-> Build and push `sim2policy:sb3-runtime` from `sim2policy/Dockerfile` before submitting
-> real jobs, or every submission will fail at image pull.
+The last command lists key names only. Do not decode values or use `kubectl describe`. For rollback,
+set the backend to `mock` or delete `saas-nebius`, restart the deployment, and only then detach or
+destroy the orchestrator identity. The old VM service account is retained but no longer attached.
 
-The deployment mounts the Secret's `NEBIUS_CREDENTIALS_JSON` key at
-`/var/run/secrets/nebius/credentials.json`, which is where the
-`NEBIUS_CREDENTIALS_FILE` literal above points the SDK. To roll back to the mock backend,
-delete the Secret (or set `SAAS_ORCHESTRATION_BACKEND=mock` in it) and restart.
+`.github/workflows/sb3-runtime-image.yml` builds the Dockerfile's `sb3` target on `sim2policy/**`
+changes. It uses the existing `sim2policy-saas-ci` account through repository secrets
+`NEBIUS_REGISTRY` and `NEBIUS_REGISTRY_TOKEN`, pushes the commit SHA first, then updates
+`sim2policy:sb3-runtime` to the same image and records the digest. A failed immutable push never
+updates the compatibility tag.

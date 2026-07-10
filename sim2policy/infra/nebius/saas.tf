@@ -96,10 +96,16 @@ resource "nebius_mysterybox_v1_secret" "saas_github_token" {
   secret_version = {
     description = "Initial version."
     set_primary = true
-    payload = [{
-      key          = "token"
-      string_value = var.github_token
-    }]
+  }
+
+  sensitive = {
+    version = sha256(var.github_token)
+    secret_version = {
+      payload = [{
+        key          = "token"
+        string_value = var.github_token
+      }]
+    }
   }
 }
 
@@ -215,21 +221,21 @@ resource "nebius_compute_v1_instance" "saas_server" {
   service_account_id = nebius_iam_v1_service_account.saas_orchestrator.id
 
   cloud_init_user_data = templatefile("${path.module}/cloud-init/saas-server.yaml.tftpl", {
-    ssh_public_key       = var.saas_ssh_public_key
-    github_secret_id     = nebius_mysterybox_v1_secret.saas_github_token.id
-    argocd_repo_url      = var.saas_argocd_repo_url
-    argocd_repo_path     = var.saas_argocd_repo_path
-    argocd_repo_revision = var.saas_argocd_repo_revision
-    use_registry_pull    = var.saas_use_registry_pull_secret
-    registry_secret_id   = var.saas_registry_pull_secret_id
-    registry_secret_selector = var.saas_use_registry_pull_secret ? "${var.saas_registry_pull_secret_id}/${var.saas_registry_pull_secret_version_id}" : ""
+    ssh_public_key             = var.saas_ssh_public_key
+    github_secret_id           = nebius_mysterybox_v1_secret.saas_github_token.id
+    argocd_repo_url            = var.saas_argocd_repo_url
+    argocd_repo_path           = var.saas_argocd_repo_path
+    argocd_repo_revision       = var.saas_argocd_repo_revision
+    use_registry_pull          = var.saas_use_registry_pull_secret
+    registry_secret_id         = var.saas_registry_pull_secret_id
+    registry_secret_selector   = var.saas_use_registry_pull_secret ? "${var.saas_registry_pull_secret_id}/${var.saas_registry_pull_secret_version_id}" : ""
     registry_secret_version_id = var.saas_use_registry_pull_secret ? var.saas_registry_pull_secret_version_id : ""
-    registry_host        = nebius_registry_v1_registry.sim2policy.status.registry_fqdn
-    project_id            = var.project_id
-    subnet_id             = var.saas_subnet_id
-    job_image             = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    artifact_selector     = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
-    artifact_access_key_id = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
-    artifact_bucket       = nebius_storage_v1_bucket.artifacts.name
+    registry_host              = nebius_registry_v1_registry.sim2policy.status.registry_fqdn
+    project_id                 = var.project_id
+    subnet_id                  = var.saas_subnet_id
+    job_image                  = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
+    artifact_selector          = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
+    artifact_access_key_id     = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
+    artifact_bucket            = nebius_storage_v1_bucket.artifacts.name
   })
 }

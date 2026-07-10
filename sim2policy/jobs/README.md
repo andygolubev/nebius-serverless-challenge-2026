@@ -32,6 +32,6 @@ maps the bucket, endpoint, and region to validated config overrides, passes the 
 key ID with `--env`, and injects only the secret access key from MysteryBox with `--env-secret`.
 
 The official visibility gate completed on 2026-06-29 as job `aijob-e00sescyvnw0qat56h` using
-`gpu-l40s-a`, `1gpu-8vcpu-32gb`, subnet `vpcsubnet-e00ka7ggch340z2eyj`, and a one-hour safety
+`gpu-l40s-a`, `1gpu-8vcpu-32gb`, subnet `vpcsubnet-e00re7tmw1apqd4pmm`, and a one-hour safety
 timeout. The workload itself ran for less than one second and reported NVIDIA L40S, 46,068 MiB,
 driver 580.159.04, and CUDA 13.1.

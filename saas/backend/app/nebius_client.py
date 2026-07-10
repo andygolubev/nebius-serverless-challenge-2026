@@ -68,13 +68,12 @@ class SdkJobsClient:
     environments without the `nebius` package installed.
     """
 
-    def __init__(self, credentials_file: str | None = None) -> None:
+    def __init__(self) -> None:
         from nebius.sdk import SDK
 
-        if credentials_file:
-            self._sdk = SDK(credentials_file_name=credentials_file)
-        else:
-            self._sdk = SDK()  # env/CLI-config credential resolution
+        # On k3s the SDK discovers the VM-attached orchestrator identity through
+        # instance metadata; no long-lived credentials file is mounted.
+        self._sdk = SDK()
 
     def _service(self):
         from nebius.api.nebius.ai.v1 import JobServiceClient

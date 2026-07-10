@@ -252,5 +252,5 @@ def build_backend(name: str) -> OrchestrationBackend:
 
         settings = NebiusSettings.from_env()  # fails fast on missing configuration
         reader = S3ArtifactReader(build_s3_client(settings), settings.s3_bucket, RUN_PREFIX)
-        return NebiusBackend(settings, SdkJobsClient(settings.credentials_file), reader)
+        return NebiusBackend(settings, SdkJobsClient(), reader)
     raise ValueError(f"unknown orchestration backend: {name!r}")

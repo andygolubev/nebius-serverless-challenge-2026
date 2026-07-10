@@ -28,10 +28,7 @@ _REQUIRED = {
     "SIM2POLICY_S3_BUCKET": "s3_bucket",
 }
 
-_OPTIONAL = {
-    "NEBIUS_REGISTRY_SECRET": "registry_secret",
-    "NEBIUS_CREDENTIALS_FILE": "credentials_file",
-}
+_OPTIONAL = {"NEBIUS_REGISTRY_SECRET": "registry_secret"}
 
 
 @dataclass(frozen=True)
@@ -52,7 +49,6 @@ class NebiusSettings:
     s3_bucket: str
     # Optional
     registry_secret: str | None = None
-    credentials_file: str | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> NebiusSettings:
