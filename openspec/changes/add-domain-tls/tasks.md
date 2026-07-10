@@ -39,9 +39,9 @@
 
 ## 5. Verification
 
-- [ ] 5.1 After ArgoCD syncs: `kubectl get clusterissuer` shows both issuers `Ready`, and
+- [x] 5.1 After ArgoCD syncs: `kubectl get clusterissuer` shows both issuers `Ready`, and
       `kubectl -n saas get certificate saas-tls` reaches `Ready=True`
-- [ ] 5.2 `curl -I https://sim-policy-trainer-challenge.info` (no `--insecure`) returns the
+- [x] 5.2 `curl -I https://sim-policy-trainer-challenge.info` (no `--insecure`) returns the
       SaaS app with a valid Let's Encrypt chain; browser shows no warning
-- [ ] 5.3 Confirm renewal is armed: `kubectl -n saas describe certificate saas-tls` shows the
+- [x] 5.3 Confirm renewal is armed: `kubectl -n saas describe certificate saas-tls` shows the
       expected renewal time (~60 days after issuance)
