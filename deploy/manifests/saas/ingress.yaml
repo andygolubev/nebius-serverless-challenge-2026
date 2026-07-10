@@ -9,8 +9,9 @@ metadata:
   name: saas
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    # No router.tls annotation: it would force the router TLS-only and break the plain-HTTP
+    # match on `web` that the redirect middleware needs. spec.tls still enables HTTPS.
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-    traefik.ingress.kubernetes.io/router.tls: "true"
     traefik.ingress.kubernetes.io/router.middlewares: saas-redirect-https@kubernetescrd
 spec:
   rules:
