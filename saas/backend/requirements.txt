@@ -1,3 +1,6 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pydantic==2.10.4
+# nebius orchestration backend (mock mode does not import these)
+nebius==0.3.92
+boto3==1.43.46

@@ -28,20 +28,42 @@ LIFECYCLE = [
 
 
 class JobRequest(BaseModel):
-    """What a tenant submits. Preset-driven, mirroring the demo API contract."""
+    """What a tenant submits: a preset shortcut, or environment + algorithm + params.
 
-    preset: str = Field(..., description="Allowlisted training preset, e.g. ant-demo.")
-    seed: int | None = Field(default=None, description="Optional safe override.")
+    Everything is validated against the server-side catalog; no free-form code or env.
+    """
+
+    preset: str | None = Field(default=None, description="Named shortcut, e.g. ant-demo.")
+    environment: str | None = Field(default=None, description="Catalog environment id.")
+    algorithm: str | None = Field(default=None, description="Catalog algorithm id.")
+    params: dict[str, Any] = Field(default_factory=dict, description="Bounded overrides.")
+    seed: int | None = Field(default=None, description="Legacy alias for params.seed.")
+
+
+class AuthRequest(BaseModel):
+    email: str
+
+
+class VerifyRequest(BaseModel):
+    email: str
+    code: str
 
 
 class Job(BaseModel):
     id: str
     tenant_id: str
-    preset: str
-    seed: int | None
+    preset: str | None = None
+    environment: str
+    algorithm: str
+    resolved_config: dict[str, Any]
     status: str
     created_at: str
     updated_at: str
+    # Nebius Serverless AI job resource ID (`aijob-*`); set by the nebius backend
+    # at submission time so polling/cancellation can address the remote job.
+    nebius_job_id: str | None = None
+    # Short, sanitized failure summary surfaced to the tenant. Never raw errors.
+    error: str | None = None
 
 
 class ArtifactManifest(BaseModel):

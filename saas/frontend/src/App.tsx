@@ -1,108 +1,81 @@
 import { useEffect, useState } from "react";
+import { api, session, SESSION_EXPIRED_EVENT } from "./api";
+import { Composer } from "./views/Composer";
+import { Dashboard } from "./views/Dashboard";
+import { JobDetail } from "./views/JobDetail";
+import { Login } from "./views/Login";
 
-type Job = {
-  id: string;
-  preset: string;
-  seed: number | null;
-  status: string;
-  updated_at: string;
-};
-
-const TENANT = "demo";
-const headers = { "Content-Type": "application/json", "X-Tenant-Id": TENANT };
+type Route = { view: "dashboard" } | { view: "composer" } | { view: "job"; id: string };
 
 export function App() {
-  const [presets, setPresets] = useState<string[]>([]);
-  const [preset, setPreset] = useState("ant-demo");
-  const [seed, setSeed] = useState("");
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [authed, setAuthed] = useState(() => session.token !== null);
+  const [route, setRoute] = useState<Route>({ view: "dashboard" });
 
-  async function refresh() {
-    const res = await fetch("/jobs", { headers });
-    if (res.ok) setJobs(await res.json());
+  // Any 401 clears the stored session and drops back to login.
+  useEffect(() => {
+    const onExpired = () => {
+      setAuthed(false);
+      setRoute({ view: "dashboard" });
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
+  if (!authed) {
+    return <Login onLogin={() => setAuthed(true)} />;
   }
 
-  useEffect(() => {
-    fetch("/training-options")
-      .then((r) => r.json())
-      .then((d) => {
-        setPresets(d.presets);
-        if (d.presets.length) setPreset(d.presets[0]);
-      })
-      .catch(() => setPresets(["ant-demo"]));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 1500);
-    return () => clearInterval(t);
-  }, []);
-
-  async function submit() {
-    setError(null);
-    const body = JSON.stringify({ preset, seed: seed ? Number(seed) : null });
-    const res = await fetch("/jobs", { method: "POST", headers, body });
-    if (!res.ok) {
-      setError(`Submit failed: ${res.status}`);
-      return;
+  async function logout() {
+    try {
+      await api.logout();
+    } catch {
+      // revoking best-effort; clear locally regardless
     }
-    setSeed("");
-    refresh();
+    session.clear();
+    setAuthed(false);
+    setRoute({ view: "dashboard" });
   }
 
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", maxWidth: 760, margin: "2rem auto", padding: "0 1rem" }}>
-      <h1>Sim2Policy — train a locomotion policy</h1>
-      <p style={{ color: "#555" }}>Pick a preset, submit a job, watch it progress, fetch results.</p>
+    <div className="shell">
+      <header className="topbar">
+        <span className="brand">
+          <span className="brand-dot" aria-hidden />
+          Sim2Policy
+        </span>
+        <nav aria-label="Main">
+          <button
+            className={`nav-btn ${route.view !== "composer" ? "active" : ""}`}
+            onClick={() => setRoute({ view: "dashboard" })}
+          >
+            Jobs
+          </button>
+          <button
+            className={`nav-btn ${route.view === "composer" ? "active" : ""}`}
+            onClick={() => setRoute({ view: "composer" })}
+          >
+            New job
+          </button>
+        </nav>
+        <span className="topbar-spacer" />
+        <span className="user-chip" title={session.email ?? ""}>
+          {session.email}
+        </span>
+        <button className="btn-ghost btn" onClick={logout}>
+          Sign out
+        </button>
+      </header>
 
-      <section style={{ display: "flex", gap: 8, alignItems: "center", margin: "1rem 0" }}>
-        <select value={preset} onChange={(e) => setPreset(e.target.value)}>
-          {presets.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-        <input
-          placeholder="seed (optional)"
-          value={seed}
-          onChange={(e) => setSeed(e.target.value)}
-          style={{ width: 130 }}
-        />
-        <button onClick={submit}>Submit job</button>
-      </section>
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-
-      <h2>Jobs</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr style={{ textAlign: "left", borderBottom: "1px solid #ddd" }}>
-            <th>Job</th>
-            <th>Preset</th>
-            <th>Status</th>
-            <th>Results</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((j) => (
-            <tr key={j.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-              <td title={j.id}>{j.id.slice(0, 8)}</td>
-              <td>{j.preset}</td>
-              <td>{j.status}</td>
-              <td>
-                {j.status === "completed" ? (
-                  <a href={`/jobs/${j.id}/artifacts`} target="_blank" rel="noreferrer">
-                    artifacts
-                  </a>
-                ) : (
-                  "—"
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </main>
+      <main className="content">
+        {route.view === "dashboard" && (
+          <Dashboard
+            onOpenJob={(id) => setRoute({ view: "job", id })}
+            onCompose={() => setRoute({ view: "composer" })}
+          />
+        )}
+        {route.view === "composer" && <Composer onSubmitted={() => setRoute({ view: "dashboard" })} />}
+        {route.view === "job" && <JobDetail jobId={route.id} onBack={() => setRoute({ view: "dashboard" })} />}
+      </main>
+    </div>
   );
 }
