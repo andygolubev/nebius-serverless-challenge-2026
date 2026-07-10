@@ -4,8 +4,8 @@ The `nebius-job-orchestration` backend is implemented, but its required cloud id
 
 ## What Changes
 
-- Provision a dedicated `sim2policy-saas-orchestrator` service account, isolate its required project-level `editor` grant, create its authentication key, and deliver the credential through MysteryBox using write-only provider fields where supported.
-- Export the complete non-secret and secret-selector contract needed to configure the `saas-nebius` Kubernetes Secret: orchestrator credentials selector, versioned artifact selector, artifact access key ID and storage settings, subnet ID, project ID, registry pull selector, and SB3 job image reference.
+- Provision a dedicated `sim2policy-saas-orchestrator` service account, isolate its required project-level `editor` grant, and attach it to the SaaS VM so the backend authenticates through instance metadata without a long-lived SDK credential.
+- Export the complete non-secret and secret-selector contract needed to configure the `saas-nebius` Kubernetes Secret: versioned artifact selector, artifact access key ID and storage settings, subnet ID, project ID, registry pull selector, and SB3 job image reference.
 - Automate or script idempotent synchronization of `saas-nebius` on the k3s server using the VM identity to resolve MysteryBox values, so secret material does not transit an operator command line or shell history.
 - Add a GitHub Actions pipeline that builds the `sb3` target from `sim2policy/Dockerfile` and pushes immutable commit tags plus the `sb3-runtime` compatibility tag to the existing Nebius registry with the `sim2policy-saas-ci` credentials when `sim2policy/` changes.
 - Replace the README's manual cloud setup procedure with OpenTofu output-driven instructions, correct the rebuilt subnet reference, and document the broad `editor` grant as a revisit point when Nebius provides a job-scoped role.

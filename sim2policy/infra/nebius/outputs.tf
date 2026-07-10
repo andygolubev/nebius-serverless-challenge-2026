@@ -16,6 +16,22 @@ output "artifact_access_key_id" {
   value       = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
 }
 
+output "artifact_endpoint" {
+  value = "https://storage.eu-north1.nebius.cloud"
+}
+
+output "artifact_region" {
+  value = "eu-north1"
+}
+
+output "project_id" {
+  value = var.project_id
+}
+
+output "saas_subnet_id" {
+  value = var.saas_subnet_id
+}
+
 output "registry_fqdn" {
   value = nebius_registry_v1_registry.sim2policy.status.registry_fqdn
 }

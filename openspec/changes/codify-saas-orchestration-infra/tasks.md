@@ -2,14 +2,14 @@
 
 - [ ] 1.1 Initialize `sim2policy/infra/nebius` with OpenTofu 1.12.3 and the configured remote backend, then capture the Nebius provider 0.6.22 schemas for service-account credentials, access bindings, and MysteryBox delivery without exposing state credentials
 - [ ] 1.2 Inspect current remote-state resource addresses and the existing project, subnet, artifact access key/secret version, registry pull secret version, registry, and `sim2policy-saas-ci` resources; decide which values are managed, imported, or supplied as explicit inputs
-- [ ] 1.3 Record the selected write-only credential resource/fields and confirm from schema and a minimal redacted plan that the orchestrator private credential will not be retained in OpenTofu state
+- [ ] 1.3 Confirm the SDK's default metadata authentication path and record that no orchestrator private credential is created or retained in OpenTofu state
 
 ## 2. Orchestrator Identity and Access
 
 - [ ] 2.1 Add the dedicated `sim2policy-saas-orchestrator` service account resource without modifying the SaaS server, CI, or artifact identities
 - [ ] 2.2 Add an isolated project-level `editor` access binding/permit for the orchestrator account and annotate it as a revisit point for a future job-scoped Nebius role
-- [ ] 2.3 Add the orchestrator authentication credential with direct MysteryBox delivery and lifecycle settings appropriate for safe rotation
-- [ ] 2.4 Add orchestrator service-account ID and versioned credential-selector outputs, marking sensitivity accurately while never outputting the resolved credential payload
+- [ ] 2.3 Attach the orchestrator service account to the SaaS VM and give it the existing VM registry/MysteryBox reader grants
+- [ ] 2.4 Add the orchestrator service-account ID output and remove credentials-file plumbing from the pod contract
 
 ## 3. Deployment Output Contract
 

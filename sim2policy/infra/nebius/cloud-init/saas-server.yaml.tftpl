@@ -15,6 +15,84 @@ packages:
   - ufw
 
 write_files:
+  - path: /opt/saas/sync-nebius-secret.sh
+    permissions: "0750"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+      ARTIFACT_SELECTOR="${artifact_selector}"
+      REGISTRY_SELECTOR="${registry_secret_selector}"
+      TMP_FILE="$(mktemp /run/saas-nebius.XXXXXX.json)"
+      chmod 0600 "$TMP_FILE"
+      cleanup() { rm -f "$TMP_FILE"; }
+      trap cleanup EXIT HUP INT TERM
+
+      fetch_selector_key() {
+        local selector="$1" key="$2" secret_id version_id
+        secret_id="$(printf '%s' "$selector" | cut -d/ -f1)"
+        version_id="$(printf '%s' "$selector" | cut -s -d/ -f2)"
+        if [ -z "$secret_id" ] || [ -z "$version_id" ]; then
+          echo "[saas-nebius-sync] ERROR: selector must include secret and version IDs" >&2
+          return 1
+        fi
+        nebius mysterybox payload get --secret-id "$secret_id" --version-id "$version_id" --format json 2>/dev/null \
+          | jq -er --arg k "$key" '.data[] | select(.key==$k) | .string_value // .value'
+      }
+
+      AWS_SECRET_ACCESS_KEY="$(fetch_selector_key "$ARTIFACT_SELECTOR" secret)"
+      if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+        echo "[saas-nebius-sync] ERROR: artifact secret payload is empty" >&2
+        exit 1
+      fi
+
+      kubectl create namespace saas --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+      cat >"$TMP_FILE" <<EOF
+      {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": "saas-nebius", "namespace": "saas"},
+        "type": "Opaque",
+        "stringData": {
+          "SAAS_ORCHESTRATION_BACKEND": "nebius",
+          "NEBIUS_PROJECT_ID": "${project_id}",
+          "NEBIUS_SUBNET_ID": "${subnet_id}",
+          "SIM2POLICY_JOB_IMAGE": "${job_image}",
+          "NEBIUS_S3_SECRET_SELECTOR": "${artifact_selector}",
+          "NEBIUS_REGISTRY_SECRET": "${registry_secret_version_id}",
+          "AWS_ACCESS_KEY_ID": "${artifact_access_key_id}",
+          "AWS_SECRET_ACCESS_KEY": "$AWS_SECRET_ACCESS_KEY",
+          "AWS_ENDPOINT_URL_S3": "https://storage.eu-north1.nebius.cloud",
+          "AWS_DEFAULT_REGION": "eu-north1",
+          "SIM2POLICY_S3_BUCKET": "${artifact_bucket}"
+        }
+      }
+      EOF
+      kubectl apply -f "$TMP_FILE" >/dev/null
+      echo "[saas-nebius-sync] reconciled namespace/name and expected keys (values suppressed)"
+
+  - path: /etc/systemd/system/saas-nebius-sync.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Reconcile the SaaS Nebius orchestration secret from MysteryBox
+      After=k3s.service network-online.target
+      Wants=network-online.target
+      Requires=k3s.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/saas/sync-nebius-secret.sh
+      User=root
+      Group=root
+      UMask=0077
+
+      [Install]
+      WantedBy=multi-user.target
+
   # Idempotent bootstrap. Logs to /var/log/saas-bootstrap.log for debugging.
   - path: /opt/saas/bootstrap.sh
     permissions: "0750"
@@ -60,6 +138,9 @@ write_files:
         sleep 5
       done
       kubectl get nodes
+
+      systemctl daemon-reload
+      systemctl enable saas-nebius-sync.service
 
       # --- Fetch secrets from MysteryBox using the VM service-account identity ---
       # The primary secret version is selected when --version-id is omitted.
@@ -111,6 +192,10 @@ write_files:
         kubectl -n saas patch serviceaccount default --type merge \
           -p '{"imagePullSecrets":[{"name":"nebius-registry"}]}'
       fi
+
+      # Resolve the versioned artifact credential with this VM's attached
+      # orchestrator identity and reconcile the backend environment contract.
+      systemctl start saas-nebius-sync.service
 
       # --- Root app-of-apps: hand ongoing delivery to ArgoCD/Git ---
       kubectl -n argocd apply -f - <<EOF

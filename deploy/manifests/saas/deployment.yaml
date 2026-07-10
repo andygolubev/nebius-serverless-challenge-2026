@@ -45,12 +45,6 @@ spec:
             # Uncomment together with SAAS_EMAIL_BACKEND=smtp:
             # - secretRef:
             #     name: saas-smtp
-          volumeMounts:
-            # Nebius SDK service-account credentials file; the saas-nebius Secret
-            # sets NEBIUS_CREDENTIALS_FILE to this mounted path.
-            - name: nebius-credentials
-              mountPath: /var/run/secrets/nebius
-              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -77,11 +71,3 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-      volumes:
-        - name: nebius-credentials
-          secret:
-            secretName: saas-nebius
-            optional: true
-            items:
-              - key: NEBIUS_CREDENTIALS_JSON
-                path: credentials.json

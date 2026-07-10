@@ -11,19 +11,19 @@ The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` servi
 - **WHEN** a Nebius job-scoped role becomes available
 - **THEN** the isolated access binding can be replaced without changing the SaaS server, CI, or artifact identities
 
-### Requirement: MysteryBox-delivered orchestrator credentials
-The stack SHALL create an authentication credential for the orchestrator service account and SHALL deliver its secret payload directly through MysteryBox using provider-supported write-only or secret-delivery fields. Credential payloads MUST NOT be committed, printed by automation, exposed as OpenTofu outputs, or retained in state where the provider supports write-only delivery.
+### Requirement: Metadata-based orchestrator authentication
+The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, and the SaaS backend SHALL authenticate to Nebius through instance metadata without an SDK credentials file or long-lived private credential.
 
-#### Scenario: Credential provisioning
-- **WHEN** OpenTofu creates the orchestrator credential
-- **THEN** state and outputs contain only identifiers, metadata, and selectors while MysteryBox holds the credential payload
+#### Scenario: Backend starts on the SaaS VM
+- **WHEN** the Nebius backend constructs the SDK without a credentials file
+- **THEN** the SDK uses the VM's attached orchestrator identity
 
-#### Scenario: Unsafe provider behavior
-- **WHEN** provider schema or plan inspection indicates that a private credential payload would be stored in state
-- **THEN** implementation stops before apply and records the blocker instead of accepting plaintext sensitive state
+#### Scenario: Deployment configuration is generated
+- **WHEN** `saas-nebius` is reconciled
+- **THEN** it contains no orchestrator private key, credentials JSON, or credentials-file setting
 
 ### Requirement: Complete machine-readable deployment contract
-The stack SHALL output the orchestrator service-account ID and every value required to construct `saas-nebius`: orchestrator credentials selector, versioned artifact secret selector, artifact access key ID, artifact endpoint, region and bucket, project ID, subnet ID, registry pull selector when required, and SB3 job image reference. Secret-bearing outputs SHALL contain selectors only, and selector outputs consumed as immutable references MUST identify a specific MysteryBox version.
+The stack SHALL output the orchestrator service-account ID and every value required to construct `saas-nebius`: versioned artifact secret selector, artifact access key ID, artifact endpoint, region and bucket, project ID, subnet ID, registry pull selector when required, and SB3 job image reference. Secret-bearing outputs SHALL contain selectors only, and selector outputs consumed as immutable references MUST identify a specific MysteryBox version.
 
 #### Scenario: Generate configuration after apply
 - **WHEN** an operator or reconciliation script reads `tofu output -json`
@@ -58,4 +58,3 @@ The change SHALL be verified with OpenTofu formatting and validation, provider-s
 #### Scenario: Plan proposes unrelated replacement
 - **WHEN** the plan proposes replacement or deletion outside the intended resources
 - **THEN** apply is blocked until the cause is resolved or the user explicitly expands scope
-

@@ -3,7 +3,34 @@ output "saas_server_id" {
 }
 
 output "saas_server_service_account_id" {
-  value = nebius_iam_v1_service_account.saas_server.id
+  description = "Deprecated unattached legacy SaaS server service account."
+  value       = nebius_iam_v1_service_account.saas_server.id
+}
+
+output "saas_orchestrator_service_account_id" {
+  description = "VM-attached identity used by the Nebius SDK through instance metadata."
+  value       = nebius_iam_v1_service_account.saas_orchestrator.id
+}
+
+output "registry_pull_secret_selector" {
+  description = "Versioned MysteryBox selector used for private runtime image pulls, or empty when disabled."
+  value       = var.saas_use_registry_pull_secret ? "${var.saas_registry_pull_secret_id}/${var.saas_registry_pull_secret_version_id}" : ""
+}
+
+output "saas_nebius_contract" {
+  description = "Selector-only and non-secret source contract reconciled into the saas-nebius Kubernetes Secret."
+  value = {
+    SAAS_ORCHESTRATION_BACKEND = "nebius"
+    NEBIUS_PROJECT_ID          = var.project_id
+    NEBIUS_SUBNET_ID           = var.saas_subnet_id
+    SIM2POLICY_JOB_IMAGE       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
+    NEBIUS_S3_SECRET_SELECTOR  = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
+    NEBIUS_REGISTRY_SECRET     = var.saas_use_registry_pull_secret ? var.saas_registry_pull_secret_version_id : ""
+    AWS_ACCESS_KEY_ID          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
+    AWS_ENDPOINT_URL_S3        = "https://storage.eu-north1.nebius.cloud"
+    AWS_DEFAULT_REGION         = "eu-north1"
+    SIM2POLICY_S3_BUCKET       = nebius_storage_v1_bucket.artifacts.name
+  }
 }
 
 output "saas_github_secret_id" {

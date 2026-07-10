@@ -76,3 +76,14 @@ variable "saas_registry_pull_secret_id" {
     error_message = "saas_registry_pull_secret_id is required when saas_use_registry_pull_secret is true."
   }
 }
+
+variable "saas_registry_pull_secret_version_id" {
+  description = "Immutable primary version of the registry pull token; required with the registry pull secret."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.saas_use_registry_pull_secret || var.saas_registry_pull_secret_version_id != ""
+    error_message = "saas_registry_pull_secret_version_id is required when saas_use_registry_pull_secret is true."
+  }
+}

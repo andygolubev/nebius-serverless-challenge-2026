@@ -24,11 +24,11 @@ The current stack already establishes the patterns to extend: OpenTofu 1.12.3 wi
 
 ## Decisions
 
-### 1. Model the orchestrator identity separately and deliver its key directly to MysteryBox
+### 1. Attach the dedicated orchestrator identity to the SaaS VM
 
-Add a dedicated `nebius_iam_v1_service_account` named `sim2policy-saas-orchestrator`, a project access binding/permit granting `editor`, and the provider's service-account authentication-key resource configured for MysteryBox delivery. The exact 0.6.22 resource schema and write-only argument must be confirmed from the installed provider schema before implementation; the resulting state must be inspected structurally to ensure no private key payload is retained.
+Add a dedicated `nebius_iam_v1_service_account` named `sim2policy-saas-orchestrator`, a project access binding/permit granting `editor`, and attach that account to the SaaS VM. The Nebius SDK uses instance metadata when no credentials file is configured, so no private SDK credential is generated or stored.
 
-This identity is intentionally separate from `sim2policy-saas-server`, `sim2policy-saas-ci`, and `sim2policy-artifacts`. Reusing any of those accounts would couple unrelated privileges and make later replacement of `editor` harder. Manually creating the key and importing only a selector was rejected because it preserves an undocumented lifecycle step.
+This identity is intentionally separate from `sim2policy-saas-ci` and `sim2policy-artifacts`. It replaces the old VM attachment while inheriting the VM's narrow registry and MysteryBox reader grants. A credentials file was rejected because metadata authentication eliminates a long-lived secret and makes rotation unnecessary.
 
 ### 2. Treat secret selectors as deployment interfaces, not resolved secret values
 
@@ -73,6 +73,5 @@ Rollback disables the Nebius backend or restores the prior `saas-nebius`, remove
 
 ## Open Questions
 
-- Which exact Nebius provider 0.6.22 resource creates an SDK-compatible service-account credentials JSON with direct MysteryBox delivery, and which status attributes expose its secret ID and primary version?
 - Does the existing registry pull token input provide a versioned selector, or must the stack add a separate version input/output to satisfy the SDK/Kubernetes consumer contract?
 - Should the job image output remain the `sb3-runtime` compatibility tag or accept an optional immutable tag/digest variable as the production default after CI publishes its first image?

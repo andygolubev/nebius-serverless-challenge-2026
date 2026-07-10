@@ -10,6 +10,33 @@ resource "nebius_iam_v1_service_account" "saas_server" {
   name      = "${var.name_prefix}-saas-server"
 }
 
+# Dedicated runtime identity for the SaaS backend. The VM-attached identity is
+# discovered by the Nebius SDK through instance metadata, so no long-lived SDK
+# private key or credentials file exists. `editor` is the narrowest role that
+# currently permits Serverless AI job create/cancel; replace it when Nebius
+# publishes a job-scoped role.
+resource "nebius_iam_v1_service_account" "saas_orchestrator" {
+  parent_id   = var.project_id
+  name        = "${var.name_prefix}-saas-orchestrator"
+  description = "VM identity for SaaS Serverless AI job orchestration"
+}
+
+resource "nebius_iam_v1_group" "saas_orchestrators" {
+  parent_id = var.tenant_id
+  name      = "${var.name_prefix}-saas-orchestrators"
+}
+
+resource "nebius_iam_v1_group_membership" "saas_orchestrator_editor" {
+  parent_id = nebius_iam_v1_group.saas_orchestrators.id
+  member_id = nebius_iam_v1_service_account.saas_orchestrator.id
+}
+
+resource "nebius_iam_v1_access_permit" "saas_orchestrator_editor" {
+  parent_id   = nebius_iam_v1_group.saas_orchestrators.id
+  resource_id = var.project_id
+  role        = "editor"
+}
+
 resource "nebius_iam_v1_group" "saas_server_access" {
   parent_id = var.tenant_id
   name      = "${var.name_prefix}-saas-server-access"
@@ -17,7 +44,7 @@ resource "nebius_iam_v1_group" "saas_server_access" {
 
 resource "nebius_iam_v1_group_membership" "saas_server" {
   parent_id = nebius_iam_v1_group.saas_server_access.id
-  member_id = nebius_iam_v1_service_account.saas_server.id
+  member_id = nebius_iam_v1_service_account.saas_orchestrator.id
 }
 
 resource "nebius_iam_v1_access_permit" "saas_registry_pull" {
@@ -79,6 +106,12 @@ resource "nebius_mysterybox_v1_secret" "saas_github_token" {
 resource "nebius_iam_v1_access_permit" "saas_github_secret_reader" {
   parent_id   = nebius_iam_v1_group.saas_server_access.id
   resource_id = nebius_mysterybox_v1_secret.saas_github_token.id
+  role        = "mysterybox.payload-viewer"
+}
+
+resource "nebius_iam_v1_access_permit" "saas_artifact_secret_reader" {
+  parent_id   = nebius_iam_v1_group.saas_server_access.id
+  resource_id = split("/", nebius_iam_v2_access_key.artifacts.status.secret_reference_id)[0]
   role        = "mysterybox.payload-viewer"
 }
 
@@ -179,7 +212,7 @@ resource "nebius_compute_v1_instance" "saas_server" {
     }]
   }]
 
-  service_account_id = nebius_iam_v1_service_account.saas_server.id
+  service_account_id = nebius_iam_v1_service_account.saas_orchestrator.id
 
   cloud_init_user_data = templatefile("${path.module}/cloud-init/saas-server.yaml.tftpl", {
     ssh_public_key       = var.saas_ssh_public_key
@@ -189,6 +222,14 @@ resource "nebius_compute_v1_instance" "saas_server" {
     argocd_repo_revision = var.saas_argocd_repo_revision
     use_registry_pull    = var.saas_use_registry_pull_secret
     registry_secret_id   = var.saas_registry_pull_secret_id
+    registry_secret_selector = var.saas_use_registry_pull_secret ? "${var.saas_registry_pull_secret_id}/${var.saas_registry_pull_secret_version_id}" : ""
+    registry_secret_version_id = var.saas_use_registry_pull_secret ? var.saas_registry_pull_secret_version_id : ""
     registry_host        = nebius_registry_v1_registry.sim2policy.status.registry_fqdn
+    project_id            = var.project_id
+    subnet_id             = var.saas_subnet_id
+    job_image             = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
+    artifact_selector     = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
+    artifact_access_key_id = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
+    artifact_bucket       = nebius_storage_v1_bucket.artifacts.name
   })
 }
