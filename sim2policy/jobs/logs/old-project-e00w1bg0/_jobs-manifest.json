@@ -1,0 +1,884 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "id": "aijob-e00pgzph20ac6hvjyg",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-manifest-correct-20260705",
+        "resource_version": "1",
+        "created_at": "2026-07-05T11:35:06.702428Z",
+        "updated_at": "2026-07-05T11:35:06.702428Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:3dbe8d4d59877884e150784f73b8619ba57ce37ae72df6861ac65100ae1ca3c8",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-c 'import boto3,json; c=boto3.client(\"s3\",endpoint_url=\"https://storage.eu-north1.nebius.cloud\",region_name=\"eu-north1\"); b=\"sim2policy-artifacts\"; p=\"sim2policy/go1-mjx-full-20260704/\"; k=p+\"report/artifacts.json\"; a=json.loads(c.get_object(Bucket=b,Key=k)[\"Body\"].read()); a.pop(\"demo_recording\",None); items=a.setdefault(\"artifacts\",{}); items[\"demo_recording\"]=\"videos/demo-recording.mp4\"; c.put_object(Bucket=b,Key=k,Body=(json.dumps(a,indent=2,sort_keys=True)+\"\\n\").encode(),ContentType=\"application/json\"); s=p+\"metadata/status.json\"; z=json.loads(c.get_object(Bucket=b,Key=s)[\"Body\"].read()); z.setdefault(\"progress\",{})[\"published_artifacts\"]=len(items); c.put_object(Bucket=b,Key=s,Body=(json.dumps(z,indent=2,sort_keys=True)+\"\\n\").encode(),ContentType=\"application/json\"); check=json.loads(c.get_object(Bucket=b,Key=k)[\"Body\"].read()); assert len(check)==1 and len(check[\"artifacts\"])==9 and check[\"artifacts\"][\"demo_recording\"]==\"videos/demo-recording.mp4\"; assert c.head_object(Bucket=b,Key=p+check[\"artifacts\"][\"demo_recording\"])[\"ContentLength\"]==3345207; print(json.dumps({\"manifest\":check,\"status\":z[\"status\"],\"published_artifacts\":len(items)},sort_keys=True))'",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-05T11:40:19.914091784Z",
+        "finished_at": "2026-07-05T11:40:20.800603851Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00gn0r38271jnrsww",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-manifest-final-20260705",
+        "resource_version": "1",
+        "created_at": "2026-07-05T11:28:55.367702Z",
+        "updated_at": "2026-07-05T11:28:55.367702Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:3dbe8d4d59877884e150784f73b8619ba57ce37ae72df6861ac65100ae1ca3c8",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-c 'import boto3,json; c=boto3.client(\"s3\",endpoint_url=\"https://storage.eu-north1.nebius.cloud\",region_name=\"eu-north1\"); b=\"sim2policy-artifacts\"; p=\"sim2policy/go1-mjx-full-20260704/\"; k=p+\"report/artifacts.json\"; a=json.loads(c.get_object(Bucket=b,Key=k)[\"Body\"].read()); a[\"demo_recording\"]=\"videos/demo-recording.mp4\"; c.put_object(Bucket=b,Key=k,Body=(json.dumps(a,indent=2,sort_keys=True)+\"\\n\").encode(),ContentType=\"application/json\"); s=p+\"metadata/status.json\"; z=json.loads(c.get_object(Bucket=b,Key=s)[\"Body\"].read()); z.setdefault(\"progress\",{})[\"published_artifacts\"]=len(a); c.put_object(Bucket=b,Key=s,Body=(json.dumps(z,indent=2,sort_keys=True)+\"\\n\").encode(),ContentType=\"application/json\"); assert c.head_object(Bucket=b,Key=p+a[\"demo_recording\"])[\"ContentLength\"]==3345207; print(json.dumps({\"manifest\":a,\"status\":z[\"status\"],\"published_artifacts\":len(a)},sort_keys=True))'",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-05T11:33:59.793345072Z",
+        "finished_at": "2026-07-05T11:34:00.653938109Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00vwmvsk75m06sqfe",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-submission-artifacts-20260705",
+        "resource_version": "1",
+        "created_at": "2026-07-05T11:22:27.942520Z",
+        "updated_at": "2026-07-05T11:22:27.942520Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:3dbe8d4d59877884e150784f73b8619ba57ce37ae72df6861ac65100ae1ca3c8",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-c 'import boto3,json,pathlib,subprocess; c=boto3.client(\"s3\",endpoint_url=\"https://storage.eu-north1.nebius.cloud\",region_name=\"eu-north1\"); b=\"sim2policy-artifacts\"; p=\"sim2policy/go1-mjx-full-20260704/\"; src=pathlib.Path(\"/tmp/progression.mp4\"); out=pathlib.Path(\"/tmp/demo-recording.mp4\"); c.download_file(b,p+\"videos/progression_montage.mp4\",str(src)); subprocess.run([\"ffmpeg\",\"-y\",\"-stream_loop\",\"3\",\"-i\",str(src),\"-t\",\"60\",\"-c:v\",\"libx264\",\"-pix_fmt\",\"yuv420p\",\"-movflags\",\"+faststart\",str(out)],check=True); c.upload_file(str(out),b,p+\"videos/demo-recording.mp4\",ExtraArgs={\"ContentType\":\"video/mp4\"}); m=json.loads(c.get_object(Bucket=b,Key=p+\"report/metrics.json\")[\"Body\"].read()); print(json.dumps({\"metrics\":m,\"demo_bytes\":out.stat().st_size},sort_keys=True)); print(json.dumps(sorted((o[\"Key\"][len(p):],o[\"Size\"]) for o in c.list_objects_v2(Bucket=b,Prefix=p).get(\"Contents\",[]))))'",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-05T11:27:40.163235412Z",
+        "finished_at": "2026-07-05T11:27:44.613459358Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00zzajd6q84enxqdp",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-finalize2-20260705",
+        "resource_version": "1",
+        "created_at": "2026-07-05T11:07:06.913756Z",
+        "updated_at": "2026-07-05T11:07:06.913756Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:3dbe8d4d59877884e150784f73b8619ba57ce37ae72df6861ac65100ae1ca3c8",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.finalize --config configs/go1_mjx.yaml --run-id go1-mjx-full-20260704 --compare-run-id halfcheetah-cloud-resume-fixed-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "7200s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-05T11:12:14.912125975Z",
+        "finished_at": "2026-07-05T11:21:03.418189470Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00md6z0w26hmmsnj5",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-finalize-20260705",
+        "resource_version": "1",
+        "created_at": "2026-07-05T10:50:41.592609Z",
+        "updated_at": "2026-07-05T10:50:41.592609Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:c6ee808b487a69eb3ed15d748a6272af151441e54961f3b3ac99ae50c1a50eca",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.finalize --config configs/go1_mjx.yaml --run-id go1-mjx-full-20260704 --compare-run-id halfcheetah-cloud-resume-fixed-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "7200s"
+      },
+      "status": {
+        "state": "FAILED",
+        "state_details": {
+          "code": "ContainerFailed",
+          "message": "Container exited with non-zero exit code."
+        },
+        "started_at": "2026-07-05T10:55:27.591915489Z",
+        "finished_at": "2026-07-05T10:55:38.506666548Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00z7km5vrxqcwgfnc",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-full-20260704",
+        "resource_version": "1",
+        "created_at": "2026-07-04T15:23:38.620003Z",
+        "updated_at": "2026-07-04T15:23:38.620003Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:53862a572bbc847bb11875b69c60b0f5c83232e36b571fa2ba7ad214ddfa7f1e",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id go1-mjx-full-20260704 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "14400s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-04T15:28:25.936511122Z",
+        "finished_at": "2026-07-04T15:39:01.146895119Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00yqwawj7d2hnanv4",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-bounded-pass-20260704",
+        "resource_version": "1",
+        "created_at": "2026-07-04T15:12:34.528270Z",
+        "updated_at": "2026-07-04T15:12:34.528270Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:53862a572bbc847bb11875b69c60b0f5c83232e36b571fa2ba7ad214ddfa7f1e",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id go1-mjx-bounded-pass-20260704 --set training.total_steps=1000000 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "1800s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-04T15:17:43.028116528Z",
+        "finished_at": "2026-07-04T15:22:24.448415214Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00rk20ywf3dsddvff",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-bounded-fixed-20260704",
+        "resource_version": "1",
+        "created_at": "2026-07-04T14:56:42.741925Z",
+        "updated_at": "2026-07-04T14:56:42.741925Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:4cbc89d0c2e436465d42b6b3b7836516bdc9bbc9bd29f5ff078a278ff69fec3f",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id go1-mjx-bounded-fixed-20260704 --set training.total_steps=1000000 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "1800s"
+      },
+      "status": {
+        "state": "FAILED",
+        "state_details": {
+          "code": "ContainerFailed",
+          "message": "Container exited with non-zero exit code."
+        },
+        "started_at": "2026-07-04T15:01:47.063674988Z",
+        "finished_at": "2026-07-04T15:03:09.135424379Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00cmpnypz6qns0tjn",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-go1-mjx-bounded-20260704",
+        "resource_version": "1",
+        "created_at": "2026-07-04T14:36:01.916917Z",
+        "updated_at": "2026-07-04T14:36:01.916917Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy@sha256:b355ed9d2f25a19434887a0f9351844c9270406d094f34dc561ebdf9751f187c",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_mjx --config configs/go1_mjx.yaml --run-id go1-mjx-bounded-20260704 --set training.total_steps=1000000 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "1800s"
+      },
+      "status": {
+        "state": "FAILED",
+        "state_details": {
+          "code": "ContainerFailed",
+          "message": "Container exited with non-zero exit code."
+        },
+        "started_at": "2026-07-04T14:40:49.659376409Z",
+        "finished_at": "2026-07-04T14:41:36.140356342Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00xr3x41jyjcjyzdm",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-h100-mjx-health-20260704",
+        "resource_version": "1",
+        "created_at": "2026-07-04T14:22:22.599564Z",
+        "updated_at": "2026-07-04T14:22:22.599564Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:mjx-runtime",
+        "container_command": "python",
+        "args": "-m sim2policy.health --backend mjx",
+        "platform": "gpu-h100-sxm",
+        "preset": "1gpu-16vcpu-200gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-07-04T14:27:14.320790077Z",
+        "finished_at": "2026-07-04T14:27:22.046218789Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00skwn6bbv5p8at2p",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-ant-finalize-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T20:39:47.074368Z",
+        "updated_at": "2026-06-30T20:39:47.074368Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "bash",
+        "args": "-lc python\\ -c\\ \\'import\\ boto3,pathlib\\;\\ b=\\\"sim2policy-artifacts\\\"\\;\\ rid=\\\"ant-cloud-bounded-20260630\\\"\\;\\ prefix=f\\\"sim2policy/\\{rid\\}/\\\"\\;\\ c=boto3.client\\(\\\"s3\\\",endpoint_url=\\\"https://storage.eu-north1.nebius.cloud\\\",region_name=\\\"eu-north1\\\"\\)\\;\\ pages=c.get_paginator\\(\\\"list_objects_v2\\\"\\).paginate\\(Bucket=b,Prefix=prefix\\)\\;\\ \\[\\(lambda\\ p,k:\\(p.parent.mkdir\\(parents=True,exist_ok=True\\),c.download_file\\(b,k,str\\(p\\)\\)\\)\\)\\(pathlib.Path\\(\\\"runs\\\"\\)/rid/o\\[\\\"Key\\\"\\]\\[len\\(prefix\\):\\],o\\[\\\"Key\\\"\\]\\)\\ for\\ page\\ in\\ pages\\ for\\ o\\ in\\ page.get\\(\\\"Contents\\\",\\[\\]\\)\\]\\'\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.evaluate\\ --config\\ configs/ant_sb3.yaml\\ --run-id\\ ant-cloud-bounded-20260630\\ --checkpoint\\ runs/ant-cloud-bounded-20260630/checkpoints/final-000000204800.zip\\ --set\\ training.total_steps=200000\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.report_cli\\ curve\\ --config\\ configs/ant_sb3.yaml\\ --run-root\\ runs/ant-cloud-bounded-20260630\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.render\\ --config\\ configs/ant_sb3.yaml\\ --run-id\\ ant-cloud-bounded-20260630\\ --montage\\ --checkpoints-dir\\ runs/ant-cloud-bounded-20260630/checkpoints\\ --total-steps\\ 200000\\ --output\\ runs/ant-cloud-bounded-20260630/videos/progression.mp4\\ --set\\ training.total_steps=200000\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1\\ \\\u0026\\\u0026\\ python\\ -c\\ \\'from\\ pathlib\\ import\\ Path\\;\\ from\\ sim2policy.config\\ import\\ load_config\\;\\ from\\ sim2policy.storage\\ import\\ ArtifactStore\\;\\ rid=\\\"ant-cloud-bounded-20260630\\\"\\;\\ cfg=load_config\\(\\\"configs/ant_sb3.yaml\\\",\\{\\\"training.total_steps\\\":200000,\\\"storage.mode\\\":\\\"s3\\\",\\\"storage.bucket\\\":\\\"sim2policy-artifacts\\\",\\\"storage.endpoint_url\\\":\\\"https://storage.eu-north1.nebius.cloud\\\",\\\"storage.region\\\":\\\"eu-north1\\\"\\}\\)\\;\\ print\\(\\{\\\"uploaded\\\":len\\(ArtifactStore\\(cfg.storage,rid\\).sync_tree\\(Path\\(\\\"runs\\\"\\)/rid,required=True\\)\\)\\}\\)\\'",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-06-30T20:43:54.077824319Z",
+        "finished_at": "2026-06-30T20:45:21.245026424Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00k950dctrt0nan2s",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-ant-cloud-bounded-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T20:29:35.478556Z",
+        "updated_at": "2026-06-30T20:29:35.478556Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/ant_sb3.yaml --run-id ant-cloud-bounded-20260630 --set training.total_steps=200000 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-06-30T20:33:53.540389446Z",
+        "finished_at": "2026-06-30T20:37:49.698871919Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00hwgk0ka019bnffh",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-finalize2-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T20:20:34.196299Z",
+        "updated_at": "2026-06-30T20:20:34.196299Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "bash",
+        "args": "-lc python\\ -c\\ \\'import\\ boto3,pathlib\\;\\ b=\\\"sim2policy-artifacts\\\"\\;\\ rid=\\\"halfcheetah-cloud-resume-fixed-20260630\\\"\\;\\ prefix=f\\\"sim2policy/\\{rid\\}/\\\"\\;\\ c=boto3.client\\(\\\"s3\\\",endpoint_url=\\\"https://storage.eu-north1.nebius.cloud\\\",region_name=\\\"eu-north1\\\"\\)\\;\\ pages=c.get_paginator\\(\\\"list_objects_v2\\\"\\).paginate\\(Bucket=b,Prefix=prefix\\)\\;\\ \\[\\(lambda\\ p,k:\\(p.parent.mkdir\\(parents=True,exist_ok=True\\),c.download_file\\(b,k,str\\(p\\)\\)\\)\\)\\(pathlib.Path\\(\\\"runs\\\"\\)/rid/o\\[\\\"Key\\\"\\]\\[len\\(prefix\\):\\],o\\[\\\"Key\\\"\\]\\)\\ for\\ page\\ in\\ pages\\ for\\ o\\ in\\ page.get\\(\\\"Contents\\\",\\[\\]\\)\\]\\'\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.evaluate\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-id\\ halfcheetah-cloud-resume-fixed-20260630\\ --checkpoint\\ runs/halfcheetah-cloud-resume-fixed-20260630/checkpoints/final-000002003376.zip\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.report_cli\\ curve\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-root\\ runs/halfcheetah-cloud-resume-fixed-20260630\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.render\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-id\\ halfcheetah-cloud-resume-fixed-20260630\\ --montage\\ --checkpoints-dir\\ runs/halfcheetah-cloud-resume-fixed-20260630/checkpoints\\ --total-steps\\ 2000000\\ --output\\ runs/halfcheetah-cloud-resume-fixed-20260630/videos/progression.mp4\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1\\ \\\u0026\\\u0026\\ python\\ -c\\ \\'from\\ pathlib\\ import\\ Path\\;\\ from\\ sim2policy.config\\ import\\ load_config\\;\\ from\\ sim2policy.storage\\ import\\ ArtifactStore\\;\\ rid=\\\"halfcheetah-cloud-resume-fixed-20260630\\\"\\;\\ cfg=load_config\\(\\\"configs/halfcheetah_sb3.yaml\\\",\\{\\\"storage.mode\\\":\\\"s3\\\",\\\"storage.bucket\\\":\\\"sim2policy-artifacts\\\",\\\"storage.endpoint_url\\\":\\\"https://storage.eu-north1.nebius.cloud\\\",\\\"storage.region\\\":\\\"eu-north1\\\"\\}\\)\\;\\ print\\(\\{\\\"uploaded\\\":len\\(ArtifactStore\\(cfg.storage,rid\\).sync_tree\\(Path\\(\\\"runs\\\"\\)/rid,required=True\\)\\)\\}\\)\\'",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-06-30T20:25:05.681254898Z",
+        "finished_at": "2026-06-30T20:26:31.398729677Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00qmkxyzc1m4m6tvj",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-finalize-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T20:15:21.068502Z",
+        "updated_at": "2026-06-30T20:15:21.068502Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "bash",
+        "args": "-lc python\\ -c\\ \\'import\\ boto3,pathlib\\;\\ b=\\\"sim2policy-artifacts\\\"\\;\\ rid=\\\"halfcheetah-cloud-resume-fixed-20260630\\\"\\;\\ prefix=f\\\"sim2policy/\\{rid\\}/\\\"\\;\\ c=boto3.client\\(\\\"s3\\\",endpoint_url=\\\"https://storage.eu-north1.nebius.cloud\\\",region_name=\\\"eu-north1\\\"\\)\\;\\ pages=c.get_paginator\\(\\\"list_objects_v2\\\"\\).paginate\\(Bucket=b,Prefix=prefix\\)\\;\\ \\[\\(lambda\\ p,k:\\(p.parent.mkdir\\(parents=True,exist_ok=True\\),c.download_file\\(b,k,str\\(p\\)\\)\\)\\)\\(pathlib.Path\\(\\\"runs\\\"\\)/rid/o\\[\\\"Key\\\"\\]\\[len\\(prefix\\):\\],o\\[\\\"Key\\\"\\]\\)\\ for\\ page\\ in\\ pages\\ for\\ o\\ in\\ page.get\\(\\\"Contents\\\",\\[\\]\\)\\]\\'$'\\n'python\\ -m\\ sim2policy.evaluate\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-id\\ halfcheetah-cloud-resume-fixed-20260630\\ --checkpoint\\ runs/halfcheetah-cloud-resume-fixed-20260630/checkpoints/final-000002003376.zip\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1$'\\n'python\\ -m\\ sim2policy.report_cli\\ curve\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-root\\ runs/halfcheetah-cloud-resume-fixed-20260630$'\\n'python\\ -m\\ sim2policy.render\\ --config\\ configs/halfcheetah_sb3.yaml\\ --run-id\\ halfcheetah-cloud-resume-fixed-20260630\\ --montage\\ --checkpoints-dir\\ runs/halfcheetah-cloud-resume-fixed-20260630/checkpoints\\ --total-steps\\ 2000000\\ --output\\ runs/halfcheetah-cloud-resume-fixed-20260630/videos/progression.mp4\\ --set\\ storage.mode=s3\\ --set\\ storage.bucket=sim2policy-artifacts\\ --set\\ storage.endpoint_url=https://storage.eu-north1.nebius.cloud\\ --set\\ storage.region=eu-north1$'\\n'python\\ -c\\ \\'from\\ pathlib\\ import\\ Path\\;\\ from\\ sim2policy.config\\ import\\ load_config\\;\\ from\\ sim2policy.storage\\ import\\ ArtifactStore\\;\\ rid=\\\"halfcheetah-cloud-resume-fixed-20260630\\\"\\;\\ cfg=load_config\\(\\\"configs/halfcheetah_sb3.yaml\\\",\\{\\\"storage.mode\\\":\\\"s3\\\",\\\"storage.bucket\\\":\\\"sim2policy-artifacts\\\",\\\"storage.endpoint_url\\\":\\\"https://storage.eu-north1.nebius.cloud\\\",\\\"storage.region\\\":\\\"eu-north1\\\"\\}\\)\\;\\ print\\(\\{\\\"uploaded\\\":len\\(ArtifactStore\\(cfg.storage,rid\\).sync_tree\\(Path\\(\\\"runs\\\"\\)/rid,required=True\\)\\)\\}\\)\\'",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "FAILED",
+        "state_details": {
+          "code": "ContainerFailed",
+          "message": "Container exited with non-zero exit code."
+        },
+        "started_at": "2026-06-30T20:19:33.631327202Z",
+        "finished_at": "2026-06-30T20:19:33.870463405Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00vrgr1hkh800j2s6",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume-fixed-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T19:48:12.307002Z",
+        "updated_at": "2026-06-30T19:48:12.307002Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume-fixed-20260630 --resume remote --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-06-30T19:52:29.829967392Z",
+        "finished_at": "2026-06-30T20:11:42.726749901Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00dtp0g3gaq6ny4zw",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume-fixed-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T19:29:56.868805Z",
+        "updated_at": "2026-06-30T19:29:56.868805Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "value": "NAKI9C1HQXWHL6H5VMWT"
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume-fixed-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "CANCELLED"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00ajxbv0hjv20kyhn",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume-d1-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T13:17:18.689991Z",
+        "updated_at": "2026-06-30T13:17:18.689991Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume-d1-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-d",
+        "preset": "1gpu-16vcpu-96gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "FAILED",
+        "state_details": {
+          "code": "ContainerFailed",
+          "message": "Container exited with non-zero exit code."
+        },
+        "started_at": "2026-06-30T13:23:39.774853602Z",
+        "finished_at": "2026-06-30T13:23:58.277569551Z"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00gw3j7vxymqnnpzs",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume-d1-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T13:16:43.196332Z",
+        "updated_at": "2026-06-30T13:16:43.196332Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume-d1-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-d",
+        "preset": "1gpu-16vcpu-96gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "CANCELLED"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00hxy8j85k4zqq10n",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume2-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T13:08:59.598257Z",
+        "updated_at": "2026-06-30T13:08:59.598257Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume2-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "CANCELLED"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00ndgqzr603pz9qzd",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-halfcheetah-cloud-resume-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T12:59:17.285228Z",
+        "updated_at": "2026-06-30T12:59:17.285228Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "environment_variables": [
+          {
+            "name": "AWS_ACCESS_KEY_ID",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          },
+          {
+            "name": "AWS_SECRET_ACCESS_KEY",
+            "mysterybox_secret": {
+              "secret_id": "mbsec-e00hhjzvwsh30j0121",
+              "version_id": "mbsecver-e00s86zdr5zncaaee1"
+            }
+          }
+        ],
+        "container_command": "python",
+        "args": "-m sim2policy.train_sb3 --config configs/halfcheetah_sb3.yaml --run-id halfcheetah-cloud-resume-20260630 --set storage.mode=s3 --set storage.bucket=sim2policy-artifacts --set storage.endpoint_url=https://storage.eu-north1.nebius.cloud --set storage.region=eu-north1",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "CANCELLED"
+      }
+    },
+    {
+      "metadata": {
+        "id": "aijob-e00p9f2djw5nj1zshf",
+        "parent_id": "project-e00w1bg0pr00sw763qb4cx",
+        "name": "sim2policy-sb3-cloud-smoke-20260630",
+        "resource_version": "1",
+        "created_at": "2026-06-30T09:54:56.878489Z",
+        "updated_at": "2026-06-30T09:54:56.878489Z"
+      },
+      "spec": {
+        "image": "cr.eu-north1.nebius.cloud/e00rhramvvrnpvnc5d/sim2policy:sb3-runtime",
+        "container_command": "bash",
+        "args": "-lc python\\ -m\\ sim2policy.health\\ --backend\\ sb3\\ \\\u0026\\\u0026\\ python\\ -m\\ sim2policy.render\\ --config\\ configs/smoke_sb3.yaml\\ --output\\ /tmp/cloud-smoke.mp4\\ --smoke-test",
+        "platform": "gpu-l40s-a",
+        "preset": "1gpu-8vcpu-32gb",
+        "shm_size_bytes": "17179869184",
+        "disk": {
+          "type": "NETWORK_SSD",
+          "size_bytes": "268435456000"
+        },
+        "subnet_id": "vpcsubnet-e00ka7ggch340z2eyj",
+        "timeout": "3600s"
+      },
+      "status": {
+        "state": "COMPLETED",
+        "started_at": "2026-06-30T10:01:00.344069770Z",
+        "finished_at": "2026-06-30T10:01:07.779345393Z"
+      }
+    }
+  ]
+}

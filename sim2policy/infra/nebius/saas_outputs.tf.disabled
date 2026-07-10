@@ -1,0 +1,18 @@
+# NOTE: the nebius_compute_v1_instance schema does not expose the assigned public IP
+# (network_interfaces.public_ip_address only carries config: allocation_id/static). Fetch
+# it after apply with:
+#   nebius compute instance get --id $(tofu output -raw saas_server_id) \
+#     --format json | jq -r '.status.network_interfaces[].public_ip_address.address'
+
+output "saas_server_id" {
+  value = nebius_compute_v1_instance.saas_server.id
+}
+
+output "saas_server_service_account_id" {
+  value = nebius_iam_v1_service_account.saas_server.id
+}
+
+output "saas_github_secret_id" {
+  description = "MysteryBox secret id holding the ArgoCD GitHub token."
+  value       = nebius_mysterybox_v1_secret.saas_github_token.id
+}
