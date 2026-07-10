@@ -54,14 +54,35 @@ variable "saas_argocd_repo_revision" {
   default     = "main"
 }
 
-variable "github_token" {
-  description = "GitHub token ArgoCD uses to read the manifests repo. Stored only in MysteryBox; keep out of Git."
-  type        = string
-  sensitive   = true
-}
-
 variable "saas_use_registry_pull_secret" {
   description = "Enable only if VM service-account registry pull is insufficient."
   type        = bool
   default     = false
+}
+
+variable "saas_artifact_secret_version_id" {
+  description = "Existing immutable MysteryBox version containing the artifact S3 secret access key."
+  type        = string
+}
+
+variable "saas_registry_pull_secret_id" {
+  description = "Existing MysteryBox secret containing the CONTAINER_REGISTRY token under key `token`."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.saas_use_registry_pull_secret || var.saas_registry_pull_secret_id != ""
+    error_message = "saas_registry_pull_secret_id is required when registry secret use is enabled."
+  }
+}
+
+variable "saas_registry_pull_secret_version_id" {
+  description = "Existing immutable MysteryBox version containing the CONTAINER_REGISTRY token."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.saas_use_registry_pull_secret || var.saas_registry_pull_secret_version_id != ""
+    error_message = "saas_registry_pull_secret_version_id is required when registry secret use is enabled."
+  }
 }

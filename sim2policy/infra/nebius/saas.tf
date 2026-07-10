@@ -55,13 +55,12 @@ resource "nebius_iam_v1_access_permit" "saas_registry_pull" {
   role = "viewer"
 }
 
-# The provider does not expose Container Registry static keys. The token is
-# issued separately, then OpenTofu writes it into this managed MysteryBox
-# secret through a write-only field.
+# The provider does not expose Container Registry static keys. The token and
+# its MysteryBox version already exist and are referenced by ID only.
 resource "nebius_iam_v1_access_permit" "saas_registry_pull_secret_reader" {
   count       = var.saas_use_registry_pull_secret ? 1 : 0
   parent_id   = nebius_iam_v1_group.saas_server_access.id
-  resource_id = nebius_mysterybox_v1_secret.saas_registry_pull.id
+  resource_id = var.saas_registry_pull_secret_id
   role        = "mysterybox.payload-viewer"
 }
 
@@ -93,32 +92,12 @@ resource "nebius_mysterybox_v1_secret" "saas_github_token" {
   name        = "${var.name_prefix}-saas-github-token"
   description = "GitHub token for ArgoCD repo access (add-saas-server)."
 
-  secret_version = {
-    description = "Initial version."
-    set_primary = true
+  # Payload versions are managed directly in MysteryBox. The original version
+  # predates this change and must never be replaced merely because its value is
+  # intentionally absent from configuration/state.
+  lifecycle {
+    ignore_changes = [secret_version, sensitive]
   }
-
-  sensitive = {
-    version = sha256(var.github_token)
-    secret_version = {
-      payload = [{
-        key          = "token"
-        string_value = var.github_token
-      }]
-    }
-  }
-}
-
-resource "nebius_mysterybox_v1_secret" "saas_artifact_s3" {
-  parent_id   = var.project_id
-  name        = "${var.name_prefix}-saas-artifact-s3"
-  description = "S3 secret access key used by the SaaS backend and submitted jobs; payload versions are managed directly in MysteryBox."
-}
-
-resource "nebius_mysterybox_v1_secret" "saas_registry_pull" {
-  parent_id   = var.project_id
-  name        = "${var.name_prefix}-saas-registry-pull"
-  description = "CONTAINER_REGISTRY token used by k3s and Serverless AI jobs; payload versions are managed directly in MysteryBox."
 }
 
 resource "nebius_iam_v1_access_permit" "saas_github_secret_reader" {
@@ -129,7 +108,7 @@ resource "nebius_iam_v1_access_permit" "saas_github_secret_reader" {
 
 resource "nebius_iam_v1_access_permit" "saas_artifact_secret_reader" {
   parent_id   = nebius_iam_v1_group.saas_server_access.id
-  resource_id = nebius_mysterybox_v1_secret.saas_artifact_s3.id
+  resource_id = split("/", nebius_iam_v2_access_key.artifacts.status.secret_reference_id)[0]
   role        = "mysterybox.payload-viewer"
 }
 
@@ -239,14 +218,14 @@ resource "nebius_compute_v1_instance" "saas_server" {
     argocd_repo_path           = var.saas_argocd_repo_path
     argocd_repo_revision       = var.saas_argocd_repo_revision
     use_registry_pull          = var.saas_use_registry_pull_secret
-    registry_secret_id         = nebius_mysterybox_v1_secret.saas_registry_pull.id
-    registry_secret_selector   = var.saas_use_registry_pull_secret && nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_registry_pull.id}/${nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id}" : ""
-    registry_secret_version_id = var.saas_use_registry_pull_secret && nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id != null ? nebius_mysterybox_v1_secret.saas_registry_pull.primary_version_id : ""
+    registry_secret_id         = var.saas_registry_pull_secret_id
+    registry_secret_selector   = var.saas_use_registry_pull_secret ? "${var.saas_registry_pull_secret_id}/${var.saas_registry_pull_secret_version_id}" : ""
+    registry_secret_version_id = var.saas_use_registry_pull_secret ? var.saas_registry_pull_secret_version_id : ""
     registry_host              = nebius_registry_v1_registry.sim2policy.status.registry_fqdn
     project_id                 = var.project_id
     subnet_id                  = var.saas_subnet_id
     job_image                  = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    artifact_selector          = nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id != null ? "${nebius_mysterybox_v1_secret.saas_artifact_s3.id}/${nebius_mysterybox_v1_secret.saas_artifact_s3.primary_version_id}" : nebius_mysterybox_v1_secret.saas_artifact_s3.id
+    artifact_selector          = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
     artifact_access_key_id     = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
     artifact_bucket            = nebius_storage_v1_bucket.artifacts.name
   })

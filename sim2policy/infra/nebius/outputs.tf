@@ -8,7 +8,7 @@ output "artifact_bucket_id" {
 
 output "artifact_secret_selector" {
   description = "MysteryBox selector containing the AWS secret access key for --env-secret."
-  value       = nebius_iam_v2_access_key.artifacts.status.secret_reference_id
+  value       = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
 }
 
 output "artifact_access_key_id" {

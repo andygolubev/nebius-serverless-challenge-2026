@@ -15,12 +15,11 @@ saas_argocd_repo_url      = "https://github.com/REPLACE_ORG/REPLACE_REPO.git"
 saas_argocd_repo_path     = "deploy/argocd"
 saas_argocd_repo_revision = "main"
 
-# Provide via `-var` or an untracked *.auto.tfvars, never in Git.
-# github_token = "ghp_xxx"
-
-# k3s requires a Registry static-key token. OpenTofu creates the empty MysteryBox
-# containers; add and rotate payload versions directly in Nebius Cloud.
+# k3s requires the existing Registry static-key token from MysteryBox.
 saas_use_registry_pull_secret = true
+# saas_artifact_secret_version_id      = "mbsecver-..."
+# saas_registry_pull_secret_id         = "mbsec-..."
+# saas_registry_pull_secret_version_id = "mbsecver-..."
 
 # Domain/TLS: nothing to configure here. DNS (sim-policy-trainer-challenge.info -> server
 # public IP) lives at the registrar, and Let's Encrypt certs are handled by cert-manager via
