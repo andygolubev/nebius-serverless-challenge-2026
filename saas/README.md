@@ -28,6 +28,14 @@ Passwordless email + one-time code:
 3. Send `Authorization: Bearer <token>` on every job call. Sessions last
    `SAAS_SESSION_TTL_HOURS` (default 24) and are revoked by `POST /auth/logout`.
 
+## Persistence
+
+Users, sessions, jobs, and artifact manifests are stored in SQLite at `SAAS_DB_PATH`
+(default `saas.db` in the working directory — no setup needed locally). In the cluster the
+path points at a PersistentVolumeClaim (`/data/saas.db`), so logins and job history survive
+pod restarts and redeploys. Pending one-time codes and rate-limit counters are intentionally
+in-memory only; a restart just means re-requesting a code.
+
 Email delivery is selected by `SAAS_EMAIL_BACKEND`:
 
 - `mock` (default) — the code is written to the server log; perfect for local demos, never for

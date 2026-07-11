@@ -5,8 +5,11 @@ metadata:
   labels:
     app: saas
 spec:
-  # Sessions and auth rate limits live in-process; keep a single replica until a shared store exists.
+  # Durable state is SQLite on a ReadWriteOnce PVC: single replica, and Recreate so the
+  # old pod releases the volume before the new one starts (rolling update would deadlock).
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: saas
@@ -30,6 +33,8 @@ spec:
               value: smtp
             - name: SAAS_SESSION_TTL_HOURS
               value: "24"
+            - name: SAAS_DB_PATH
+              value: /data/saas.db
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
           # (explicit env would override envFrom): the whole nebius orchestration
           # contract — SAAS_ORCHESTRATION_BACKEND=nebius, NEBIUS_*, AWS_*,
@@ -49,6 +54,8 @@ spec:
             - name: nebius-iam-token
               mountPath: /var/run/secrets/nebius/iam-token
               readOnly: true
+            - name: saas-data
+              mountPath: /data
           readinessProbe:
             httpGet:
               path: /health
@@ -80,3 +87,6 @@ spec:
           hostPath:
             path: /mnt/cloud-metadata/token
             type: File
+        - name: saas-data
+          persistentVolumeClaim:
+            claimName: saas-data

@@ -117,6 +117,7 @@ def test_expired_session_rejected(client, sender, login):
     token = headers["Authorization"].split(" ")[1]
     session = main._auth.store.get_session(token)
     session.expires_at = time.time() - 1
+    main._auth.store.put_session(session)  # write back: sessions are durable, not shared objects
     assert client.get("/jobs", headers=headers).status_code == 401
 
 

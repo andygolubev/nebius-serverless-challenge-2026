@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: saas-data
+  labels:
+    app: saas
+spec:
+  # k3s default local-path provisioner: node-local volume, single writer —
+  # matches the single-replica deployment and SQLite's one-writer model.
+  storageClassName: local-path
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
