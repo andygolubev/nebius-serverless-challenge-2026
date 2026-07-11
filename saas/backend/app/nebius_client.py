@@ -35,6 +35,9 @@ class JobSubmission:
     subnet_id: str
     parent_id: str
     registry_secret: str | None = None  # MysteryBox secret version for pulls
+    # Boot disk for the job VM; the CLI defaults to 250Gi and the API rejects
+    # specs without an explicit disk (`spec.disk: value is required`).
+    disk_gib: int = 250
     env: dict[str, str] = field(default_factory=dict)
     # name -> MysteryBox selector; the value never appears in the job spec.
     env_secrets: dict[str, str] = field(default_factory=dict)
@@ -85,6 +88,7 @@ class SdkJobsClient:
     def create_job(self, submission: JobSubmission) -> str:
         from nebius.api.nebius.ai.v1 import CreateJobRequest, JobSpec
         from nebius.api.nebius.common.v1 import ResourceMetadata
+        from nebius.api.nebius.compute.v1 import DiskSpec as ComputeDiskSpec
 
         env_vars = [
             JobSpec.EnvironmentVariable(name=name, value=value)
@@ -115,6 +119,10 @@ class SdkJobsClient:
                 preset=submission.preset,
                 timeout=timedelta(seconds=submission.timeout_seconds),
                 subnet_id=submission.subnet_id,
+                disk=JobSpec.DiskSpec(
+                    type=ComputeDiskSpec.DiskType.NETWORK_SSD,
+                    size_bytes=submission.disk_gib * 1024**3,
+                ),
                 restart_attempts=0,
                 environment_variables=env_vars,
                 registry_credentials=registry_credentials,
