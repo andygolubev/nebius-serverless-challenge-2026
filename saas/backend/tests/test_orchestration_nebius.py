@@ -125,7 +125,7 @@ def test_submission_derives_from_catalog_only():
     assert "training.hyperparameters.learning_rate=0.0003" in joined
     assert "seed=7" in joined
     assert "storage.bucket=sim2policy-artifacts" in joined
-    assert sub.platform == "gpu-l40s-a"
+    assert sub.platform == "gpu-h100-sxm"
     assert sub.timeout_seconds == 8 * 3600
     assert sub.parent_id == SETTINGS.project_id
 

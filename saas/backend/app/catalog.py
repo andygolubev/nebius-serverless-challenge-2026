@@ -106,8 +106,8 @@ class JobSpec:
     param_paths: dict[str, str]
 
 
-# Smallest documented L40S shape (see sim2policy/jobs/README.md); timeouts and step
-# caps track configs/training_presets.yaml limits.
+# H100 shape verified by the full go1 run (docs/submission-checklist.md); chosen for
+# job speed. Timeouts and step caps track configs/training_presets.yaml limits.
 _SB3_PARAM_PATHS = {
     "total_timesteps": "training.total_steps",
     "learning_rate": "training.hyperparameters.learning_rate",
@@ -118,8 +118,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("halfcheetah", "ppo-sb3"): JobSpec(
         module="sim2policy.train_sb3",
         config="configs/halfcheetah_sb3.yaml",
-        platform="gpu-l40s-a",
-        preset="1gpu-8vcpu-32gb",
+        platform="gpu-h100-sxm",
+        preset="1gpu-16vcpu-200gb",
         timeout="1h",
         max_total_timesteps=500_000,
         param_paths=_SB3_PARAM_PATHS,
@@ -127,8 +127,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("ant", "ppo-sb3"): JobSpec(
         module="sim2policy.train_sb3",
         config="configs/ant_sb3.yaml",
-        platform="gpu-l40s-a",
-        preset="1gpu-8vcpu-32gb",
+        platform="gpu-h100-sxm",
+        preset="1gpu-16vcpu-200gb",
         timeout="8h",
         max_total_timesteps=5_000_000,
         param_paths=_SB3_PARAM_PATHS,
@@ -138,8 +138,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("go1", "ppo-mjx"): JobSpec(
         module="sim2policy.train_mjx",
         config="configs/go1_mjx.yaml",
-        platform="gpu-l40s-a",
-        preset="1gpu-8vcpu-32gb",
+        platform="gpu-h100-sxm",
+        preset="1gpu-16vcpu-200gb",
         timeout="4h",
         max_total_timesteps=100_000_000,
         param_paths=_SB3_PARAM_PATHS,
