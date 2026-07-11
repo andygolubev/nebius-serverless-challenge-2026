@@ -1,8 +1,8 @@
 ## 1. Provider and State Discovery
 
-- [ ] 1.1 Initialize `sim2policy/infra/nebius` with OpenTofu 1.12.3 and the configured remote backend, then capture the Nebius provider 0.6.22 schemas for service-account credentials, access bindings, and MysteryBox delivery without exposing state credentials
-- [ ] 1.2 Inspect current remote-state resource addresses and the existing project, subnet, artifact access key/secret version, registry pull secret version, registry, and `sim2policy-saas-ci` resources; decide which values are managed, imported, or supplied as explicit inputs
-- [x] 1.3 Confirm the SDK's default metadata authentication path and record that no orchestrator private credential is created or retained in OpenTofu state
+- [x] 1.1 Initialize `sim2policy/infra/nebius` with OpenTofu 1.12.3 and the configured remote backend, then capture the Nebius provider 0.6.22 schemas for service-account credentials, access bindings, and MysteryBox delivery without exposing state credentials
+- [x] 1.2 Inspect current remote-state resource addresses and the existing project, subnet, artifact access key/secret version, registry pull secret version, registry, and `sim2policy-saas-ci` resources; decide which values are managed, imported, or supplied as explicit inputs
+- [x] 1.3 Confirm the SDK's renewable file-bearer path for the VM metadata token and record that no orchestrator private credential is created or retained in OpenTofu state
 
 ## 2. Orchestrator Identity and Access
 
@@ -35,9 +35,9 @@
 ## 6. OpenTofu Verification and Apply
 
 - [x] 6.1 Run `tofu fmt -check`, `tofu validate`, provider-schema assertions, and cloud-init/shell static checks with OpenTofu 1.12.3 and Nebius provider 0.6.22
-- [ ] 6.2 Generate and review a plan against `backend.hcl`; confirm only intended resources/outputs/bootstrap data change, no unrelated replacement occurs, and no credential payload appears
-- [ ] 6.3 Apply the reviewed plan, record non-secret resource IDs and selectors, and verify the orchestrator identity, isolated `editor` grant, MysteryBox credential version, and output contract
-- [ ] 6.4 Run the k3s reconciliation unit and verify `saas-nebius` has the complete expected key set without exposing values in commands, logs, `kubectl describe`, or the implementation log
+- [x] 6.2 Generate and review a plan against `backend.hcl`; confirm only intended resources/outputs/bootstrap data change, no unrelated replacement occurs, and no credential payload appears
+- [x] 6.3 Apply the reviewed plan, record non-secret resource IDs and selectors, and verify the orchestrator identity, isolated `editor` grant, MysteryBox credential version, and output contract
+- [x] 6.4 Run the k3s reconciliation unit and verify `saas-nebius` has the complete expected key set without exposing values in commands, logs, `kubectl describe`, or the implementation log
 
 ## 7. Documentation and Handoff
 

@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+import os
+import tempfile
+
 import pytest
 from fastapi.testclient import TestClient
+
+# Must be set before `app.main` is imported: the stores open the database at import time.
+os.environ.setdefault("SAAS_DB_PATH", os.path.join(tempfile.mkdtemp(prefix="saas-test-"), "saas.db"))
 
 from app import main
 

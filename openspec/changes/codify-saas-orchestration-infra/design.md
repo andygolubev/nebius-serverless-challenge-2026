@@ -26,7 +26,7 @@ The current stack already establishes the patterns to extend: OpenTofu 1.12.3 wi
 
 ### 1. Attach the dedicated orchestrator identity to the SaaS VM
 
-Add a dedicated `nebius_iam_v1_service_account` named `sim2policy-saas-orchestrator`, a project access binding/permit granting `editor`, and attach that account to the SaaS VM. The Nebius SDK uses instance metadata when no credentials file is configured, so no private SDK credential is generated or stored.
+Add a dedicated `nebius_iam_v1_service_account` named `sim2policy-saas-orchestrator`, a project access binding/permit granting `editor`, and attach that account to the SaaS VM. Mount the VM-managed `/mnt/cloud-metadata/token` file read-only into the pod and initialize the Nebius SDK with its renewable file bearer, so no private SDK credential is generated or stored.
 
 This identity is intentionally separate from `sim2policy-saas-ci` and `sim2policy-artifacts`. It replaces the old VM attachment while inheriting the VM's narrow registry and MysteryBox reader grants. A credentials file was rejected because metadata authentication eliminates a long-lived secret and makes rotation unnecessary.
 

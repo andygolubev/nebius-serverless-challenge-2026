@@ -48,6 +48,16 @@ output "saas_github_secret_id" {
   value       = nebius_mysterybox_v1_secret.saas_github_token.id
 }
 
+output "saas_smtp_secret_id" {
+  description = "MysteryBox secret container id for out-of-band Mailjet SMTP payload versions."
+  value       = nebius_mysterybox_v1_secret.saas_smtp.id
+}
+
+output "saas_smtp_secret_selector" {
+  description = "Versioned selector used by the server-side SMTP secret reconciler, or empty before real credentials are configured."
+  value       = var.saas_smtp_secret_version_id != "" ? "${nebius_mysterybox_v1_secret.saas_smtp.id}/${var.saas_smtp_secret_version_id}" : ""
+}
+
 output "saas_ci_service_account_id" {
   description = "Service account used to issue the GitHub Actions CONTAINER_REGISTRY static token."
   value       = nebius_iam_v1_service_account.saas_ci.id

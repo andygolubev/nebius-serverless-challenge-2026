@@ -13,7 +13,7 @@ import re
 import secrets
 import time
 
-from .email_sender import EmailSender
+from .email_sender import EmailDeliveryError, EmailSender
 from .store import AuthStore, PendingCode, Session
 
 CODE_TTL_SECONDS = 10 * 60
@@ -56,7 +56,11 @@ class AuthService:
             email,
             PendingCode(code_hash=_hash_code(code), expires_at=time.time() + CODE_TTL_SECONDS),
         )
-        self.sender.send_code(email, code)
+        try:
+            self.sender.send_code(email, code)
+        except EmailDeliveryError:
+            self.store.delete_code(email)
+            raise
 
     def verify_code(self, email: str, code: str) -> str | None:
         """Exchange a valid code for a session token; None on any failure."""

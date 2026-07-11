@@ -93,6 +93,80 @@ write_files:
       [Install]
       WantedBy=multi-user.target
 
+  - path: /opt/saas/sync-smtp-secret.sh
+    permissions: "0750"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+      SMTP_SELECTOR="${smtp_secret_selector}"
+      ALLOWED_KEYS='["SAAS_SMTP_HOST","SAAS_SMTP_PORT","SAAS_SMTP_USER","SAAS_SMTP_PASSWORD","SAAS_SMTP_FROM","SAAS_SMTP_TLS_MODE","SAAS_SMTP_TIMEOUT_SECONDS"]'
+      PAYLOAD_FILE="$(mktemp /run/saas-smtp-payload.XXXXXX.json)"
+      SECRET_FILE="$(mktemp /run/saas-smtp-secret.XXXXXX.json)"
+      chmod 0600 "$PAYLOAD_FILE" "$SECRET_FILE"
+      cleanup() { rm -f "$PAYLOAD_FILE" "$SECRET_FILE"; }
+      trap cleanup EXIT HUP INT TERM
+
+      secret_id="$(printf '%s' "$SMTP_SELECTOR" | cut -d/ -f1)"
+      version_id="$(printf '%s' "$SMTP_SELECTOR" | cut -s -d/ -f2)"
+      if [ -z "$secret_id" ] || [ -z "$version_id" ]; then
+        echo "[saas-smtp-sync] ERROR: selector must include secret and version IDs" >&2
+        exit 1
+      fi
+
+      nebius mysterybox payload get \
+        --secret-id "$secret_id" --version-id "$version_id" --format json \
+        >"$PAYLOAD_FILE" 2>/dev/null
+
+      if ! jq -e --argjson allowed "$ALLOWED_KEYS" '
+        (.data | map(.key) | sort) == ($allowed | sort) and
+        all(.data[]; ((.string_value // .value // "") | length) > 0)
+      ' "$PAYLOAD_FILE" >/dev/null; then
+        echo "[saas-smtp-sync] ERROR: payload must contain exactly seven non-empty expected keys" >&2
+        exit 1
+      fi
+
+      jq --argjson allowed "$ALLOWED_KEYS" '
+        {
+          apiVersion: "v1",
+          kind: "Secret",
+          metadata: {name: "saas-smtp", namespace: "saas"},
+          type: "Opaque",
+          stringData: (
+            .data
+            | map(select(.key as $key | $allowed | index($key)))
+            | map({key: .key, value: (.string_value // .value)})
+            | from_entries
+          )
+        }
+      ' "$PAYLOAD_FILE" >"$SECRET_FILE"
+
+      kubectl create namespace saas --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+      kubectl apply -f "$SECRET_FILE" >/dev/null
+      echo "[saas-smtp-sync] reconciled saas/saas-smtp with seven expected keys (values suppressed)"
+
+  - path: /etc/systemd/system/saas-smtp-sync.service
+    permissions: "0644"
+    owner: root:root
+    content: |
+      [Unit]
+      Description=Reconcile the SaaS SMTP secret from MysteryBox
+      After=k3s.service network-online.target
+      Wants=network-online.target
+      Requires=k3s.service
+
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/saas/sync-smtp-secret.sh
+      User=root
+      Group=root
+      UMask=0077
+
+      [Install]
+      WantedBy=multi-user.target
+
   # Idempotent bootstrap. Logs to /var/log/saas-bootstrap.log for debugging.
   - path: /opt/saas/bootstrap.sh
     permissions: "0750"
@@ -110,6 +184,7 @@ write_files:
       ARGOCD_REPO_URL="${argocd_repo_url}"
       ARGOCD_REPO_PATH="${argocd_repo_path}"
       ARGOCD_REPO_REVISION="${argocd_repo_revision}"
+      SMTP_SECRET_SELECTOR="${smtp_secret_selector}"
 
       export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
@@ -141,6 +216,7 @@ write_files:
 
       systemctl daemon-reload
       systemctl enable saas-nebius-sync.service
+      systemctl enable saas-smtp-sync.service
 
       # --- Fetch secrets from MysteryBox using the VM service-account identity ---
       # The primary secret version is selected when --version-id is omitted.
@@ -196,6 +272,11 @@ write_files:
       # Resolve the versioned artifact credential with this VM's attached
       # orchestrator identity and reconcile the backend environment contract.
       systemctl start saas-nebius-sync.service
+      if [ -n "$SMTP_SECRET_SELECTOR" ]; then
+        systemctl start saas-smtp-sync.service
+      else
+        echo "[bootstrap] SMTP selector is not configured; skipping saas-smtp reconciliation"
+      fi
 
       # --- Root app-of-apps: hand ongoing delivery to ArgoCD/Git ---
       kubectl -n argocd apply -f - <<EOF

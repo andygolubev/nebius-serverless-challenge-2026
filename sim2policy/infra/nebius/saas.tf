@@ -114,6 +114,71 @@ resource "nebius_iam_v1_access_permit" "saas_github_secret_reader" {
   role        = "mysterybox.payload-viewer"
 }
 
+# Seed a write-only template version. The two credential placeholders must be
+# replaced by creating a new MysteryBox version out of band; real Mailjet
+# credentials must never be committed to configuration or OpenTofu state.
+resource "nebius_mysterybox_v1_secret" "saas_smtp" {
+  parent_id   = var.project_id
+  name        = "${var.name_prefix}-saas-smtp"
+  description = "Mailjet SMTP settings for SaaS email-code delivery."
+
+  secret_version = {
+    description = "Mailjet SMTP template; replace credential placeholders in a new version."
+    set_primary = true
+  }
+
+  # Write-only provider fields: payload values are sent during creation but
+  # omitted from state. Keep real credentials out of this block regardless.
+  sensitive = {
+    version = "smtp-template-v1"
+    secret_version = {
+      payload = [
+        {
+          key          = "SAAS_SMTP_HOST"
+          string_value = "in-v3.mailjet.com"
+        },
+        {
+          key          = "SAAS_SMTP_PORT"
+          string_value = "587"
+        },
+        {
+          key          = "SAAS_SMTP_USER"
+          string_value = "REPLACE_WITH_MAILJET_API_KEY"
+        },
+        {
+          key          = "SAAS_SMTP_PASSWORD"
+          string_value = "REPLACE_WITH_MAILJET_SECRET_KEY"
+        },
+        {
+          key          = "SAAS_SMTP_FROM"
+          string_value = "Sim2Policy <login@sim-policy-trainer-challenge.info>"
+        },
+        {
+          key          = "SAAS_SMTP_TLS_MODE"
+          string_value = "starttls"
+        },
+        {
+          key          = "SAAS_SMTP_TIMEOUT_SECONDS"
+          string_value = "10"
+        },
+      ]
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [secret_version, sensitive]
+  }
+}
+
+# The group contains both the legacy server identity and the VM-attached SaaS
+# orchestrator identity, so rebuilt and current servers can reconcile the SMTP
+# payload without any project-wide MysteryBox permission.
+resource "nebius_iam_v1_access_permit" "saas_smtp_secret_reader" {
+  parent_id   = nebius_iam_v1_group.saas_server_access.id
+  resource_id = nebius_mysterybox_v1_secret.saas_smtp.id
+  role        = "mysterybox.payload-viewer"
+}
+
 resource "nebius_iam_v1_access_permit" "saas_artifact_secret_reader" {
   parent_id   = nebius_iam_v1_group.saas_server_access.id
   resource_id = split("/", nebius_iam_v2_access_key.artifacts.status.secret_reference_id)[0]
@@ -236,5 +301,6 @@ resource "nebius_compute_v1_instance" "saas_server" {
     artifact_selector          = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
     artifact_access_key_id     = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
     artifact_bucket            = nebius_storage_v1_bucket.artifacts.name
+    smtp_secret_selector       = var.saas_smtp_secret_version_id != "" ? "${nebius_mysterybox_v1_secret.saas_smtp.id}/${var.saas_smtp_secret_version_id}" : ""
   })
 }

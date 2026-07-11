@@ -19,6 +19,25 @@ tofu plan -out=sim2policy.tfplan
 tofu apply sim2policy.tfplan
 ```
 
+**Issuing the static access key for the state backend.** The S3 state backend authenticates with a
+static access key issued for the `sim2policy-tfstate` service account (`OpenTofu remote-state
+access`). If the key is missing or expired (`tofu plan` fails with `403 AccessDenied` on the state
+bucket), reissue it:
+
+```bash
+nebius iam v2 access-key create \
+  --parent-id project-e00wkbbppr00tab5fhhmz7 \
+  --account-service-account-id "$(nebius iam service-account get-by-name \
+      --parent-id project-e00wkbbppr00tab5fhhmz7 \
+      --name sim2policy-tfstate --format json | jq -r .metadata.id)" \
+  --name tofu-state --description "OpenTofu remote-state access"
+```
+
+(Note: `nebius iam static-key issue` does not cover Object Storage — storage uses access keys.)
+Store the returned `aws_access_key_id` and `secret` as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in
+`~/.config/sim2policy/tofu-backend.env` and `source` that file before every tofu command. Never
+commit these credentials.
+
 Use `tofu output -raw sb3_image`, `artifact_bucket`, `artifact_access_key_id`, and
 `artifact_secret_selector` when building, pushing, and submitting jobs. The access key ID is
 non-secret; the selector resolves only the secret access key and must be supplied with
@@ -90,55 +109,30 @@ existing Serverless-job infra.
 ## Serverless job orchestration for the SaaS backend (nebius-job-orchestration)
 
 The stack creates `sim2policy-saas-orchestrator`, grants that account project `editor`, and
-attaches it to the SaaS VM. The Nebius SDK authenticates through instance metadata; there is no
-credentials file or long-lived orchestrator key. `editor` remains deliberately isolated to this
+attaches it to the SaaS VM. The pod mounts the VM-managed metadata token file read-only and the
+Nebius SDK uses its renewable file bearer; there is no long-lived orchestrator key. `editor` remains deliberately isolated to this
 identity because Nebius has no job-scoped create/cancel role. Replace it when one is available.
 
-OpenTofu owns the two empty secret containers and their IAM permissions; payload versions are
-created and rotated directly in Nebius Cloud. First apply the containers:
+The artifact access key and registry token already deliver their payloads through MysteryBox.
+OpenTofu references their IDs and immutable version IDs; it does not create duplicate secrets or
+read payload values. Configure the non-secret references in the gitignored `saas.auto.tfvars`:
 
-```bash
-tofu init -reconfigure -backend-config=backend.hcl
-tofu apply \
-  -target=nebius_mysterybox_v1_secret.saas_artifact_s3 \
-  -target=nebius_mysterybox_v1_secret.saas_registry_pull
+```hcl
+saas_artifact_secret_version_id      = "mbsecver-..."
+saas_registry_pull_secret_id         = "mbsec-..."
+saas_registry_pull_secret_version_id = "mbsecver-..."
 ```
 
-OpenTofu creates two managed MysteryBox secrets: `sim2policy-saas-artifact-s3` with payload key
-`secret`, and `sim2policy-saas-registry-pull` with payload key `token`. Open either secret in the
-Nebius Console under **MysteryBox**, choose **Add version**, enter the required payload key/value,
-and select **Make primary**. No value is passed to OpenTofu or stored in its state.
-The artifact value must be the secret half paired with `tofu output -raw artifact_access_key_id`;
-using an unrelated S3 secret will authenticate as the wrong key and fail object access.
-
-The equivalent CLI flow is interactive, so values do not appear in shell history:
-
-```bash
-ARTIFACT_SECRET_ID="$(tofu output -raw saas_artifact_secret_id)"
-REGISTRY_SECRET_ID="$(tofu output -raw saas_registry_secret_id)"
-
-# In the payload prompt, add key `secret` and the matching S3 secret access key.
-nebius mysterybox secret-version create \
-  --parent-id "$ARTIFACT_SECRET_ID" --set-primary -i
-
-# In the payload prompt, add key `token` and the CONTAINER_REGISTRY token.
-nebius mysterybox secret-version create \
-  --parent-id "$REGISTRY_SECRET_ID" --set-primary -i
-```
-
-After adding the initial versions, run a normal plan/apply so OpenTofu refreshes the primary version
-IDs and wires their versioned selectors into cloud-init:
+The access-key resource supplies the artifact secret ID; the explicit version completes its
+immutable selector. The artifact payload key is `secret`, paired with `artifact_access_key_id`.
+The registry payload key is `token`. To rotate either value, add a new primary version directly in
+MysteryBox, update only the corresponding version ID, and apply:
 
 ```bash
 tofu plan -out=saas-orchestration.tfplan
 tofu apply saas-orchestration.tfplan
 tofu output -json saas_nebius_contract | jq 'keys'
 ```
-
-To rotate a value later, add another version in the Console or repeat the corresponding interactive
-CLI command with `--set-primary`, then run `tofu apply -refresh-only` followed by the normal plan if
-the versioned selector changes VM configuration. Finally rerun `saas-nebius-sync.service`. Never
-put payload values in `.tfvars`, `-var` arguments, or committed files.
 
 Cloud-init installs `saas-nebius-sync.service`. It uses the VM identity to resolve the versioned
 artifact credential from MysteryBox and applies `saas-nebius` without placing secret values in Git,
@@ -152,7 +146,53 @@ kubectl -n saas get secret saas-nebius -o json | jq -r '.data | keys[]'
 
 The last command lists key names only. Do not decode values or use `kubectl describe`. For rollback,
 set the backend to `mock` or delete `saas-nebius`, restart the deployment, and only then detach or
-destroy the orchestrator identity. The old VM service account is retained but no longer attached.
+destroy the orchestrator identity. The legacy service account remains a registry viewer because the
+existing static pull token was issued for it; it is no longer attached to the VM.
+
+## Mailjet SMTP secret for SaaS login codes
+
+OpenTofu creates the `sim2policy-saas-smtp` MysteryBox container, seeds a non-working template
+version through write-only provider fields, and grants the SaaS VM identity payload-viewer access
+only to that secret. The template contains these exact keys:
+
+```text
+SAAS_SMTP_HOST
+SAAS_SMTP_PORT
+SAAS_SMTP_USER
+SAAS_SMTP_PASSWORD
+SAAS_SMTP_FROM
+SAAS_SMTP_TLS_MODE
+SAAS_SMTP_TIMEOUT_SECONDS
+```
+
+Never put a real Mailjet API Key or Secret Key in `.tf`, `.tfvars`, a plan, shell history, Git, or
+this log. After the container exists, open it in the Nebius Console, create a new immutable version
+from the template, replace `SAAS_SMTP_USER` with the Mailjet API Key and `SAAS_SMTP_PASSWORD` with
+the Mailjet Secret Key, keep the other five values unchanged, and make the new version primary.
+Record only its non-secret version ID in the gitignored `terraform.tfvars` (do not use the tracked
+`saas.auto.tfvars`):
+
+```hcl
+saas_smtp_secret_version_id = "mbsecver-..."
+```
+
+Plan and apply that selector change, then install/reconcile the root-owned unit on an existing
+server or let cloud-init do so on a rebuild:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now saas-smtp-sync.service
+sudo systemctl --no-pager --full status saas-smtp-sync.service
+sudo kubectl -n saas get secret saas-smtp -o json | jq -r '.data | keys[]'
+```
+
+The sync script requires exactly the seven allowlisted, non-empty keys and logs only key counts and
+object names. It pins the configured MysteryBox version rather than following `primary`
+implicitly. For rotation, create another MysteryBox version, update only
+`saas_smtp_secret_version_id`, apply, restart the unit, restart the SaaS Deployment, verify bounded
+delivery, and only then revoke the previous Mailjet Secret Key/version. To roll back, restore the
+previous version ID, apply, rerun the unit, and restart the Deployment. Do not decode the Kubernetes
+Secret or use `kubectl describe` during verification.
 
 `.github/workflows/sb3-runtime-image.yml` builds the Dockerfile's `sb3` target on `sim2policy/**`
 changes. It uses the existing `sim2policy-saas-ci` account through repository secrets

@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import catalog
 from .auth import AuthService, RateLimited, is_valid_email, normalize_email
-from .email_sender import build_email_sender
+from .email_sender import EmailDeliveryError, build_email_sender
 from .models import (
     STATUS_QUEUED,
     ArtifactManifest,
@@ -28,11 +28,15 @@ from .models import (
 )
 from .orchestration import build_backend
 from .store import AuthStore, JobStore, Session
+from .db import resolve_path
 
 app = FastAPI(title="Sim2Policy SaaS", version="0.2.0")
-_store = JobStore()
+# Durable state lives in SQLite at SAAS_DB_PATH (a PVC in the cluster); defaults to a
+# local file for development.
+_db_path = resolve_path()
+_store = JobStore(_db_path)
 _backend = build_backend(os.environ.get("SAAS_ORCHESTRATION_BACKEND", "mock"))
-_auth = AuthService(AuthStore(), build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")))
+_auth = AuthService(AuthStore(_db_path), build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")))
 
 
 def _now() -> str:
@@ -53,7 +57,12 @@ def require_session(request: Request) -> Session:
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "backend": _backend.name}
+    return {
+        "status": "ok",
+        "backend": _backend.name,
+        "email_backend": _auth.sender.name,
+        "email_ready": "true",
+    }
 
 
 # -- auth --
@@ -68,6 +77,12 @@ def request_code(req: AuthRequest) -> dict[str, str]:
         _auth.request_code(email)
     except RateLimited:
         raise HTTPException(status_code=429, detail="too many code requests; try again later")
+    except EmailDeliveryError:
+        raise HTTPException(
+            status_code=503,
+            detail="email delivery temporarily unavailable; try again later",
+            headers={"Retry-After": "60"},
+        )
     # Neutral response: identical whether or not the email has an account.
     return {"status": "sent"}
 

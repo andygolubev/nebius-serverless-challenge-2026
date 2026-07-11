@@ -24,10 +24,10 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            # mock logs login codes to stdout (demo only); switch to smtp and create the
-            # saas-smtp secret (SAAS_SMTP_HOST/PORT/USER/PASSWORD/FROM) for real email.
+            # Production must use the non-optional saas-smtp Secret below. Local and
+            # test processes retain the application's explicit mock default.
             - name: SAAS_EMAIL_BACKEND
-              value: mock
+              value: smtp
             - name: SAAS_SESSION_TTL_HOURS
               value: "24"
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
@@ -42,9 +42,13 @@ spec:
             - secretRef:
                 name: saas-nebius
                 optional: true
-            # Uncomment together with SAAS_EMAIL_BACKEND=smtp:
-            # - secretRef:
-            #     name: saas-smtp
+            - secretRef:
+                name: saas-smtp
+                optional: false
+          volumeMounts:
+            - name: nebius-iam-token
+              mountPath: /var/run/secrets/nebius/iam-token
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /health
@@ -71,3 +75,8 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: nebius-iam-token
+          hostPath:
+            path: /mnt/cloud-metadata/token
+            type: File

@@ -13,6 +13,8 @@ on:
     tags: ["v*"]
     paths:
       - "saas/**"
+      - "deploy/manifests/saas/**"
+      - "deploy/tests/assert-saas-production-email.sh"
       - ".github/workflows/saas-image.yml"
   workflow_dispatch: {}
 
@@ -27,6 +29,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+
+      - name: Assert production email configuration
+        run: bash deploy/tests/assert-saas-production-email.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

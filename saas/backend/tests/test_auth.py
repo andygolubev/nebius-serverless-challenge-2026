@@ -6,6 +6,7 @@ import time
 import uuid
 
 from app import main
+from app.email_sender import EmailDeliveryError
 
 
 def _email() -> str:
@@ -75,6 +76,33 @@ def test_rate_limit_code_requests(client, sender):
         assert client.post("/auth/request-code", json={"email": email}).status_code == 200
     res = client.post("/auth/request-code", json={"email": email})
     assert res.status_code == 429
+
+
+class FailingSender:
+    name = "smtp"
+
+    def send_code(self, _email: str, _code: str) -> None:
+        raise EmailDeliveryError("connection")
+
+
+def test_delivery_failure_is_retryable_and_code_is_deleted(client):
+    email = _email()
+    main._auth.sender = FailingSender()
+    res = client.post("/auth/request-code", json={"email": email})
+
+    assert res.status_code == 503
+    assert res.headers["Retry-After"] == "60"
+    assert res.json() == {"detail": "email delivery temporarily unavailable; try again later"}
+    assert main._auth.store.get_code(email) is None
+    assert client.post("/auth/verify", json={"email": email, "code": "000000"}).status_code == 401
+
+
+def test_delivery_failures_remain_rate_limited(client):
+    email = _email()
+    main._auth.sender = FailingSender()
+    for _ in range(5):
+        assert client.post("/auth/request-code", json={"email": email}).status_code == 503
+    assert client.post("/auth/request-code", json={"email": email}).status_code == 429
 
 
 def test_missing_and_invalid_token_rejected(client):

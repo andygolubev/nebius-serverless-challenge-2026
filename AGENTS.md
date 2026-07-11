@@ -17,6 +17,20 @@ An authenticated `gh` CLI is available for this repository. Use it to check GitH
 and logs (e.g. `gh run list --workflow saas-image.yml`, `gh run view <id> --log-failed`) instead
 of guessing whether CI built or why it failed.
 
+Before running any `tofu` command in `sim2policy/infra/nebius`, set up both auth layers in the
+current shell — the S3 state backend and the Nebius provider use separate credentials:
+
+```bash
+source ~/.config/sim2policy/tofu-backend.env             # static key for the state bucket
+export NEBIUS_IAM_TOKEN="$(nebius iam get-access-token)" # short-lived provider token
+```
+
+Missing the first causes `403 AccessDenied` acquiring the state lock; missing (or an expired)
+second causes `PermissionDenied` on every resource refresh. The token expires, so re-export it in
+each new session. If the state-bucket key itself has expired, reissue it per
+`sim2policy/infra/nebius/README.md` (`nebius iam v2 access-key create` for the
+`sim2policy-tfstate` service account).
+
 Preserve unrelated worktree changes. Do not commit generated runs, checkpoints, logs, large media,
 cloud credentials, Terraform/OpenTofu state, plans, or local environment files.
 

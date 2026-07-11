@@ -32,8 +32,39 @@ Email delivery is selected by `SAAS_EMAIL_BACKEND`:
 
 - `mock` (default) — the code is written to the server log; perfect for local demos, never for
   real deployments.
-- `smtp` — real email via `SAAS_SMTP_HOST`, `SAAS_SMTP_PORT` (587), `SAAS_SMTP_USER`,
-  `SAAS_SMTP_PASSWORD`, `SAAS_SMTP_FROM`.
+- `smtp` — real email through Mailjet in production. `SAAS_SMTP_HOST=in-v3.mailjet.com`,
+  `SAAS_SMTP_PORT=587`, `SAAS_SMTP_TLS_MODE=starttls`, and
+  `SAAS_SMTP_TIMEOUT_SECONDS=10`; `SAAS_SMTP_USER` is the Mailjet API Key,
+  `SAAS_SMTP_PASSWORD` is the Mailjet Secret Key, and `SAAS_SMTP_FROM` is the validated sender.
+
+The public deployment requires a non-optional `saas-smtp` Kubernetes Secret reconciled from a
+pinned MysteryBox version; it never falls back to mock. Missing/invalid SMTP configuration prevents
+startup. A connection, TLS, authentication, recipient, quota, or provider failure returns a
+sanitized `503` with `Retry-After`, deletes the unusable pending code, and still consumes the abuse
+rate-limit attempt. Real-delivery logs contain only result category and latency, never the code,
+recipient, provider response, API Key, or Secret Key.
+
+### Mailjet production setup
+
+1. In Mailjet **Senders & Domains**, validate `sim-policy-trainer-challenge.info` under the same API
+   Key used for SMTP.
+2. Publish the exact ownership and DKIM records shown by Mailjet. Publish one apex SPF TXT record
+   `v=spf1 include:spf.mailjet.com ~all`, merging the include into an existing SPF record if one
+   exists. Preserve the existing DMARC record; do not publish a second one.
+3. Wait for Mailjet to report the domain, SPF, and DKIM as valid. Use
+   `Sim2Policy <login@sim-policy-trainer-challenge.info>` as the From identity.
+4. In the Nebius Console, create a new immutable version in `sim2policy-saas-smtp`, copy all seven
+   template keys, replace only `SAAS_SMTP_USER` and `SAAS_SMTP_PASSWORD`, and make it primary.
+   Never put either real value in Git, `.tfvars`, a plan, a command, or documentation.
+5. Set only the non-secret `saas_smtp_secret_version_id` in gitignored `saas.auto.tfvars`, apply the
+   stack, run `saas-smtp-sync.service`, and inspect Kubernetes key names only as documented in
+   `sim2policy/infra/nebius/README.md`.
+
+Monitor Mailjet's daily/monthly quota and delivery dashboard. To rotate, create a new Mailjet Secret
+Key/version, update the pinned version ID, reconcile, restart the Deployment, verify one bounded
+login, and then revoke the old key. To roll back, restore the prior validated MysteryBox version,
+reconcile, and restart. Mock mode is acceptable only for local or explicitly controlled demos; do
+not leave the public UI claiming that mock delivery sent email.
 
 ## Local development
 

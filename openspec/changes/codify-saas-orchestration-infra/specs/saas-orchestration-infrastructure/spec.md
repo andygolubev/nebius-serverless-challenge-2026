@@ -12,11 +12,11 @@ The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` servi
 - **THEN** the isolated access binding can be replaced without changing the SaaS server, CI, or artifact identities
 
 ### Requirement: Metadata-based orchestrator authentication
-The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, and the SaaS backend SHALL authenticate to Nebius through instance metadata without an SDK credentials file or long-lived private credential.
+The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, mount the VM-managed instance-metadata token file read-only into the SaaS pod, and authenticate the Nebius SDK with a renewable file bearer without a private SDK credential.
 
 #### Scenario: Backend starts on the SaaS VM
-- **WHEN** the Nebius backend constructs the SDK without a credentials file
-- **THEN** the SDK uses the VM's attached orchestrator identity
+- **WHEN** the Nebius backend constructs the SDK with the mounted metadata token file
+- **THEN** the SDK uses renewable tokens for the VM's attached orchestrator identity
 
 #### Scenario: Deployment configuration is generated
 - **WHEN** `saas-nebius` is reconciled

@@ -65,6 +65,12 @@ variable "saas_artifact_secret_version_id" {
   type        = string
 }
 
+variable "saas_smtp_secret_version_id" {
+  description = "Pinned MysteryBox version containing the seven-key Mailjet SMTP contract; empty until the operator creates the real version."
+  type        = string
+  default     = ""
+}
+
 variable "saas_registry_pull_secret_id" {
   description = "Existing MysteryBox secret containing the CONTAINER_REGISTRY token under key `token`."
   type        = string
