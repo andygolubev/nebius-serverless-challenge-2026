@@ -1,6 +1,6 @@
 ## 1. Provider and sender prerequisites
 
-- [ ] 1.1 In Mailjet, add `sim-policy-trainer-challenge.info` as a sending domain under the API Key that will perform SMTP delivery and publish the exact Mailjet domain-validation TXT record
+- [x] 1.1 In Mailjet, add `sim-policy-trainer-challenge.info` as a sending domain under the API Key that will perform SMTP delivery and publish the exact Mailjet domain-validation TXT record
 - [ ] 1.2 Publish or merge the single apex SPF TXT record `v=spf1 include:spf.mailjet.com ~all`, publish Mailjet's exact generated DKIM record, preserve the existing DMARC record, and wait until Mailjet reports domain/SPF/DKIM validation as successful
 - [x] 1.3 Select `Sim2Policy <login@sim-policy-trainer-challenge.info>` as the From identity; generate the Mailjet API/Secret Key pair and place it only in the approved external-secret workflow without pasting either value into chat, shell history, Git, logs, or OpenTofu
 
@@ -34,11 +34,11 @@
 - [x] 5.2 Add a manifest/deployment assertion that fails when the public deployment selects `mock` or omits the required SMTP Secret reference
 - [x] 5.3 Update `saas/README.md` with the exact Mailjet SMTP mapping, sender/domain validation, SPF/DKIM and existing-DMARC handling, `503` behavior, safe diagnostics, Secret Key reset/rotation, quota monitoring, and rollback guidance
 - [x] 5.4 Run manifest rendering/schema checks and verify rendered production configuration contains secret references and non-secret settings only
-- [ ] 5.5 Deploy through the existing CI/ArgoCD path and verify the application is Synced/Healthy, the single pod is Ready, and the active backend reports `smtp` without printing any secret value
+- [x] 5.5 Deploy through the existing CI/ArgoCD path and verify the application is Synced/Healthy, the single pod is Ready, and the active backend reports `smtp` without printing any secret value
 
 ## 6. Live acceptance and handoff
 
-- [ ] 6.1 Request one code from the public UI, confirm Mailjet acceptance and receipt at a representative mailbox, complete one-time sign-in, and verify resend/rate-limit behavior with bounded requests
+- [x] 6.1 Request one code from the public UI, confirm Mailjet acceptance and receipt at a representative mailbox, complete one-time sign-in, and verify resend/rate-limit behavior with bounded requests
 - [ ] 6.2 Confirm SPF and DKIM pass and DMARC alignment is reported for the received message; record results without copying message identifiers, addresses, codes, or provider tokens
 - [ ] 6.3 Exercise a controlled invalid/unavailable SMTP configuration, verify bounded sanitized `503` behavior and unusable failed code, then restore the validated secret version and confirm recovery
 - [ ] 6.4 Audit pod/provider/system logs and repository changes for leaked codes, email addresses, credentials, secret selectors, or raw SMTP responses; rotate credentials if any exposure occurred

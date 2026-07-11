@@ -35,11 +35,17 @@ flowchart LR
       GH["GitHub Actions CI"] --> RG["Nebius registry image"]
       GIT["Git deploy/ manifests"] --> AR["ArgoCD on saas-server (k3s)"]
       RG --> AR
-      MB["MysteryBox: GitHub + registry creds"] --> AR
+      MB["MysteryBox: GitHub, registry, artifact, SMTP creds"] --> SYNC["Root-owned secret reconcilers"]
+      SYNC --> KS["Kubernetes Secrets"]
+      MB -->|"Git repository token"| AR
       AR --> SAAS["Tenant SaaS app (FastAPI + React)"]
+      KS --> SAAS
       TEN["Tenants"] -->|"HTTPS 443"| SAAS
+      SAAS --> DB["SQLite on saas-data PVC"]
+      SAAS --> MAIL["Mailjet SMTP relay"]
+      SAAS --> API["Nebius Serverless AI API"]
+      API --> J
       OP["Operator"] -->|"SSH tunnel"| AR
-      SAAS --> A
     end
 
     T["OpenTofu"] --> I["Nebius registry, bucket, least-privilege identity, saas-server"]
@@ -61,13 +67,16 @@ flowchart LR
 - `sim2policy/infra/nebius/` uses OpenTofu to provision the container registry, bounded/versioned
   artifact bucket, and least-privilege artifact service account. Serverless jobs remain explicit
   submissions, not persistent infrastructure resources. `saas.tf` adds the always-on `saas-server`
-  VM, its dedicated service account, a MysteryBox GitHub-token secret, and a `nebius_vpc_v1_security_group`
-  that admits only 22/443/80; `cloud-init/saas-server.yaml.tftpl` bootstraps k3s + ArgoCD.
+  VM, dedicated orchestration identity, scoped MysteryBox secrets/read permits, and a
+  `nebius_vpc_v1_security_group` that admits only 22/443/80;
+  `cloud-init/saas-server.yaml.tftpl` bootstraps k3s, ArgoCD, and root-owned Secret reconcilers.
 - `saas/` is the tenant-facing SaaS application: a FastAPI backend (`saas/backend/`) exposing the
-  job API with tenant scoping and a pluggable orchestration backend (`mock` today), plus a React +
-  Vite + TypeScript frontend (`saas/frontend/`). One multi-stage image serves API and UI.
+  authenticated job API with verified-email tenant scoping, SQLite persistence, and pluggable mock
+  or Nebius orchestration, plus a React + Vite + TypeScript frontend (`saas/frontend/`). One
+  multi-stage image serves API and UI.
 - `deploy/` holds the GitOps state ArgoCD reconciles: `deploy/argocd/` (app-of-apps `Application`s)
-  and `deploy/manifests/saas/` (Deployment, Service, Traefik Ingress, kustomize image mapping).
+  and `deploy/manifests/saas/` (Deployment, SQLite PVC, Service, Traefik Ingress, and immutable
+  kustomize image mapping).
 - `.github/workflows/saas-image.yml` builds the SaaS image and pushes it to the Nebius registry,
   authenticating with a `registry.pusher` service-account credential via `docker login --password-stdin`.
 - `runs/<run-id>/` is canonical while a process runs. `checkpoints/`, `tensorboard/`, `videos/`, and
@@ -81,19 +90,46 @@ flowchart LR
 The control plane keeps a durable front door running without hand-run `make` commands. A single
 `saas-server` CPU VM self-bootstraps a one-node **k3s** cluster and **ArgoCD** through cloud-init.
 **Git is the source of truth**: ArgoCD syncs `deploy/` and self-heals drift, so a merge is the only
-action needed to change what runs. The SaaS app image is built by **GitHub Actions** and pulled from
-the Nebius registry — by the VM service account's `registry.puller` identity when possible, with a
-MysteryBox `imagePullSecret` as the documented fallback. ArgoCD reads the private manifests repo
-using a **GitHub token sourced from MysteryBox** at boot; no credential value lives in Git.
+action needed to change what runs. The SaaS app image is built by **GitHub Actions**, pushed with an
+immutable commit tag, and pulled from the Nebius registry. ArgoCD reads the private manifests repo
+using a **GitHub token sourced from MysteryBox** at boot; registry, artifact, and SMTP credentials
+also originate in versioned MysteryBox payloads. Root-owned services use the VM identity to
+reconcile allowlisted values into dedicated Kubernetes Secrets without placing credential values
+in Git, OpenTofu state, images, command output, or application logs.
 
 Network posture is deliberately narrow. The Nebius security group admits only inbound **SSH (22)**,
 **HTTPS (443)**, and **HTTP (80)** for ACME/redirect; a host `ufw` firewall is defense-in-depth. The
 k3s API (6443) and the ArgoCD UI are **not** public — operators manage the cluster over an **SSH
 tunnel** (`ssh -L`). Only the tenant SaaS app is exposed, on 443 via Traefik. The app itself is
-stateless and tenant-scoped: every job and artifact belongs to the `X-Tenant-Id` that created it,
-and orchestration sits behind an interface so a real Nebius Serverless backend can replace the
-`mock` without changing the tenant-facing API. All durable state lives in Git (manifests) and S3
-(artifacts), so the VM is disposable and rebuildable from OpenTofu + GitOps.
+tenant-scoped: passwordless email verification issues opaque bearer sessions, and every job and
+artifact derives its tenant from the verified email rather than a caller-controlled header. Users,
+pending codes, sessions, rate-limit windows, and job metadata persist in SQLite on the single-writer
+`saas-data` PVC; training artifacts remain durable in S3. The active orchestration adapter submits
+bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
+
+### Email authentication and delivery
+
+The browser calls `POST /auth/request-code`; only the backend generates the six-digit code. The
+backend stores a hash with a ten-minute expiry, then sends the plaintext code through authenticated
+Mailjet SMTP over STARTTLS. The production Deployment explicitly selects `smtp` and requires the
+non-optional `saas-smtp` Kubernetes Secret. That Secret is reconciled from one pinned MysteryBox
+version containing exactly seven allowlisted `SAAS_SMTP_*` keys. Local and test processes may
+select `mock`, but the production manifest and CI assertion reject mock delivery.
+
+Provider acceptance is part of request success. Connection, timeout, TLS, authentication,
+recipient, quota, or provider rejection failures delete the unusable pending code and return a
+sanitized retryable `503`; abuse rate limiting still counts the request. Real-delivery logs contain
+only result category and latency, never the recipient, code, SMTP response, API Key, or Secret Key.
+The sender domain is authenticated with SPF, DKIM, and DMARC, while inbox placement and delivery
+events remain the responsibility of Mailjet and recipient mail systems.
+
+### Control-plane durability and rebuildability
+
+Git remains canonical for manifests and immutable image selection, MysteryBox for credentials, S3
+for training artifacts, and SQLite/PVC storage for transactional SaaS state. The PVC is node-local
+and single-writer, matching the one-replica deployment; it improves rollout/restart durability but
+is not a cross-node database or independent backup. Rebuilding the VM therefore also requires a
+planned SQLite backup/restore or migration if that state must survive loss of the node/disk.
 
 ## Execution and safety model
 

@@ -1,7 +1,7 @@
 ## 1. Cloud IAM & Secrets (manual/CLI, documented)
 
-- [ ] 1.1 Create a dedicated backend service account (e.g. `sim2policy-saas-orchestrator`) and grant it `editor` on the project; document why `editor` is required (no job-scoped role) and record the account in `sim2policy/infra/nebius/README.md`
-- [ ] 1.2 Store the backend SA credentials in MysteryBox; confirm the existing `sim2policy-artifacts` S3 access key/secret are available via a MysteryBox selector
+- [x] 1.1 Create a dedicated backend service account (e.g. `sim2policy-saas-orchestrator`) and grant it `editor` on the project; document why `editor` is required (no job-scoped role) and record the account in `sim2policy/infra/nebius/README.md`
+- [x] 1.2 Store the backend SA credentials in MysteryBox; confirm the existing `sim2policy-artifacts` S3 access key/secret are available via a MysteryBox selector *(evolved: the orchestrator uses the VM-managed IAM token file — no long-lived SA key exists anywhere; the artifact S3 secret is confirmed available via its MysteryBox selector `mbsec-…/mbsecver-…`)*
 - [x] 1.3 Document (not commit) the procedure to create the `saas-nebius` Kubernetes Secret from MysteryBox values (SA key + AWS creds + endpoint/region/bucket)
 
 ## 2. Backend dependencies & configuration
