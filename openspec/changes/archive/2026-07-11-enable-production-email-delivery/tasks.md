@@ -1,7 +1,7 @@
 ## 1. Provider and sender prerequisites
 
 - [x] 1.1 In Mailjet, add `sim-policy-trainer-challenge.info` as a sending domain under the API Key that will perform SMTP delivery and publish the exact Mailjet domain-validation TXT record
-- [ ] 1.2 Publish or merge the single apex SPF TXT record `v=spf1 include:spf.mailjet.com ~all`, publish Mailjet's exact generated DKIM record, preserve the existing DMARC record, and wait until Mailjet reports domain/SPF/DKIM validation as successful
+- [x] 1.2 Publish or merge the single apex SPF TXT record `v=spf1 include:spf.mailjet.com ~all`, publish Mailjet's exact generated DKIM record, preserve the existing DMARC record, and wait until Mailjet reports domain/SPF/DKIM validation as successful
 - [x] 1.3 Select `Sim2Policy <login@sim-policy-trainer-challenge.info>` as the From identity; generate the Mailjet API/Secret Key pair and place it only in the approved external-secret workflow without pasting either value into chat, shell history, Git, logs, or OpenTofu
 
 ## 2. Backend delivery hardening
@@ -39,7 +39,7 @@
 ## 6. Live acceptance and handoff
 
 - [x] 6.1 Request one code from the public UI, confirm Mailjet acceptance and receipt at a representative mailbox, complete one-time sign-in, and verify resend/rate-limit behavior with bounded requests
-- [ ] 6.2 Confirm SPF and DKIM pass and DMARC alignment is reported for the received message; record results without copying message identifiers, addresses, codes, or provider tokens
-- [ ] 6.3 Exercise a controlled invalid/unavailable SMTP configuration, verify bounded sanitized `503` behavior and unusable failed code, then restore the validated secret version and confirm recovery
-- [ ] 6.4 Audit pod/provider/system logs and repository changes for leaked codes, email addresses, credentials, secret selectors, or raw SMTP responses; rotate credentials if any exposure occurred
-- [ ] 6.5 Record the immutable image revision, non-secret deployment results, rollback point, blockers, and next safe action in `IMPLEMENTATION_LOG.MD`, and confirm no temporary cloud resources remain
+- [x] 6.2 Confirm SPF and DKIM pass and DMARC alignment is reported for the received message; record results without copying message identifiers, addresses, codes, or provider tokens
+- [x] 6.3 Exercise a controlled invalid/unavailable SMTP configuration, verify bounded sanitized `503` behavior and unusable failed code, then restore the validated secret version and confirm recovery
+- [x] 6.4 Audit pod/provider/system logs and repository changes for leaked codes, email addresses, credentials, secret selectors, or raw SMTP responses; rotate credentials if any exposure occurred
+- [x] 6.5 Record the immutable image revision, non-secret deployment results, rollback point, blockers, and next safe action in `IMPLEMENTATION_LOG.MD`, and confirm no temporary cloud resources remain
