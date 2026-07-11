@@ -35,9 +35,11 @@ class JobSubmission:
     subnet_id: str
     parent_id: str
     registry_secret: str | None = None  # MysteryBox secret version for pulls
-    # Boot disk for the job VM; the CLI defaults to 250Gi and the API rejects
-    # specs without an explicit disk (`spec.disk: value is required`).
-    disk_gib: int = 250
+    # Boot disk for the job VM; the API rejects specs without an explicit disk
+    # (`spec.disk: value is required`). The CLI default of 250Gi exceeds the
+    # project's SSD quota headroom and leaves jobs stuck in PROVISIONING; 100Gi
+    # is verified to provision and fits the training image plus run artifacts.
+    disk_gib: int = 100
     env: dict[str, str] = field(default_factory=dict)
     # name -> MysteryBox selector; the value never appears in the job spec.
     env_secrets: dict[str, str] = field(default_factory=dict)
