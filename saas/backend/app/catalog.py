@@ -108,9 +108,11 @@ class JobSpec:
 
 # H100 shape verified by the full go1 run (docs/submission-checklist.md); chosen for
 # job speed. Timeouts and step caps track configs/training_presets.yaml limits.
+# The config loader only accepts two-level `section.key` overrides, so
+# hyperparameters like learning_rate cannot be overridden per-job; tenants get
+# the base config's value (train_sb3 rejects deeper dotted paths).
 _SB3_PARAM_PATHS = {
     "total_timesteps": "training.total_steps",
-    "learning_rate": "training.hyperparameters.learning_rate",
     "seed": "seed",
 }
 

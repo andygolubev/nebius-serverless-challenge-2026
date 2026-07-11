@@ -122,7 +122,8 @@ def test_submission_derives_from_catalog_only():
     assert "configs/ant_sb3.yaml" in sub.args
     joined = " ".join(sub.args)
     assert "training.total_steps=100000" in joined
-    assert "training.hyperparameters.learning_rate=0.0003" in joined
+    # learning_rate is not an allowed override path; it must never reach the args
+    assert "learning_rate" not in joined
     assert "seed=7" in joined
     assert "storage.bucket=sim2policy-artifacts" in joined
     assert sub.platform == "gpu-h100-sxm"
