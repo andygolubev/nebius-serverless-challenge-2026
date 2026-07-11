@@ -30,7 +30,7 @@
 - [x] 5.2 Build the `sb3` target from `sim2policy/Dockerfile` with Buildx caching and run the image's bounded health/import validation before authentication or publication
 - [x] 5.3 Authenticate with the existing `sim2policy-saas-ci` registry token through `docker login --password-stdin`, ensuring untrusted pull-request jobs cannot receive credentials or push
 - [x] 5.4 Push a commit-derived immutable tag first, then update `sim2policy:sb3-runtime` to the identical image, and emit the immutable reference and registry digest in the workflow summary
-- [ ] 5.5 Validate workflow syntax and perform a trusted build/push; verify the immutable tag and `sb3-runtime` resolve to the same digest without printing credentials
+- [x] 5.5 Validate workflow syntax and perform a trusted build/push; verify the immutable tag and `sb3-runtime` resolve to the same digest without printing credentials
 
 ## 6. OpenTofu Verification and Apply
 
@@ -44,4 +44,4 @@
 - [x] 7.1 Replace the manual "Serverless job orchestration for the SaaS backend" procedure in `sim2policy/infra/nebius/README.md` with output-driven apply, sync, rotation, rollback, and break-glass instructions
 - [x] 7.2 Update `sim2policy/jobs/README.md` and infrastructure examples to use the rebuilt subnet/output contract and remove stale pre-rebuild identifiers
 - [x] 7.3 Document the isolated `editor` exception, immutable image reference/digest workflow, required GitHub secrets, and the future migration to a job-scoped role
-- [ ] 7.4 Record commands, redacted observed results, blockers, cleanup/audit status, and the next safe action in `IMPLEMENTATION_LOG.MD`, then hand the published runtime image to `nebius-job-orchestration` task 6.3 for the bounded end-to-end smoke test
+- [x] 7.4 Record commands, redacted observed results, blockers, cleanup/audit status, and the next safe action in `IMPLEMENTATION_LOG.MD`, then hand the published runtime image to `nebius-job-orchestration` task 6.3 for the bounded end-to-end smoke test

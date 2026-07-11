@@ -38,7 +38,7 @@ The system SHALL exchange a valid email + code pair at `POST /auth/verify` for a
 - **THEN** the system responds 401 and the code is invalidated even if the 6th attempt is correct
 
 ### Requirement: Session-scoped API access
-All job endpoints (`/jobs*`, `/training-options` job submission) SHALL require a valid `Authorization: Bearer <token>` session. The tenant identity SHALL be derived from the session's verified email; the `X-Tenant-Id` header SHALL be ignored. Sessions SHALL expire after a configurable lifetime (default 24 hours) and be revocable via `POST /auth/logout`. `GET /me` SHALL return the authenticated user's email.
+All job endpoints (`/jobs*`, `/training-options` job submission) SHALL require a valid `Authorization: Bearer <token>` session. The tenant identity SHALL be derived from the session's verified email; the `X-Tenant-Id` header SHALL be ignored. Sessions SHALL expire after a configurable lifetime (default 24 hours) and be revocable via `POST /auth/logout`. `GET /me` SHALL return the authenticated user's email. Sessions and tenant accounts SHALL be stored durably so that a valid, unexpired session token issued before a backend restart remains valid after it.
 
 #### Scenario: Authenticated job access
 - **WHEN** a request to `/jobs` carries a valid session token
@@ -51,6 +51,10 @@ All job endpoints (`/jobs*`, `/training-options` job submission) SHALL require a
 #### Scenario: Logout revokes the session
 - **WHEN** a user calls `/auth/logout` and then reuses the same token
 - **THEN** the subsequent request responds 401
+
+#### Scenario: Session survives a backend restart
+- **WHEN** a user holds a valid, unexpired session token and the backend restarts
+- **THEN** requests with that token continue to succeed without re-authentication
 
 ### Requirement: Email delivery adapter
 The system SHALL deliver codes through a pluggable email adapter selected by configuration. A `mock` adapter SHALL be available only for local, test, or explicitly operator-controlled demo use and SHALL log the code for the operator; a production deployment SHALL select a real adapter. The `smtp` adapter SHALL send real email using authenticated provider settings sourced from secret-backed environment variables, SHALL use the configured secure transport and bounded timeout, and SHALL validate required configuration when the application starts. When a real adapter is configured, the system SHALL NOT expose the code, recipient address, provider credentials, or provider response text in the API response or application logs.

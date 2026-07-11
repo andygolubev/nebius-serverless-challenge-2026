@@ -30,6 +30,6 @@
 
 ## 4. Verification & docs
 
-- [ ] 4.1 After ArgoCD syncs, verify end-to-end on the cluster: log in, submit a job, delete the
+- [x] 4.1 After ArgoCD syncs, verify end-to-end on the cluster: log in, submit a job, delete the
   pod, confirm the same token still works and the job list is intact
 - [x] 4.2 Update `saas/README.md` with the `SAAS_DB_PATH` variable and persistence notes
