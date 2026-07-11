@@ -103,8 +103,10 @@ k3s API (6443) and the ArgoCD UI are **not** public — operators manage the clu
 tunnel** (`ssh -L`). Only the tenant SaaS app is exposed, on 443 via Traefik. The app itself is
 tenant-scoped: passwordless email verification issues opaque bearer sessions, and every job and
 artifact derives its tenant from the verified email rather than a caller-controlled header. Users,
-pending codes, sessions, rate-limit windows, and job metadata persist in SQLite on the single-writer
-`saas-data` PVC; training artifacts remain durable in S3. The active orchestration adapter submits
+sessions, jobs, and artifact manifests persist in SQLite on the single-writer `saas-data` PVC so a
+valid token issued before a restart stays valid after it; pending one-time codes and rate-limit
+windows stay in process memory (short-lived by design, safe to lose on restart). Training artifacts
+remain durable in S3. The active orchestration adapter submits
 bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
 
 ### Secrets in use
