@@ -185,6 +185,52 @@ resource "nebius_iam_v1_access_permit" "saas_artifact_secret_reader" {
   role        = "mysterybox.payload-viewer"
 }
 
+# Serverless AI jobs require registry credentials as a MysteryBox payload with
+# exactly the REGISTRY_USERNAME and REGISTRY_PASSWORD keys. The existing
+# sim2policy-saas-registry-pull secret stores a single `token` key (the k3s
+# imagePullSecret shape) and is rejected by the jobs API, so this dedicated
+# secret carries the job-pull shape. Seed a write-only template version; the
+# operator replaces the password placeholder with the registry token in a new
+# version out of band (Nebius Console), never through configuration or state.
+resource "nebius_mysterybox_v1_secret" "saas_job_registry" {
+  parent_id   = var.project_id
+  name        = "${var.name_prefix}-job-registry-creds"
+  description = "Registry pull credentials for Serverless AI job image pulls."
+
+  secret_version = {
+    description = "Job registry template; replace REGISTRY_PASSWORD in a new version."
+    set_primary = true
+  }
+
+  sensitive = {
+    version = "job-registry-template-v1"
+    secret_version = {
+      payload = [
+        {
+          key          = "REGISTRY_USERNAME"
+          string_value = "iam"
+        },
+        {
+          key          = "REGISTRY_PASSWORD"
+          string_value = "REPLACE_WITH_REGISTRY_TOKEN"
+        },
+      ]
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [secret_version, sensitive]
+  }
+}
+
+# The orchestrator identity creates jobs that reference this secret; the jobs
+# service resolves the payload at image-pull time under that identity.
+resource "nebius_iam_v1_access_permit" "saas_job_registry_secret_reader" {
+  parent_id   = nebius_iam_v1_group.saas_server_access.id
+  resource_id = nebius_mysterybox_v1_secret.saas_job_registry.id
+  role        = "mysterybox.payload-viewer"
+}
+
 resource "nebius_vpc_v1_security_group" "saas_server" {
   parent_id  = var.project_id
   name       = "${var.name_prefix}-saas-server"

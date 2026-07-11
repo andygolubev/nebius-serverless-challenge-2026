@@ -71,6 +71,12 @@ variable "saas_smtp_secret_version_id" {
   default     = ""
 }
 
+variable "saas_job_registry_secret_version_id" {
+  description = "Pinned MysteryBox version holding REGISTRY_USERNAME/REGISTRY_PASSWORD for Serverless AI job image pulls; empty until the operator creates the real version."
+  type        = string
+  default     = ""
+}
+
 variable "saas_registry_pull_secret_id" {
   description = "Existing MysteryBox secret containing the CONTAINER_REGISTRY token under key `token`."
   type        = string

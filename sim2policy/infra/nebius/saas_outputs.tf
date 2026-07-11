@@ -35,7 +35,7 @@ output "saas_nebius_contract" {
     NEBIUS_SUBNET_ID           = var.saas_subnet_id
     SIM2POLICY_JOB_IMAGE       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
     NEBIUS_S3_SECRET_SELECTOR  = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
-    NEBIUS_REGISTRY_SECRET     = var.saas_use_registry_pull_secret ? var.saas_registry_pull_secret_version_id : ""
+    NEBIUS_REGISTRY_SECRET     = var.saas_job_registry_secret_version_id
     AWS_ACCESS_KEY_ID          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
     AWS_ENDPOINT_URL_S3        = "https://storage.eu-north1.nebius.cloud"
     AWS_DEFAULT_REGION         = "eu-north1"
@@ -46,6 +46,11 @@ output "saas_nebius_contract" {
 output "saas_github_secret_id" {
   description = "MysteryBox secret id holding the ArgoCD GitHub token."
   value       = nebius_mysterybox_v1_secret.saas_github_token.id
+}
+
+output "saas_job_registry_secret_id" {
+  description = "MysteryBox secret container id for the out-of-band job registry credential versions."
+  value       = nebius_mysterybox_v1_secret.saas_job_registry.id
 }
 
 output "saas_smtp_secret_id" {
