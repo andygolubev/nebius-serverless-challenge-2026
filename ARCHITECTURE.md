@@ -35,7 +35,7 @@ flowchart LR
       GH["GitHub Actions CI"] --> RG["Nebius registry image"]
       GIT["Git deploy/ manifests"] --> AR["ArgoCD on saas-server (k3s)"]
       RG --> AR
-      MB["MysteryBox: GitHub, registry, artifact, SMTP creds"] --> SYNC["Root-owned secret reconcilers"]
+      MB["MysteryBox: GitHub, registry, artifact, SMTP, job-pull creds"] --> SYNC["Root-owned secret reconcilers"]
       SYNC --> KS["Kubernetes Secrets"]
       MB -->|"Git repository token"| AR
       AR --> SAAS["Tenant SaaS app (FastAPI + React)"]
@@ -106,6 +106,30 @@ artifact derives its tenant from the verified email rather than a caller-control
 pending codes, sessions, rate-limit windows, and job metadata persist in SQLite on the single-writer
 `saas-data` PVC; training artifacts remain durable in S3. The active orchestration adapter submits
 bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
+
+### Secrets in use
+
+All credentials originate in versioned **MysteryBox** payloads and reach workloads either as
+Kubernetes Secrets reconciled by root-owned units (using the VM identity) or as secret references
+resolved by Nebius services at use time. Values never appear in Git, OpenTofu inputs, command
+arguments, or logs; OpenTofu records only non-secret secret/version IDs.
+
+| MysteryBox secret | Payload keys | Consumed by |
+| --- | --- | --- |
+| `sim2policy-saas-github-token` | GitHub token | ArgoCD repo access, fetched once at boot by cloud-init |
+| `sim2policy-saas-registry-pull` | `token` | k3s `nebius-registry` dockerconfigjson imagePullSecret (username `iam`) for pulling the SaaS app image |
+| artifact access-key secret (created by `nebius_iam_v2_access_key.artifacts`) | `secret` (paired with the non-secret `artifact_access_key_id`) | `saas-nebius` Kubernetes Secret (`AWS_SECRET_ACCESS_KEY` for the backend's S3 artifact reads) and injected into each training job as a MysteryBox env-secret |
+| `sim2policy-saas-smtp` | seven `SAAS_SMTP_*` keys | `saas-smtp` Kubernetes Secret for Mailjet login-code delivery |
+| `sim2policy-job-registry-creds` | `REGISTRY_USERNAME`, `REGISTRY_PASSWORD` | Serverless AI jobs API at image-pull time, referenced by version ID in each job's `registry_credentials` (the jobs API requires this exact key shape; the single-key `token` pull secret is not accepted there) |
+
+Kubernetes Secrets on the cluster: `saas-nebius` (the orchestration env contract — `NEBIUS_*`,
+`AWS_*`, `SIM2POLICY_*`, including selector/version references, reconciled by
+`saas-nebius-sync.service`), `saas-smtp` (reconciled from one pinned version by
+`saas-smtp-sync.service`), and the `nebius-registry` imagePullSecret. The orchestrator itself holds
+no long-lived key: the Nebius SDK authenticates with the **VM-managed renewable IAM token** mounted
+read-only into the pod. Payload-viewer permits are scoped per secret to the `saas-server-access`
+group; rotation means adding a new MysteryBox version, updating only the pinned version ID, and
+rerunning the corresponding sync unit.
 
 ### Email authentication and delivery
 

@@ -128,6 +128,23 @@ immutable selector. The artifact payload key is `secret`, paired with `artifact_
 The registry payload key is `token`. To rotate either value, add a new primary version directly in
 MysteryBox, update only the corresponding version ID, and apply:
 
+**Job image pulls need a differently shaped secret.** The Serverless AI jobs API rejects the
+single-key `token` payload; it requires a MysteryBox secret with exactly `REGISTRY_USERNAME` and
+`REGISTRY_PASSWORD` keys. The stack creates `sim2policy-job-registry-creds` seeded with a
+template version (`REGISTRY_USERNAME=iam`, placeholder password). Issue a `CONTAINER_REGISTRY`
+static key for the orchestrator account (`nebius iam static-key issue --service container_registry
+--account-service-account-id <orchestrator-sa>`), create a new primary MysteryBox version replacing
+the password placeholder with the token, and record only the version ID in the gitignored
+`terraform.tfvars`:
+
+```hcl
+saas_job_registry_secret_version_id = "mbsecver-..."
+```
+
+That version ID flows into the `saas_nebius_contract` output as `NEBIUS_REGISTRY_SECRET`, which
+each submitted job references in `registry_credentials`; the payload is resolved by the jobs
+service at image-pull time under the `saas-server-access` group's payload-viewer permit.
+
 ```bash
 tofu plan -out=saas-orchestration.tfplan
 tofu apply saas-orchestration.tfplan
