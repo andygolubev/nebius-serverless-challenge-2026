@@ -313,10 +313,12 @@ def test_reader_builds_manifest_from_fixtures():
     stub = StubS3(
         {
             f"{PREFIX}/report/artifacts.json": {
-                "final_policy": "checkpoints/final.zip",
-                "metrics_json": "report/metrics.json",
-                "video_final": "videos/final.mp4",
-                "progression_montage": "videos/progression_montage.mp4",
+                "artifacts": {
+                    "final_policy": "checkpoints/final.zip",
+                    "metrics_json": "report/metrics.json",
+                    "video_final": "videos/final.mp4",
+                    "progression_montage": "videos/progression_montage.mp4",
+                }
             },
             f"{PREFIX}/report/metrics.json": {"mean_reward": 987.6, "steps": 100000},
             f"{PREFIX}/metadata/status.json": {"run_id": RUN, "status": "completed"},

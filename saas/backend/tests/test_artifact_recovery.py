@@ -88,7 +88,7 @@ def test_completed_job_recovers_and_caches_manifest(client, sender, login, backe
     assert main._store.get_artifacts(job.id) is not None
 
 
-def test_reader_miss_keeps_409(client, sender, login, backend_reader):
+def test_reader_miss_keeps_409(client, sender, login, backend_reader, caplog):
     email = _email()
     headers = login(email)
     job = _put_job(email, STATUS_COMPLETED)
@@ -98,6 +98,7 @@ def test_reader_miss_keeps_409(client, sender, login, backend_reader):
     assert res.status_code == 409
     assert reader.calls == 1
     assert main._store.get_artifacts(job.id) is None
+    assert "lazy artifact manifest not found" in caplog.text
 
 
 def test_reader_error_degrades_to_409(client, sender, login, backend_reader):

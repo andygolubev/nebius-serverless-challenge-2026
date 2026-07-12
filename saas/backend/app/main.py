@@ -33,6 +33,7 @@ from .store import AuthStore, JobStore, Session
 from .db import resolve_path
 
 app = FastAPI(title="Sim2Policy SaaS", version="0.2.0")
+log = logging.getLogger(__name__)
 # Durable state lives in SQLite at SAAS_DB_PATH (a PVC in the cluster); defaults to a
 # local file for development.
 _db_path = resolve_path()
@@ -194,12 +195,12 @@ def _recover_artifacts(job: Job) -> ArtifactManifest | None:
     try:
         manifest = reader.read_manifest(job.id, job.id)
     except Exception:
-        logging.getLogger(__name__).warning(
-            "lazy artifact manifest read failed for job %s", job.id, exc_info=True
-        )
+        log.warning("lazy artifact manifest read failed for job %s", job.id, exc_info=True)
         return None
-    if manifest is not None:
-        _store.set_artifacts(manifest)
+    if manifest is None:
+        log.warning("lazy artifact manifest not found for job %s", job.id)
+        return None
+    _store.set_artifacts(manifest)
     return manifest
 
 

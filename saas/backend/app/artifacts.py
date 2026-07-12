@@ -65,11 +65,17 @@ class S3ArtifactReader:
         manifest = self._read_json(self._key(run_id, "report/artifacts.json"))
         if manifest is None:
             return None
+        # RunState.write_manifest() wraps the logical-name mapping under
+        # "artifacts". Accept the old flat shape as well for compatibility
+        # with manifests published before that envelope was introduced.
+        artifact_map = manifest.get("artifacts")
+        if not isinstance(artifact_map, dict):
+            artifact_map = manifest
         status = self._read_json(self._key(run_id, "metadata/status.json")) or {}
         metrics = self._read_json(self._key(run_id, "report/metrics.json")) or {}
         media = sorted(
             self._key(run_id, rel)
-            for rel in manifest.values()
+            for rel in artifact_map.values()
             if isinstance(rel, str) and rel.endswith(_MEDIA_SUFFIXES)
         )
         return ArtifactManifest(
