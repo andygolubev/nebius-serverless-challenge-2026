@@ -14,8 +14,8 @@
 
 ## 3. Deploy
 
-- [ ] 3.1 Build and push the SaaS image; roll out via the existing GitOps flow (watch the ArgoCD `kustomize.images` override; live `saas` app may pin the image tag)
-- [ ] 3.2 Verify in prod: `GET /jobs/{id}/artifacts` still 409s for a manifest-less run (pre-finalize)
+- [x] 3.1 Build and push the SaaS image; roll out via the existing GitOps flow (watch the ArgoCD `kustomize.images` override; live `saas` app may pin the image tag)
+- [x] 3.2 Verify in prod: `GET /jobs/{id}/artifacts` still 409s for a manifest-less run (pre-finalize)
 
 ## 4. Finalize run 9b32bd6038ec4c34a1ec4681f661bc84 (operational)
 

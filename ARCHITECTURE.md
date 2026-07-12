@@ -62,6 +62,9 @@ flowchart LR
   rendering, telemetry, reporting, API, and backend-specific trainer adapters.
 - `sim2policy/configs/` holds reproducible environment/run contracts and hosted-demo presets.
 - `sim2policy/Dockerfile` has backend-isolated `sb3` and `mjx` runtime targets.
+- `.github/workflows/training-runtime-images.yml` builds both targets on CPU runners, validates
+  backend-specific imports, publishes target-qualified immutable tags (`sb3-<sha>` / `mjx-<sha>`),
+  and only then advances the `sb3-runtime` / `mjx-runtime` compatibility tags.
 - `sim2policy/jobs/submit.sh` is the validated Nebius job boundary; it constructs argument arrays,
   enforces a timeout, and accepts MysteryBox secret selectors without printing their values.
 - `sim2policy/infra/nebius/` uses OpenTofu to provision the container registry, bounded/versioned
@@ -79,6 +82,8 @@ flowchart LR
   kustomize image mapping).
 - `.github/workflows/saas-image.yml` builds the SaaS image and pushes it to the Nebius registry,
   authenticating with a `registry.pusher` service-account credential via `docker login --password-stdin`.
+  A successful `main` build commits the immutable image tag to the kustomization after verifying
+  that `main` has not advanced, so ArgoCD deploys the exact build without an operator override.
 - `runs/<run-id>/` is canonical while a process runs. `checkpoints/`, `tensorboard/`, `videos/`, and
   `report/` map to the same subpaths at `s3://<bucket>/sim2policy/<run-id>/`, which is canonical
   across ephemeral jobs. A checkpoint is uploaded fully before `latest.json` is advanced.
@@ -91,7 +96,8 @@ The control plane keeps a durable front door running without hand-run `make` com
 `saas-server` CPU VM self-bootstraps a one-node **k3s** cluster and **ArgoCD** through cloud-init.
 **Git is the source of truth**: ArgoCD syncs `deploy/` and self-heals drift, so a merge is the only
 action needed to change what runs. The SaaS app image is built by **GitHub Actions**, pushed with an
-immutable commit tag, and pulled from the Nebius registry. ArgoCD reads the private manifests repo
+immutable commit tag, committed back to the GitOps kustomization, and pulled from the Nebius
+registry. ArgoCD reads the private manifests repo
 using a **GitHub token sourced from MysteryBox** at boot; registry, artifact, and SMTP credentials
 also originate in versioned MysteryBox payloads. Root-owned services use the VM identity to
 reconcile allowlisted values into dedicated Kubernetes Secrets without placing credential values
@@ -108,6 +114,9 @@ valid token issued before a restart stays valid after it; pending one-time codes
 windows stay in process memory (short-lived by design, safe to lose on restart). Training artifacts
 remain durable in S3. The active orchestration adapter submits
 bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
+The server-side catalog selects the runtime and compute shape per job spec: SB3 uses the isolated
+SB3 image on the right-sized L40S shape, while the default `go1-mjx-demo` expands to the verified
+100M-step MJX workload using the isolated MJX image on a single H100.
 
 ### Secrets in use
 
@@ -165,8 +174,15 @@ cheap gates to expensive ones: image health/render smoke, bounded training plus 
 interruption/resume, then full training and publication. Credentials stay in local configuration or
 Nebius MysteryBox; generated artifacts and infrastructure state never belong in Git.
 
-Container images are built on a disposable CPU VM and consumed by separate disposable H100 AI
-Jobs. This keeps Docker compilation and registry upload off costly accelerator time. The full Track
+MJX training logs JAX backend/device discovery and explicit setup, initial-checkpoint,
+compile/train, checkpoint-publication, and artifact-sync phases. A two-second `nvidia-smi` sampler
+spans those phases and writes schema-v2 runtime telemetry with sample counts, mean/max utilization,
+peak memory, and phase durations; start/end snapshots remain for compatibility but are not treated
+as whole-run utilization.
+
+Container images are built on CPU-only builders and consumed by separate ephemeral GPU AI Jobs.
+This keeps Docker compilation and registry upload off costly accelerator time. SB3 jobs use L40S;
+the flagship MJX job uses H100. The full Track
 A flow uses `Go1JoystickFlatTerrain`, Brax PPO on MJX, immutable image digests, periodic S3
 checkpoints, and a finalizer that downloads the durable run, restores progression checkpoints,
 renders media, evaluates the final policy, writes reports/comparison data, and republishes the
