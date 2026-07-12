@@ -12,9 +12,11 @@ resource "nebius_iam_v1_service_account" "saas_server" {
 
 # Dedicated runtime identity for the SaaS backend. The VM-attached identity is
 # discovered by the Nebius SDK through instance metadata, so no long-lived SDK
-# private key or credentials file exists. `editor` is the narrowest role that
-# currently permits Serverless AI job create/cancel; replace it when Nebius
-# publishes a job-scoped role.
+# private key or credentials file exists. Nebius Support requested project
+# `admin` as a temporary workaround after project `editor` allowed job creation
+# but left every service-account-created job stuck in PROVISIONING. A live A/B
+# probe on 2026-07-12 confirmed that `admin` reaches STARTING in about one minute.
+# Revert to `editor` when Nebius confirms the underlying provisioner fix.
 resource "nebius_iam_v1_service_account" "saas_orchestrator" {
   parent_id   = var.project_id
   name        = "${var.name_prefix}-saas-orchestrator"
@@ -34,7 +36,7 @@ resource "nebius_iam_v1_group_membership" "saas_orchestrator_editor" {
 resource "nebius_iam_v1_access_permit" "saas_orchestrator_editor" {
   parent_id   = nebius_iam_v1_group.saas_orchestrators.id
   resource_id = var.project_id
-  role        = "editor"
+  role        = "admin"
 }
 
 resource "nebius_iam_v1_group" "saas_server_access" {

@@ -68,9 +68,28 @@ Alternative — a single reconciler loop over all active jobs — is cleaner at 
 
 New env vars consumed only by the `nebius` backend: the S3 set above plus `NEBIUS_PROJECT_ID` (parent for jobs), `SIM2POLICY_JOB_IMAGE` (or per-preset images in the catalog), `NEBIUS_SUBNET_ID`, registry-secret and MysteryBox secret identifiers. `build_backend("nebius")` validates all required settings at startup and raises, so a misconfigured pod fails its readiness probe instead of failing on first tenant request. Preset catalog (image, module, config, platform, preset, timeout, step caps) lives server-side next to `ALLOWED_PRESETS`.
 
+### 7. Service-account provisioning authorization workaround
+
+Cluster verification established that jobs created as `sim2policy-saas-orchestrator` remain in
+`PROVISIONING` whether the same service account authenticates with the VM-managed metadata token or
+with an auth public key, and whether creation uses the Python SDK or the Nebius CLI. Operator-created
+jobs with equivalent specs provision normally. Audit events show successful, authorized creation of
+the job's VPC allocation, internal service account, access key, KMS key, and MysteryBox data, followed
+by repeated authorized reads without a Compute instance being created.
+
+At Nebius Support's request, a temporary project-scoped `admin` grant was tested on 2026-07-12.
+With that grant, metadata-token job `aijob-e00ag2wvttpp8dp5gd` reached `STARTING` in about one minute;
+the grant was then removed and the probe cancelled. This proves the deferred provisioner currently
+requires permission included in `admin` but absent from the documented `editor` prerequisite.
+
+Until Nebius fixes or documents the narrower requirement, the Terraform-managed orchestrator group
+uses project-scoped `admin`. It remains isolated to the dedicated service account and must be reverted
+to `editor` when Support confirms the platform fix. Human credentials, tenant-wide admin membership,
+and long-lived service-account keys remain prohibited.
+
 ## Risks / Trade-offs
 
-- [`editor` is broad — backend compromise could modify project resources] → dedicated SA, key only in MysteryBox/K8s Secret, no interactive use; revisit when a job-scoped role exists.
+- [Temporary project `admin` is broader than intended] → isolate it to the dedicated VM-attached SA, keep no long-lived key, and revert to `editor` immediately after Nebius fixes the provisioner.
 - [In-memory JobStore loses `aijob-*` IDs on pod restart] → accepted for demo scale; artifacts remain recoverable from S3 by run ID; durable store is a known follow-up.
 - [Nebius state enum / SDK surface may differ from assumptions] → confirm against pysdk during implementation; keep the mapping in one function with tests.
 - [Polling threads leak if a job never terminates] → poller respects the preset timeout plus a margin, then marks the job `failed`.

@@ -73,12 +73,15 @@ class SdkJobsClient:
     environments without the `nebius` package installed.
     """
 
-    def __init__(self, token_file: str = "/var/run/secrets/nebius/iam-token") -> None:
+    def __init__(self, token_file: str = "/var/run/secrets/nebius-metadata/token") -> None:
         from nebius.sdk import SDK
         from nebius.aio.token.file import Bearer as FileBearer
 
         # Nebius Compute continuously refreshes the VM service-account token at
-        # /mnt/cloud-metadata/token. k3s mounts that host file read-only here;
+        # /mnt/cloud-metadata/token through an atomically replaced `..data`
+        # symlink. k3s mounts the whole metadata directory read-only so the
+        # container follows each replacement; mounting only the token file
+        # pins the old inode and eventually yields UNAUTHENTICATED.
         # FileBearer re-reads rotations without a long-lived private key.
         self._sdk = SDK(credentials=FileBearer(token_file))
 

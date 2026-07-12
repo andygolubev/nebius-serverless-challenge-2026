@@ -51,8 +51,11 @@ spec:
                 name: saas-smtp
                 optional: false
           volumeMounts:
-            - name: nebius-iam-token
-              mountPath: /var/run/secrets/nebius/iam-token
+            # Mount the projected metadata directory, not its `token` symlink
+            # target. Nebius rotates `..data` atomically; a file-level hostPath
+            # bind pins the old inode and expires after the token lifetime.
+            - name: nebius-metadata
+              mountPath: /var/run/secrets/nebius-metadata
               readOnly: true
             - name: saas-data
               mountPath: /data
@@ -83,10 +86,10 @@ spec:
             capabilities:
               drop: ["ALL"]
       volumes:
-        - name: nebius-iam-token
+        - name: nebius-metadata
           hostPath:
-            path: /mnt/cloud-metadata/token
-            type: File
+            path: /mnt/cloud-metadata
+            type: Directory
         - name: saas-data
           persistentVolumeClaim:
             claimName: saas-data

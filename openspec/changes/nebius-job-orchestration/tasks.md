@@ -33,4 +33,4 @@
 
 - [x] 6.1 Unit tests: backend selection, preset-only submission building, run-ID validation, state mapping, launch-failure path (SDK mocked)
 - [x] 6.2 Confirm exact pysdk request/enum names against the installed SDK version and adjust the state-mapping function (design open question)
-- [ ] 6.3 End-to-end smoke test in the cluster: submit `halfcheetah-demo`, watch lifecycle to `completed`, fetch real artifacts from `s3://sim2policy-artifacts/sim2policy/<run-id>/`; verify no secret values appear in logs or `kubectl describe`
+- [x] 6.3 End-to-end smoke test in the cluster: submit `halfcheetah-demo`, watch lifecycle to `completed`, fetch real artifacts from `s3://sim2policy-artifacts/sim2policy/<run-id>/`; verify no secret values appear in logs or `kubectl describe`
