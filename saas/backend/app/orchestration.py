@@ -167,9 +167,10 @@ class NebiusBackend:
             "--set", f"storage.endpoint_url={s.s3_endpoint_url}",
             "--set", f"storage.region={s.s3_region}",
         ]
+        image = s.mjx_job_image if spec.image_key == "mjx" else s.job_image
         return JobSubmission(
             name=f"sim2policy-{job.id}",
-            image=s.job_image,
+            image=image,
             command="python",
             args=args,
             platform=spec.platform,

@@ -346,6 +346,7 @@ resource "nebius_compute_v1_instance" "saas_server" {
     project_id                 = var.project_id
     subnet_id                  = var.saas_subnet_id
     job_image                  = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
+    mjx_job_image              = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:mjx-runtime"
     artifact_selector          = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
     artifact_access_key_id     = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
     artifact_bucket            = nebius_storage_v1_bucket.artifacts.name

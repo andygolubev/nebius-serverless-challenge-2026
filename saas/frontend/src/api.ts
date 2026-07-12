@@ -26,6 +26,8 @@ export type Environment = {
 
 export type Preset = {
   id: string;
+  // Exactly one catalog preset is the flagship default the composer pre-selects.
+  default: boolean;
   environment: string;
   algorithm: string;
   params: Record<string, number>;

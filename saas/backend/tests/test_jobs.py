@@ -19,6 +19,10 @@ def test_training_options_catalog(client):
     lr = next(p for p in algo["params"] if p["name"] == "learning_rate")
     assert {"type", "default", "min", "max"} <= set(lr)
     assert any(p["id"] == "ant-demo" for p in data["presets"])
+    # Exactly one default preset: the MJX flagship track, listed first.
+    defaults = [p for p in data["presets"] if p.get("default")]
+    assert [p["id"] for p in defaults] == ["go1-mjx-demo"]
+    assert data["presets"][0]["id"] == "go1-mjx-demo"
 
 
 def test_valid_custom_job(client, sender, login):

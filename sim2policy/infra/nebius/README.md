@@ -161,6 +161,12 @@ sudo systemctl --no-pager --full status saas-nebius-sync.service
 kubectl -n saas get secret saas-nebius -o json | jq -r '.data | keys[]'
 ```
 
+The contract includes both runtime images: `SIM2POLICY_JOB_IMAGE` (`sim2policy:sb3-runtime`) and
+`SIM2POLICY_MJX_JOB_IMAGE` (`sim2policy:mjx-runtime`). Both are required at startup by the nebius
+backend, so roll out in order: publish the `mjx-runtime` image (CI), rerun `saas-nebius-sync` so the
+secret gains `SIM2POLICY_MJX_JOB_IMAGE`, then deploy the app — a pod started before the secret has
+the key fails readiness by design while the old ReplicaSet keeps serving.
+
 The last command lists key names only. Do not decode values or use `kubectl describe`. For rollback,
 set the backend to `mock` or delete `saas-nebius`, restart the deployment, and only then detach or
 destroy the orchestrator identity. The legacy service account remains a registry viewer because the
@@ -211,8 +217,9 @@ delivery, and only then revoke the previous Mailjet Secret Key/version. To roll 
 previous version ID, apply, rerun the unit, and restart the Deployment. Do not decode the Kubernetes
 Secret or use `kubectl describe` during verification.
 
-`.github/workflows/sb3-runtime-image.yml` builds the Dockerfile's `sb3` target on `sim2policy/**`
-changes. It uses the existing `sim2policy-saas-ci` account through repository secrets
-`NEBIUS_REGISTRY` and `NEBIUS_REGISTRY_TOKEN`, pushes the commit SHA first, then updates
-`sim2policy:sb3-runtime` to the same image and records the digest. A failed immutable push never
-updates the compatibility tag.
+`.github/workflows/training-runtime-images.yml` builds the Dockerfile's `sb3` and `mjx` targets on
+`sim2policy/**` changes. It uses the existing `sim2policy-saas-ci` account through repository
+secrets `NEBIUS_REGISTRY` and `NEBIUS_REGISTRY_TOKEN`, pushes the target-prefixed commit tag first
+(`sim2policy:sb3-<sha>` / `sim2policy:mjx-<sha>`), then updates the matching compatibility tag
+(`sim2policy:sb3-runtime` / `sim2policy:mjx-runtime`) to the same image and records the digest. A
+failed immutable push never updates the compatibility tag.

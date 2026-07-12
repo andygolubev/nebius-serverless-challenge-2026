@@ -79,12 +79,15 @@ ENVIRONMENTS: dict[str, Environment] = {
     ),
 }
 
-# Presets are named shortcuts that expand to a full configuration.
+# Presets are named shortcuts that expand to a full configuration. The flagship
+# MJX track is listed first and marked default; the composer pre-selects it.
+DEFAULT_PRESET = "go1-mjx-demo"
+
 PRESETS: dict[str, dict[str, Any]] = {
+    "go1-mjx-demo": {"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 500_000}},
     "halfcheetah-demo": {"environment": "halfcheetah", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
     "ant-demo": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
     "ant-quality": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 1_000_000}},
-    "go1-mjx-demo": {"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 500_000}},
 }
 
 
@@ -99,6 +102,7 @@ class JobSpec:
 
     module: str  # python -m <module>
     config: str  # repo-relative base config inside the training image
+    image_key: str  # runtime image selector: "sb3" | "mjx" (resolved from settings)
     platform: str
     preset: str  # Nebius compute preset (GPU/CPU shape), not a catalog preset
     timeout: str  # Nebius duration, also the poller's stuck-job bound
@@ -106,8 +110,10 @@ class JobSpec:
     param_paths: dict[str, str]
 
 
-# H100 shape verified by the full go1 run (docs/submission-checklist.md); chosen for
-# job speed. Timeouts and step caps track configs/training_presets.yaml limits.
+# MJX keeps the H100 shape verified by the full go1 run (docs/submission-checklist.md);
+# SB3 simulation is CPU-bound with small policy networks, so it runs on the smallest
+# documented L40S preset (jobs/README.md). Timeouts and step caps track
+# configs/training_presets.yaml limits.
 # The config loader only accepts two-level `section.key` overrides, so
 # hyperparameters like learning_rate cannot be overridden per-job; tenants get
 # the base config's value (train_sb3 rejects deeper dotted paths).
@@ -120,8 +126,9 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("halfcheetah", "ppo-sb3"): JobSpec(
         module="sim2policy.train_sb3",
         config="configs/halfcheetah_sb3.yaml",
-        platform="gpu-h100-sxm",
-        preset="1gpu-16vcpu-200gb",
+        image_key="sb3",
+        platform="gpu-l40s-a",
+        preset="1gpu-8vcpu-32gb",
         timeout="1h",
         max_total_timesteps=500_000,
         param_paths=_SB3_PARAM_PATHS,
@@ -129,8 +136,9 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("ant", "ppo-sb3"): JobSpec(
         module="sim2policy.train_sb3",
         config="configs/ant_sb3.yaml",
-        platform="gpu-h100-sxm",
-        preset="1gpu-16vcpu-200gb",
+        image_key="sb3",
+        platform="gpu-l40s-a",
+        preset="1gpu-8vcpu-32gb",
         timeout="8h",
         max_total_timesteps=5_000_000,
         param_paths=_SB3_PARAM_PATHS,
@@ -140,6 +148,7 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("go1", "ppo-mjx"): JobSpec(
         module="sim2policy.train_mjx",
         config="configs/go1_mjx.yaml",
+        image_key="mjx",
         platform="gpu-h100-sxm",
         preset="1gpu-16vcpu-200gb",
         timeout="4h",
@@ -221,5 +230,5 @@ def serialize() -> dict[str, Any]:
             }
             for a in ALGORITHMS.values()
         ],
-        "presets": [{"id": name, **cfg} for name, cfg in PRESETS.items()],
+        "presets": [{"id": name, "default": name == DEFAULT_PRESET, **cfg} for name, cfg in PRESETS.items()],
     }

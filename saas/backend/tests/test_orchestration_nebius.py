@@ -26,6 +26,7 @@ SETTINGS = NebiusSettings(
     project_id="project-e00test",
     subnet_id="vpcsubnet-e00test",
     job_image="cr.example/sim2policy:sb3-runtime",
+    mjx_job_image="cr.example/sim2policy:mjx-runtime",
     s3_secret_selector="mbsec-artifacts/latest",
     aws_access_key_id="AKIATEST",
     aws_secret_access_key="topsecretvalue",
@@ -126,9 +127,49 @@ def test_submission_derives_from_catalog_only():
     assert "learning_rate" not in joined
     assert "seed=7" in joined
     assert "storage.bucket=sim2policy-artifacts" in joined
-    assert sub.platform == "gpu-h100-sxm"
+    # SB3 runs on the right-sized L40S shape, not the MJX H100
+    assert sub.platform == "gpu-l40s-a"
+    assert sub.preset == "1gpu-8vcpu-32gb"
     assert sub.timeout_seconds == 8 * 3600
     assert sub.parent_id == SETTINGS.project_id
+
+
+def test_mjx_submission_uses_mjx_image_and_h100():
+    job = _job(
+        preset="go1-mjx-demo",
+        environment="go1",
+        algorithm="ppo-mjx",
+        resolved_config={
+            "environment": "go1",
+            "algorithm": "ppo-mjx",
+            "params": {"total_timesteps": 500_000, "seed": 7},
+        },
+    )
+    sub = _backend().build_submission(job)
+    assert sub.image == SETTINGS.mjx_job_image
+    assert sub.args[:2] == ["-m", "sim2policy.train_mjx"]
+    assert "configs/go1_mjx.yaml" in sub.args
+    assert sub.platform == "gpu-h100-sxm"
+    assert sub.preset == "1gpu-16vcpu-200gb"
+
+
+def test_settings_require_mjx_job_image():
+    env = {
+        "NEBIUS_PROJECT_ID": "p",
+        "NEBIUS_SUBNET_ID": "s",
+        "SIM2POLICY_JOB_IMAGE": "img",
+        "NEBIUS_S3_SECRET_SELECTOR": "sel",
+        "AWS_ACCESS_KEY_ID": "k",
+        "AWS_SECRET_ACCESS_KEY": "sk",
+        "AWS_ENDPOINT_URL_S3": "https://s3",
+        "AWS_DEFAULT_REGION": "r",
+        "SIM2POLICY_S3_BUCKET": "b",
+    }
+    with pytest.raises(SettingsError) as e:
+        NebiusSettings.from_env(env=env)
+    assert "SIM2POLICY_MJX_JOB_IMAGE" in str(e.value)
+    env["SIM2POLICY_MJX_JOB_IMAGE"] = "mjx-img"
+    assert NebiusSettings.from_env(env=env).mjx_job_image == "mjx-img"
 
 
 def test_submission_never_contains_plaintext_secret():

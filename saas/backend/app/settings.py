@@ -20,6 +20,7 @@ _REQUIRED = {
     "NEBIUS_PROJECT_ID": "project_id",
     "NEBIUS_SUBNET_ID": "subnet_id",
     "SIM2POLICY_JOB_IMAGE": "job_image",
+    "SIM2POLICY_MJX_JOB_IMAGE": "mjx_job_image",
     "NEBIUS_S3_SECRET_SELECTOR": "s3_secret_selector",
     "AWS_ACCESS_KEY_ID": "aws_access_key_id",
     "AWS_SECRET_ACCESS_KEY": "aws_secret_access_key",
@@ -36,7 +37,8 @@ class NebiusSettings:
     # Job submission
     project_id: str
     subnet_id: str
-    job_image: str
+    job_image: str  # SB3 runtime image; specs with image_key="mjx" use mjx_job_image
+    mjx_job_image: str
     # MysteryBox selector resolving the artifact secret access key inside jobs
     # (the SDK equivalent of `nebius ai job create --env-secret`).
     s3_secret_selector: str

@@ -8,6 +8,7 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
   const [loadError, setLoadError] = useState(false);
   const [envId, setEnvId] = useState("");
   const [algoId, setAlgoId] = useState("");
+  const [presetId, setPresetId] = useState("");
   const [values, setValues] = useState<Record<string, string>>({});
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -18,7 +19,10 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
       .catalog()
       .then((c) => {
         setCatalog(c);
-        if (c.environments.length) selectEnv(c, c.environments[0].id);
+        // Pre-select the flagship default preset; fall back to the first environment.
+        const flagship = c.presets.find((p) => p.default);
+        if (flagship) applyPreset(c, flagship.id);
+        else if (c.environments.length) selectEnv(c, c.environments[0].id);
       })
       .catch(() => setLoadError(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -29,6 +33,7 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
 
   function selectEnv(c: Catalog, id: string) {
     const e = c.environments.find((x) => x.id === id)!;
+    setPresetId("");
     setEnvId(id);
     const nextAlgo = e.algorithms.includes(algoId) ? algoId : e.algorithms[0];
     selectAlgo(c, nextAlgo);
@@ -41,12 +46,13 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
     setServerErrors({});
   }
 
-  function applyPreset(presetId: string) {
-    if (!catalog || !presetId) return;
-    const preset = catalog.presets.find((p) => p.id === presetId)!;
+  function applyPreset(c: Catalog, id: string) {
+    setPresetId(id);
+    if (!id) return; // "— custom —": keep the current form values
+    const preset = c.presets.find((p) => p.id === id)!;
     setEnvId(preset.environment);
     setAlgoId(preset.algorithm);
-    const a = catalog.algorithms.find((x) => x.id === preset.algorithm)!;
+    const a = c.algorithms.find((x) => x.id === preset.algorithm)!;
     setValues(
       Object.fromEntries(
         a.params.map((p) => [p.name, String(preset.params[p.name] ?? p.default)])
@@ -112,7 +118,7 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
 
       <div className="field" style={{ maxWidth: 320 }}>
         <label htmlFor="preset">Start from a preset (optional)</label>
-        <select id="preset" className="input" defaultValue="" onChange={(e) => applyPreset(e.target.value)}>
+        <select id="preset" className="input" value={presetId} onChange={(e) => applyPreset(catalog, e.target.value)}>
           <option value="">— custom —</option>
           {catalog.presets.map((p) => (
             <option key={p.id} value={p.id}>
