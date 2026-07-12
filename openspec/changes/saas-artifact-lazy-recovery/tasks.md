@@ -2,15 +2,15 @@
 
 ## 1. Backend code
 
-- [ ] 1.1 Expose the artifact reader: give `NebiusBackend` an `artifact_reader` attribute set in `build_backend("nebius")`; `MockBackend.artifact_reader = None` (saas/backend/app/orchestration.py)
-- [ ] 1.2 Add lazy fallback in `get_artifacts` (saas/backend/app/main.py): on store miss, if the job status is `completed` and the backend has a reader, call `read_manifest(job_id, job_id)`; on success `store.set_artifacts()` and return; on `None` or exception, log a warning and keep the 409
+- [x] 1.1 Expose the artifact reader: give `NebiusBackend` an `artifact_reader` attribute set in `build_backend("nebius")`; `MockBackend.artifact_reader = None` (saas/backend/app/orchestration.py)
+- [x] 1.2 Add lazy fallback in `get_artifacts` (saas/backend/app/main.py): on store miss, if the job status is `completed` and the backend has a reader, call `read_manifest(job_id, job_id)`; on success `store.set_artifacts()` and return; on `None` or exception, log a warning and keep the 409
 
 ## 2. Tests
 
-- [ ] 2.1 Unit test: completed job, no cached manifest, stub reader returns a manifest → 200 and the manifest is cached (second call served from store without the reader)
-- [ ] 2.2 Unit test: completed job, reader returns `None` or raises → 409, no 5xx
-- [ ] 2.3 Unit test: non-completed job never triggers the reader; mock backend behavior unchanged
-- [ ] 2.4 Run the full `saas/backend` pytest suite
+- [x] 2.1 Unit test: completed job, no cached manifest, stub reader returns a manifest → 200 and the manifest is cached (second call served from store without the reader)
+- [x] 2.2 Unit test: completed job, reader returns `None` or raises → 409, no 5xx
+- [x] 2.3 Unit test: non-completed job never triggers the reader; mock backend behavior unchanged
+- [x] 2.4 Run the full `saas/backend` pytest suite
 
 ## 3. Deploy
 

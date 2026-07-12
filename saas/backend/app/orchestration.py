@@ -33,6 +33,10 @@ def _now() -> str:
 
 class OrchestrationBackend(Protocol):
     name: str
+    # Reads report/artifacts.json for a run; None when the backend has no
+    # object storage (mock). Lets the API lazily recover manifests published
+    # after job completion (e.g. by the finalization pipeline).
+    artifact_reader: object | None
 
     def launch(self, job: Job, store: JobStore) -> None: ...
 
@@ -44,6 +48,7 @@ class MockBackend:
     """
 
     name = "mock"
+    artifact_reader = None
 
     def __init__(self, step_delay: float = 0.5) -> None:
         self.step_delay = step_delay
@@ -126,6 +131,7 @@ class NebiusBackend:
         self._settings = settings
         self._client = client
         self._artifacts = artifact_reader
+        self.artifact_reader = artifact_reader
         self.poll_interval = poll_interval
 
     def launch(self, job: Job, store: JobStore) -> None:

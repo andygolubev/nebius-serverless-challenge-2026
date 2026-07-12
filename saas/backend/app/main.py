@@ -7,6 +7,7 @@ artifact is scoped to the session's tenant (the verified email).
 
 from __future__ import annotations
 
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from . import catalog
 from .auth import AuthService, RateLimited, is_valid_email, normalize_email
 from .email_sender import EmailDeliveryError, build_email_sender
 from .models import (
+    STATUS_COMPLETED,
     STATUS_QUEUED,
     ArtifactManifest,
     AuthRequest,
@@ -168,11 +170,36 @@ def get_job(job_id: str, session: Session = Depends(require_session)) -> Job:
 @app.get("/jobs/{job_id}/artifacts")
 def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> ArtifactManifest:
     # Enforce ownership before returning artifacts.
-    if _store.get(session.email, job_id) is None:
+    job = _store.get(session.email, job_id)
+    if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     manifest = _store.get_artifacts(job_id)
     if manifest is None:
+        manifest = _recover_artifacts(job)
+    if manifest is None:
         raise HTTPException(status_code=409, detail="artifacts not ready")
+    return manifest
+
+
+def _recover_artifacts(job: Job) -> ArtifactManifest | None:
+    """Lazily read a manifest published after job completion (e.g. by finalize).
+
+    The completion-time read in the orchestration backend happens once; runs
+    finalized later would otherwise stay 409 forever. Any failure degrades to
+    "not ready" rather than a 5xx.
+    """
+    reader = getattr(_backend, "artifact_reader", None)
+    if reader is None or job.status != STATUS_COMPLETED:
+        return None
+    try:
+        manifest = reader.read_manifest(job.id, job.id)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "lazy artifact manifest read failed for job %s", job.id, exc_info=True
+        )
+        return None
+    if manifest is not None:
+        _store.set_artifacts(manifest)
     return manifest
 
 
