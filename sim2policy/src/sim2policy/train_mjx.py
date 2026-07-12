@@ -28,7 +28,7 @@ from sim2policy.config import RunConfig, load_config
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
-from sim2policy.telemetry import gpu_snapshot, runtime_record, utc_now_iso, write_runtime_record
+from sim2policy.telemetry import GpuSampler, runtime_record, utc_now_iso, write_runtime_record
 
 _MJX_MODULES = ("jax", "mujoco", "mujoco_playground", "brax")
 _BRAX_OPTIONAL_INITIALIZERS = (
@@ -100,6 +100,19 @@ def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
         "observation_size": getattr(env, "observation_size", None),
         "action_size": getattr(env, "action_size", None),
     }
+
+
+def jax_device_info() -> tuple[str, list[dict[str, Any]]]:
+    jax = importlib.import_module("jax")
+    devices = [
+        {
+            "id": getattr(device, "id", None),
+            "platform": getattr(device, "platform", None),
+            "kind": getattr(device, "device_kind", type(device).__name__),
+        }
+        for device in jax.devices()
+    ]
+    return str(jax.default_backend()), devices
 
 
 def build_playground_command(
@@ -327,68 +340,152 @@ def train_mjx(
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
-    start_gpu = gpu_snapshot()
-    environment_probe = validate_mjx_environment(config)
     paths = create_run_paths(run_id, runs_root)
     store = ArtifactStore(config.storage, run_id)
-    if state is not None:
-        state.update_status(
-            STATUS_TRAINING,
-            progress={"backend": config.backend, "environment": config.environment},
+    sampler = GpuSampler(interval_seconds=2.0).start()
+    start_gpu = sampler.samples[0]
+    phases: list[dict[str, Any]] = []
+    phase_name: str | None = None
+    phase_started_at = ""
+    phase_started_monotonic = 0.0
+
+    def transition(name: str | None) -> None:
+        nonlocal phase_name, phase_started_at, phase_started_monotonic
+        now = utc_now_iso()
+        monotonic_now = time.monotonic()
+        if phase_name is not None:
+            phases.append(
+                {
+                    "name": phase_name,
+                    "started_at": phase_started_at,
+                    "completed_at": now,
+                    "duration_seconds": monotonic_now - phase_started_monotonic,
+                }
+            )
+        phase_name = name
+        phase_started_at = now
+        phase_started_monotonic = monotonic_now
+        if name is not None:
+            print(json.dumps({"event": "phase", "phase": name, "timestamp": now}), flush=True)
+
+    def persist_telemetry(outcome: str, *, required: bool) -> None:
+        transition(None)
+        gpu_summary = sampler.stop()
+        samples = sampler.samples
+        output = write_runtime_record(
+            paths.report / "runtime.json",
+            runtime_record(
+                started_at=started_at,
+                completed_at=utc_now_iso(),
+                runtime_seconds=time.monotonic() - started_monotonic,
+                start_gpu=start_gpu,
+                end_gpu=samples[-1],
+                gpu_summary=gpu_summary,
+                phases=phases,
+                outcome=outcome,
+            ),
         )
-    write_metadata(
-        paths,
-        run_id,
-        config,
-        {
-            "requested": config.training.device,
-            "mjx_environment": environment_probe,
-        },
-    )
-    raw_resume = _prepare_resume_checkpoint(resume, config, paths) if resume is not None else None
-    initial_raw_root = paths.root / "mjx_initial"
-    initial_raw = (initial_checkpoint_factory or _create_initial_checkpoint_isolated)(
-        config, initial_raw_root
-    )
-    initial = checkpoint_path(paths.checkpoints, "initial", 0)
-    _archive_checkpoint(initial_raw, initial)
-    write_checkpoint_metadata(initial, config, 0)
-    if store.enabled:
-        store.publish_checkpoint(initial, paths.root)
-    command = build_playground_command(config, paths, resume=raw_resume)
-    runner(command, check=True, text=True)
-    raw_checkpoints = _playground_checkpoints(paths.root / "mjx_logs")
-    archived_checkpoints: list[Path] = []
-    final_step = raw_checkpoints[-1][0]
-    for step, raw_checkpoint in raw_checkpoints:
-        kind = "final" if step == final_step else "step"
-        checkpoint = checkpoint_path(paths.checkpoints, kind, step)
-        _archive_checkpoint(raw_checkpoint, checkpoint)
-        write_checkpoint_metadata(checkpoint, config, step)
-        archived_checkpoints.append(checkpoint)
         if store.enabled:
-            store.publish_checkpoint(checkpoint, paths.root)
-    final = archived_checkpoints[-1]
-    completed_at = utc_now_iso()
-    write_runtime_record(
-        paths.report / "runtime.json",
-        runtime_record(
-            started_at=started_at,
-            completed_at=completed_at,
-            runtime_seconds=time.monotonic() - started_monotonic,
-            start_gpu=start_gpu,
-            end_gpu=gpu_snapshot(),
-        ),
-    )
-    store.sync_tree(paths.root, required=store.enabled)
-    if state is not None:
-        manifest = state.discover_artifacts()
-        if manifest:
-            state.write_manifest(manifest)
-        state.update_status(
-            STATUS_TRAINING, progress={"latest_checkpoint": final.name, "trained_steps": final_step}
+            try:
+                store.upload_file(output, "report/runtime.json")
+            except Exception as exc:
+                if required:
+                    raise
+                print(
+                    json.dumps(
+                        {"event": "telemetry_upload_failed", "error": type(exc).__name__}
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+    transition("environment_setup")
+    try:
+        environment_probe = validate_mjx_environment(config)
+        jax_backend, devices = jax_device_info()
+        print(
+            json.dumps(
+                {
+                    "event": "jax_devices",
+                    "backend": jax_backend,
+                    "devices": devices,
+                }
+            ),
+            flush=True,
         )
-    return final
+        if state is not None:
+            state.update_status(
+                STATUS_TRAINING,
+                progress={"backend": config.backend, "environment": config.environment},
+            )
+        write_metadata(
+            paths,
+            run_id,
+            config,
+            {
+                "requested": config.training.device,
+                "mjx_environment": environment_probe,
+                "jax_backend": jax_backend,
+                "jax_devices": devices,
+            },
+        )
+        raw_resume = (
+            _prepare_resume_checkpoint(resume, config, paths) if resume is not None else None
+        )
+
+        transition("initial_checkpoint")
+        initial_raw_root = paths.root / "mjx_initial"
+        initial_raw = (initial_checkpoint_factory or _create_initial_checkpoint_isolated)(
+            config, initial_raw_root
+        )
+        initial = checkpoint_path(paths.checkpoints, "initial", 0)
+        _archive_checkpoint(initial_raw, initial)
+        write_checkpoint_metadata(initial, config, 0)
+        if store.enabled:
+            store.publish_checkpoint(initial, paths.root)
+
+        transition("playground_compile_and_train")
+        print(
+            json.dumps(
+                {
+                    "event": "training_start",
+                    "note": "the first evaluation includes XLA compilation and may be quiet",
+                }
+            ),
+            flush=True,
+        )
+        command = build_playground_command(config, paths, resume=raw_resume)
+        runner(command, check=True, text=True)
+
+        transition("checkpoint_publish")
+        raw_checkpoints = _playground_checkpoints(paths.root / "mjx_logs")
+        archived_checkpoints: list[Path] = []
+        final_step = raw_checkpoints[-1][0]
+        for step, raw_checkpoint in raw_checkpoints:
+            kind = "final" if step == final_step else "step"
+            checkpoint = checkpoint_path(paths.checkpoints, kind, step)
+            _archive_checkpoint(raw_checkpoint, checkpoint)
+            write_checkpoint_metadata(checkpoint, config, step)
+            archived_checkpoints.append(checkpoint)
+            if store.enabled:
+                store.publish_checkpoint(checkpoint, paths.root)
+        final = archived_checkpoints[-1]
+
+        transition("artifact_sync")
+        store.sync_tree(paths.root, required=store.enabled)
+        persist_telemetry("completed", required=True)
+        if state is not None:
+            manifest = state.discover_artifacts()
+            if manifest:
+                state.write_manifest(manifest)
+            state.update_status(
+                STATUS_TRAINING,
+                progress={"latest_checkpoint": final.name, "trained_steps": final_step},
+            )
+        return final
+    except BaseException:
+        persist_telemetry("failed", required=False)
+        raise
 
 
 def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:

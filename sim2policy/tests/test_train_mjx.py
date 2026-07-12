@@ -118,6 +118,38 @@ def test_train_mjx_archives_latest_raw_checkpoint(
     assert checkpoint.name == "final-000000000128.zip"
     assert checkpoint.is_file()
     assert checkpoint.with_suffix(".zip.json").is_file()
+    runtime = json.loads((tmp_path / "mjx-run/report/runtime.json").read_text())
+    assert runtime["schema_version"] == 2
+    assert runtime["outcome"] == "completed"
+    assert [phase["name"] for phase in runtime["phases"]] == [
+        "environment_setup",
+        "initial_checkpoint",
+        "playground_compile_and_train",
+        "checkpoint_publish",
+        "artifact_sync",
+    ]
+
+
+def test_train_mjx_writes_failed_runtime_record(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = load_config(
+        ROOT / "configs/go1_mjx.yaml",
+        {"training.total_steps": 128, "training.n_envs": 4, "storage.mode": "local"},
+    )
+    monkeypatch.setattr(
+        "sim2policy.train_mjx.validate_mjx_environment",
+        lambda selected: {"environment": selected.environment, "impl": "jax"},
+    )
+
+    def fail(command: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
+        raise subprocess.CalledProcessError(1, command)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        train_mjx(config, "mjx-failed", tmp_path, runner=fail)
+    runtime = json.loads((tmp_path / "mjx-failed/report/runtime.json").read_text())
+    assert runtime["outcome"] == "failed"
+    assert runtime["phases"][-1]["name"] == "playground_compile_and_train"
 
 
 def test_train_mjx_extracts_zipped_resume_checkpoint(
@@ -273,3 +305,7 @@ def fake_initial_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         return checkpoint
 
     monkeypatch.setattr("sim2policy.train_mjx._create_initial_checkpoint_isolated", create)
+    monkeypatch.setattr(
+        "sim2policy.train_mjx.jax_device_info",
+        lambda: ("gpu", [{"id": 0, "platform": "gpu", "kind": "Fake H100"}]),
+    )

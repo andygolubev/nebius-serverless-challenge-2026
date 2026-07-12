@@ -37,8 +37,7 @@ class Environment:
     algorithms: tuple[str, ...]  # compatible algorithm ids
 
 
-_COMMON_PARAMS = (
-    Param("total_timesteps", "Total timesteps", "int", 100_000, 10_000, 5_000_000),
+_COMMON_TUNING_PARAMS = (
     Param("learning_rate", "Learning rate", "float", 3e-4, 1e-5, 1e-2),
     Param("seed", "Seed", "int", 0, 0, 2**31 - 1),
 )
@@ -48,13 +47,19 @@ ALGORITHMS: dict[str, Algorithm] = {
         id="ppo-sb3",
         label="PPO (Stable-Baselines3)",
         description="Dependable CPU-simulation baseline.",
-        params=_COMMON_PARAMS,
+        params=(
+            Param("total_timesteps", "Total timesteps", "int", 100_000, 10_000, 5_000_000),
+            *_COMMON_TUNING_PARAMS,
+        ),
     ),
     "ppo-mjx": Algorithm(
         id="ppo-mjx",
         label="PPO (MJX / JAX)",
         description="Thousands of GPU-parallel simulations via MuJoCo Playground.",
-        params=_COMMON_PARAMS,
+        params=(
+            Param("total_timesteps", "Total timesteps", "int", 100_000_000, 10_000, 100_000_000),
+            *_COMMON_TUNING_PARAMS,
+        ),
     ),
 }
 
@@ -84,7 +89,7 @@ ENVIRONMENTS: dict[str, Environment] = {
 DEFAULT_PRESET = "go1-mjx-demo"
 
 PRESETS: dict[str, dict[str, Any]] = {
-    "go1-mjx-demo": {"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 500_000}},
+    "go1-mjx-demo": {"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_000}},
     "halfcheetah-demo": {"environment": "halfcheetah", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
     "ant-demo": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
     "ant-quality": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 1_000_000}},

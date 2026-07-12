@@ -23,6 +23,12 @@ def test_training_options_catalog(client):
     defaults = [p for p in data["presets"] if p.get("default")]
     assert [p["id"] for p in defaults] == ["go1-mjx-demo"]
     assert data["presets"][0]["id"] == "go1-mjx-demo"
+    assert data["presets"][0]["params"]["total_timesteps"] == 100_000_000
+    sb3_steps = next(p for p in algo["params"] if p["name"] == "total_timesteps")
+    mjx = next(a for a in data["algorithms"] if a["id"] == "ppo-mjx")
+    mjx_steps = next(p for p in mjx["params"] if p["name"] == "total_timesteps")
+    assert sb3_steps["max"] == 5_000_000
+    assert mjx_steps["max"] == 100_000_000
 
 
 def test_valid_custom_job(client, sender, login):
@@ -54,6 +60,21 @@ def test_out_of_range_param_rejected(client, sender, login):
     detail = res.json()["detail"]
     assert detail["field"] == "total_timesteps"
     assert "between" in detail["message"]
+
+
+def test_mjx_accepts_quality_run_limit(client, sender, login):
+    headers = login(_email())
+    res = client.post(
+        "/jobs",
+        json={
+            "environment": "go1",
+            "algorithm": "ppo-mjx",
+            "params": {"total_timesteps": 100_000_000},
+        },
+        headers=headers,
+    )
+    assert res.status_code == 201
+    assert res.json()["resolved_config"]["params"]["total_timesteps"] == 100_000_000
 
 
 def test_unknown_environment_and_algorithm_rejected(client, sender, login):
