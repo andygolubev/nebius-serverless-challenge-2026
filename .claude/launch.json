@@ -6,6 +6,12 @@
       "runtimeExecutable": "saas/backend/.venv/bin/python",
       "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--port", "8000", "--app-dir", "saas/backend"],
       "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "saas/frontend", "run", "dev", "--", "--port", "5173"],
+      "port": 5173
     }
   ]
 }
