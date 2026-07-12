@@ -50,6 +50,18 @@ The current immutable tag `sim2policy:<sha>` cannot distinguish two runtimes bui
 
 SB3 simulation is CPU-bound with small MLP policies; an H100 is idle cost. `gpu-l40s-a / 1gpu-8vcpu-32gb` is the smallest L40S preset already documented and used in `sim2policy/jobs/README.md`, so it is a known-good shape on this project. Timeouts and step caps are unchanged. `go1/ppo-mjx` keeps `gpu-h100-sxm / 1gpu-16vcpu-200gb`, the shape verified by the full go1 run in `docs/submission-checklist.md`.
 
+### 6. Quality default and sampled GPU telemetry
+
+The 500k verification run rounded to 819,200 Playground steps, spent 88 seconds in JIT, trained for roughly 21 seconds, and ended at reward 0.002. The default therefore becomes the previously verified 100M-step quality workload (102.4M effective steps in the pinned stack). SB3 keeps its 5M catalog ceiling while `ppo-mjx` accepts 100M.
+
+Start/end `nvidia-smi` snapshots are retained for compatibility but are not representative. MJX training samples every two seconds, logs phase transitions and JAX devices, and writes schema-v2 runtime telemetry with phase durations plus sample count, active count, mean/max utilization, and peak memory. Old schema-v1 readers remain supported.
+
+### 7. Automatic GitOps bump and live reconciler convergence
+
+On a successful `main` image build, the SaaS workflow uses scoped `contents: write` permission to commit the immutable SHA tag to the kustomization. It refuses to push if `main` advanced beyond the build SHA and uses `[skip ci]` to avoid recursive builds. Tag and manual-dispatch builds publish images without changing production GitOps state.
+
+Terraform already renders `SIM2POLICY_MJX_JOB_IMAGE` for rebuilt servers. The existing VM also needs its root-owned reconciler updated explicitly because cloud-init `write_files` is once-per-instance; changing user-data alone does not rewrite the live script.
+
 ## Risks / Trade-offs
 
 - [MJX image is large; matrix doubles CI build time and runner-disk pressure] → each leg keeps the disk-free step and its own cache scope; legs run in parallel on separate runners, so wall-clock is bounded by the slower leg.

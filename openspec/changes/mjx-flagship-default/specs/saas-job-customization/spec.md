@@ -3,6 +3,8 @@
 ### Requirement: Backward-compatible presets
 The system SHALL keep presets available as named shortcuts that expand to a full environment + policy configuration; submitting `{"preset": "..."}` SHALL remain valid and be recorded as the expanded configuration. The catalog SHALL designate exactly one preset as the default (`go1-mjx-demo`, the MJX flagship track), SHALL mark it explicitly in the `/training-options` response, and SHALL list it first; the job composer UI SHALL pre-select the default preset on load while allowing the user to switch to any other preset or clear the selection.
 
+The default MJX preset SHALL request 100,000,000 timesteps, and the MJX algorithm's validation ceiling SHALL permit that value without raising the SB3 ceiling above 5,000,000.
+
 #### Scenario: Preset submission still works
 - **WHEN** an authenticated user submits `{"preset": "ant-demo"}`
 - **THEN** the system responds 201 and the job's resolved configuration matches the preset's expansion

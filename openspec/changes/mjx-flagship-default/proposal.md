@@ -10,6 +10,8 @@ The MJX/JAX track (`go1` + `ppo-mjx`) is the project's flagship demonstration â€
 - The SaaS job catalog's `JobSpec` selects a runtime image per (environment, algorithm) instead of one global image: SB3 specs keep the SB3 image, `go1/ppo-mjx` uses the new MJX image. The nebius settings contract gains an MJX image variable.
 - The `go1-mjx-demo` preset becomes the flagship default: it is listed first in `/training-options` and the composer pre-selects it, so a new user's first click launches the MJX track.
 - SB3 job specs are right-sized from `gpu-h100-sxm / 1gpu-16vcpu-200gb` to `gpu-l40s-a / 1gpu-8vcpu-32gb` (the smallest documented L40S preset, ample for SB3's small networks); `go1/ppo-mjx` keeps the H100 shape verified by the full go1 run.
+- The flagship default runs the verified 100M-step quality workload instead of a 500k-step smoke that spends most of its lifetime provisioning/JIT compiling, and records sampled GPU utilization across the complete run.
+- SaaS image publication commits the immutable tag to the GitOps manifest automatically, and the live boot-time secret reconciler is converged with the Terraform-rendered MJX image contract.
 
 ## Capabilities
 

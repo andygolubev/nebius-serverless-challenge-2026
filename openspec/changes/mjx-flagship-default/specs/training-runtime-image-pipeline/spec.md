@@ -22,6 +22,13 @@ For each successful trusted build, CI SHALL publish an immutable commit-derived 
 - **WHEN** publishing the commit-derived MJX tag fails
 - **THEN** CI fails without updating `mjx-runtime`
 
+### Requirement: Sampled MJX accelerator telemetry
+MJX training SHALL sample accelerator utilization throughout setup, compilation/training, and artifact publication, SHALL record aggregate utilization and phase timing in the runtime artifact, and SHALL preserve compatibility with existing start/end telemetry consumers.
+
+#### Scenario: Short GPU work occurs between endpoint snapshots
+- **WHEN** accelerator work occurs after the start snapshot and before the end snapshot
+- **THEN** the runtime artifact reports the sampled activity, including non-zero maximum utilization and peak memory, instead of representing the end snapshot as whole-run utilization
+
 ## MODIFIED Requirements
 
 ### Requirement: Immutable and compatibility tags
