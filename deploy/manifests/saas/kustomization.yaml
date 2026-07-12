@@ -4,16 +4,16 @@ kind: Kustomization
 namespace: saas
 
 resources:
-  - namespace.yaml
-  - pvc.yaml
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
-  - middleware-redirect-https.yaml
+- namespace.yaml
+- pvc.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
+- middleware-redirect-https.yaml
 
 # CI updates the tag with: `kustomize edit set image sim2policy-saas=<registry>/sim2policy-saas:<sha>`
 # newName must be the Nebius Registry FQDN + repo (see `tofu output registry_fqdn`).
 images:
-  - name: sim2policy-saas
-    newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
-    newTag: 30a1edf0cfbd
+- name: sim2policy-saas
+  newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
+  newTag: 9a3e973caa6b
