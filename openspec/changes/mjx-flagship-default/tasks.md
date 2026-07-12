@@ -27,16 +27,16 @@
 ## 5. Rollout
 
 - [x] 5.1 Document `SIM2POLICY_MJX_JOB_IMAGE` in the `saas-nebius` Secret contract (deployment.yaml comment and/or `sim2policy/infra/nebius/README.md`) with the ordered rollout: publish `mjx-runtime` image → update secret → deploy app
-- [ ] 5.2 Verify end-to-end after deploy: `mjx-runtime` tag exists in the registry, pod passes readiness, `/training-options` shows the default preset, and a `go1-mjx-demo` submission reaches Nebius with the MJX image and H100 shape
+- [x] 5.2 Verify end-to-end after deploy: `mjx-runtime` tag exists in the registry, pod passes readiness, `/training-options` shows the default preset, and a `go1-mjx-demo` submission reaches Nebius with the MJX image and H100 shape
 
 ## 6. Flagship quality and observability
 
-- [ ] 6.1 Raise only the MJX catalog timestep ceiling to 100M and make `go1-mjx-demo` a 100M-step preset
-- [ ] 6.2 Add two-second GPU sampling, phase/JAX device logs, schema-v2 runtime aggregates, failure cleanup, and schema-v1-compatible readers
-- [ ] 6.3 Add catalog, telemetry, phase, failure, and compatibility tests
+- [x] 6.1 Raise only the MJX catalog timestep ceiling to 100M and make `go1-mjx-demo` a 100M-step preset
+- [x] 6.2 Add two-second GPU sampling, phase/JAX device logs, schema-v2 runtime aggregates, failure cleanup, and schema-v1-compatible readers
+- [x] 6.3 Add catalog, telemetry, phase, failure, and compatibility tests
 
 ## 7. GitOps and reboot-safe operations
 
-- [ ] 7.1 Enable the main-only immutable GitOps tag commit with scoped write permission, stale-build protection, and recursion prevention
+- [x] 7.1 Enable the main-only immutable GitOps tag commit with scoped write permission, stale-build protection, and recursion prevention
 - [ ] 7.2 Patch and verify the live secret reconciler, then converge only the reviewed SaaS VM cloud-init metadata change without replacing its static public allocation
 - [ ] 7.3 Run the 100M H100 acceptance, verify sampled utilization/artifacts/SaaS completion, delete verification jobs, and audit accelerator cleanup
