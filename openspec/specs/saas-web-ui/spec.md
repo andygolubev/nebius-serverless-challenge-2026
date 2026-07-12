@@ -34,7 +34,7 @@ The web app SHALL provide a job composer rendered from the `/training-options` c
 - **THEN** the input shows the violation and the submit action is disabled until fixed
 
 ### Requirement: Jobs dashboard
-The web app SHALL show the user's jobs as a live-updating list with status rendered as a lifecycle timeline/badge (queued → starting → training → evaluating → rendering → completed/failed), the environment and policy summary, and relative timestamps. Completed jobs SHALL link to a results view showing metrics and media from the artifact manifest. An empty state SHALL guide the first-time user to the composer.
+The web app SHALL show the user's jobs as a live-updating list with status rendered as a lifecycle timeline/badge (queued → starting → training → rendering → evaluating → completed/failed, matching the data plane's canonical run lifecycle), the environment and policy summary, and relative timestamps. Completed jobs SHALL link to a results view showing metrics and media from the artifact manifest. An empty state SHALL guide the first-time user to the composer.
 
 #### Scenario: Live status updates
 - **WHEN** a submitted job progresses through its lifecycle

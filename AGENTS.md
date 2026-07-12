@@ -34,6 +34,10 @@ each new session. If the state-bucket key itself has expired, reissue it per
 Preserve unrelated worktree changes. Do not commit generated runs, checkpoints, logs, large media,
 cloud credentials, Terraform/OpenTofu state, plans, or local environment files.
 
+For authenticated SaaS UI API operations, follow `saas/API_RUNBOOK.md`. Never record a real bearer
+token in Git, command examples, issue text, or `IMPLEMENTATION_LOG.MD`; respect explicit instructions
+to keep or revoke the server-side UI session after the operation.
+
 ## Nebius build and GPU workflow
 
 **Always stop or delete every VM once its task is done.** Do not leave GPU or CPU instances

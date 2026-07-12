@@ -144,5 +144,5 @@ export const api = {
   getArtifacts: (id: string) => request<ArtifactManifest>(`/jobs/${id}/artifacts`),
 };
 
-export const LIFECYCLE = ["queued", "starting", "training", "evaluating", "rendering", "completed"];
+export const LIFECYCLE = ["queued", "starting", "training", "rendering", "evaluating", "completed"];
 export const TERMINAL = new Set(["completed", "failed"]);

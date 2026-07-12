@@ -1,7 +1,10 @@
 # durable-run-artifacts Specification
 
 ## Purpose
-TBD - created by archiving change implement-sim2policy. Update Purpose after archive.
+Make every training run's outputs durable and resumable: a stable per-run local/S3 artifact
+layout, endpoint-configurable synchronization with bounded retries, complete-before-publish
+checkpoint semantics, and explicit compatibility-checked resumption from the latest checkpoint.
+
 ## Requirements
 ### Requirement: Stable per-run artifact layout
 The system SHALL write each run beneath a unique local run directory and SHALL map `checkpoints`, `tensorboard`, `videos`, and `report` subdirectories to the same subpaths beneath a configurable S3-compatible run prefix.

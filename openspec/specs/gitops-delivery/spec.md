@@ -3,7 +3,9 @@
 ## Purpose
 Deliver the SaaS application to the k3s cluster declaratively with ArgoCD: Git is the source of
 truth for what runs, credentials come from MysteryBox-provisioned secrets at runtime, and the
-deployed app is exposed through the cluster ingress on the server's public IP.
+deployed app is exposed through the cluster ingress on the server's public IP — since the
+`saas-domain-tls` capability, over HTTPS on the public domain, with HTTP kept only for ACME
+challenges and redirect.
 
 ## Requirements
 
@@ -41,9 +43,9 @@ identity directly.
 
 ### Requirement: Deployed SaaS app is reachable
 The GitOps layout SHALL deploy the SaaS app as a Kubernetes `Deployment` plus `Service` and expose
-it externally through the k3s ingress on the server's public IP.
+it externally through the k3s ingress on the server's public IP (served over HTTPS on the public
+domain per `saas-domain-tls`).
 
 #### Scenario: App answers a health check
 - **WHEN** the SaaS app is synced and its pods are Ready
-- **THEN** an HTTP health endpoint served through the ingress on the public IP returns a success
-  status
+- **THEN** a health endpoint served through the ingress returns a success status

@@ -7,11 +7,13 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 # Job lifecycle states. The mock backend walks a job through these to a terminal state.
+# Order matches the data plane's canonical run lifecycle (sim2policy runstate.py):
+# training jobs render rollout media before evaluating the final policy.
 STATUS_QUEUED = "queued"
 STATUS_STARTING = "starting"
 STATUS_TRAINING = "training"
-STATUS_EVALUATING = "evaluating"
 STATUS_RENDERING = "rendering"
+STATUS_EVALUATING = "evaluating"
 STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
 
@@ -21,8 +23,8 @@ LIFECYCLE = [
     STATUS_QUEUED,
     STATUS_STARTING,
     STATUS_TRAINING,
-    STATUS_EVALUATING,
     STATUS_RENDERING,
+    STATUS_EVALUATING,
     STATUS_COMPLETED,
 ]
 

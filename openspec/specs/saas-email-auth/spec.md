@@ -38,7 +38,7 @@ The system SHALL exchange a valid email + code pair at `POST /auth/verify` for a
 - **THEN** the system responds 401 and the code is invalidated even if the 6th attempt is correct
 
 ### Requirement: Session-scoped API access
-All job endpoints (`/jobs*`, `/training-options` job submission) SHALL require a valid `Authorization: Bearer <token>` session. The tenant identity SHALL be derived from the session's verified email; the `X-Tenant-Id` header SHALL be ignored. Sessions SHALL expire after a configurable lifetime (default 24 hours) and be revocable via `POST /auth/logout`. `GET /me` SHALL return the authenticated user's email. Sessions and tenant accounts SHALL be stored durably so that a valid, unexpired session token issued before a backend restart remains valid after it.
+All job endpoints (`/jobs*`) SHALL require a valid `Authorization: Bearer <token>` session; reading the `GET /training-options` catalog remains unauthenticated. The tenant identity SHALL be derived from the session's verified email; the `X-Tenant-Id` header SHALL be ignored. Sessions SHALL expire after a configurable lifetime (default 24 hours) and be revocable via `POST /auth/logout`. `GET /me` SHALL return the authenticated user's email. Sessions and tenant accounts SHALL be stored durably so that a valid, unexpired session token issued before a backend restart remains valid after it.
 
 #### Scenario: Authenticated job access
 - **WHEN** a request to `/jobs` carries a valid session token

@@ -1,7 +1,11 @@
 # serverless-template-workflow Specification
 
 ## Purpose
-TBD - created by archiving change implement-sim2policy. Update Purpose after archive.
+Make the template clone-and-run: reproducible SB3/MJX container targets, a progressive
+cheap-to-expensive smoke workflow, a validated no-shell-evaluation Nebius job submission wrapper
+(`jobs/submit.sh`) with dry-run support, unified Make targets, tutorial-grade documentation, and
+lightweight sample deliverables without large artifacts in Git.
+
 ## Requirements
 ### Requirement: Reproducible backend images
 The system SHALL provide CUDA-capable container build targets for SB3 and MJX with tested dependency pins, MuJoCo headless libraries, ffmpeg, unbuffered logs, and no embedded credentials.

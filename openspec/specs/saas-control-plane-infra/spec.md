@@ -3,7 +3,7 @@
 ## Purpose
 Provision the always-on SaaS control plane on Nebius: the `saas-server` VM with a static public IP
 and dedicated service account, cloud-init bootstrap of single-node k3s and ArgoCD, a minimal ingress
-surface (SSH + HTTPS only, cluster management over an SSH tunnel), and MysteryBox-backed credentials
+surface (SSH + HTTPS, plus HTTP only for ACME/redirect; cluster management over an SSH tunnel), and MysteryBox-backed credentials
 with least-privilege IAM.
 
 ## Requirements

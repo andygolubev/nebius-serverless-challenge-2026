@@ -96,6 +96,8 @@ npm run dev                              # http://127.0.0.1:5173
 ## API
 
 The tenant is the session's verified email; the old `X-Tenant-Id` header is no longer accepted.
+For production-safe bearer-token examples covering catalog discovery, parameterized submissions,
+polling, and artifacts, see [API_RUNBOOK.md](API_RUNBOOK.md).
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|

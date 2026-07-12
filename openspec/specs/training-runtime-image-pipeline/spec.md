@@ -1,4 +1,12 @@
-## ADDED Requirements
+# training-runtime-image-pipeline Specification
+
+## Purpose
+Build, validate, and publish the Sim2Policy training runtime container images (the `sb3` and `mjx`
+Dockerfile targets) from GitHub Actions to the Nebius Registry, with an immutable commit-derived
+tag published before the moving compatibility tag and least-scope, non-leaking registry
+authentication.
+
+## Requirements
 
 ### Requirement: SB3 runtime image build
 CI SHALL build the `sb3` target from `sim2policy/Dockerfile` using the repository's Sim2Policy source and SHALL fail before registry publication if the image build or configured health/import gate fails.

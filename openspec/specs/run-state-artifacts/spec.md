@@ -1,7 +1,12 @@
 # run-state-artifacts Specification
 
 ## Purpose
-TBD - created by archiving change add-serverless-training-api. Update Purpose after archive.
+Keep all durable run state in object storage under one validated per-run prefix — a fixed layout
+for metadata, checkpoints, logs, videos, and reports; a `status.json` advanced through the
+canonical lifecycle `queued → starting → training → rendering → evaluating → completed/failed`;
+and an artifact manifest from which APIs build presigned, run-scoped URLs — so API instances stay
+stateless.
+
 ## Requirements
 ### Requirement: Per-run object-storage layout
 

@@ -1,7 +1,11 @@
 # training-demo-api Specification
 
 ## Purpose
-TBD - created by archiving change add-serverless-training-api. Update Purpose after archive.
+Expose the sim2policy training workflow as a thin, stateless FastAPI demo layer on the data plane:
+health, preset listing, run start, status, and artifact endpoints guarded by demo-token auth and
+preset allowlists. This is distinct from the tenant SaaS application (`saas-tenant-app` /
+`saas-email-auth`), which serves multi-tenant users through its own authenticated job API.
+
 ## Requirements
 ### Requirement: Service health endpoint
 

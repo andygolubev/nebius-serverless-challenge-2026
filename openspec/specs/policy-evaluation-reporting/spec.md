@@ -1,7 +1,11 @@
 # policy-evaluation-reporting Specification
 
 ## Purpose
-TBD - created by archiving change implement-sim2policy. Update Purpose after archive.
+Judge trained policies honestly and reproducibly: deterministic multi-seed evaluation with
+environment-specific success criteria, machine-readable `metrics.json`, a human-readable report
+with reward curve and time-to-threshold, measured (never invented) resource/cost figures, and a
+disclosed-context comparison between the Track A and Track B backends.
+
 ## Requirements
 ### Requirement: Deterministic multi-seed evaluation
 The system SHALL evaluate a checkpoint with deterministic inference over a configurable episode count and seed set, defaulting to 20 episodes distributed across five seeds, and SHALL retain per-episode reward and length values.

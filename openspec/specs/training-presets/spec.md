@@ -1,7 +1,10 @@
 # training-presets Specification
 
 ## Purpose
-TBD - created by archiving change add-serverless-training-api. Update Purpose after archive.
+Define what demo users may train as a declarative allowlist: the `configs/training_presets.yaml`
+catalog fully specifies each preset's backend, environment, algorithm, limits, and bounded safe
+parameters, so no user-supplied executable input ever reaches a training job.
+
 ## Requirements
 ### Requirement: Declarative preset catalog
 

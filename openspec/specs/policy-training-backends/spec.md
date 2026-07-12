@@ -1,7 +1,11 @@
 # policy-training-backends Specification
 
 ## Purpose
-TBD - created by archiving change implement-sim2policy. Update Purpose after archive.
+Train reinforcement-learning policies from validated YAML run configurations through two isolated
+backends — Stable-Baselines3 PPO on Gymnasium MuJoCo (Track B baseline) and opt-in MuJoCo
+Playground/Brax PPO on MJX (Track A) — recording full reproducibility metadata and keeping the
+SB3 path buildable and runnable without the MJX/JAX dependency group.
+
 ## Requirements
 ### Requirement: Validated run configuration
 The system SHALL load a YAML run configuration containing the backend, environment, seed, training budget, parallelism, checkpoint cadence, evaluation settings, and success criterion, SHALL apply supported CLI overrides deterministically, and SHALL reject invalid or incompatible values before training starts.

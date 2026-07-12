@@ -10,7 +10,7 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// queued → starting → training → evaluating → rendering → completed
+// queued → starting → training → rendering → evaluating → completed
 export function LifecycleTimeline({ status }: { status: string }) {
   const failed = status === "failed";
   const idx = failed ? LIFECYCLE.length - 1 : LIFECYCLE.indexOf(status);

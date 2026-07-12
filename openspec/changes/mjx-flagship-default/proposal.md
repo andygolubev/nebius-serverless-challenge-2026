@@ -20,7 +20,7 @@ The MJX/JAX track (`go1` + `ppo-mjx`) is the project's flagship demonstration �
 ### Modified Capabilities
 
 - `training-runtime-image-pipeline`: CI additionally builds/validates/publishes the MJX runtime image with the same immutable-tag-then-compatibility-tag discipline as SB3.
-- `training-job-orchestration`: the nebius backend submits each job with the runtime image and compute shape declared by that job's catalog spec (per-spec image/platform), and the settings contract requires an MJX job image.
+- `saas-nebius-orchestration`: the SaaS nebius backend submits each job with the runtime image and compute shape declared by that job's catalog spec (per-spec image/platform), and the settings contract requires an MJX job image. (`training-job-orchestration` — the sim2policy demo API — is unchanged.)
 - `saas-job-customization`: the catalog exposes a designated default preset (`go1-mjx-demo`) that the UI pre-selects; preset ordering places the flagship first.
 
 ## Impact

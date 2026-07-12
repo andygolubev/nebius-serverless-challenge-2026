@@ -1,7 +1,10 @@
 # rollout-media Specification
 
 ## Purpose
-TBD - created by archiving change implement-sim2policy. Update Purpose after archive.
+Turn checkpoints into watchable evidence: deterministic policy rollouts encoded as MP4s, headless
+rendering that tries EGL first and retries once with OSMesa in a fresh process, a no-checkpoint
+render smoke test for container preflight, and a labeled initial/mid/final progression montage.
+
 ## Requirements
 ### Requirement: Deterministic checkpoint rollout
 The system SHALL load a supported backend checkpoint, run deterministic policy inference with an explicit seed, render RGB frames across episode boundaries, and encode a playable MP4 at configurable duration and frame rate.

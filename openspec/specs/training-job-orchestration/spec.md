@@ -1,7 +1,11 @@
 # training-job-orchestration Specification
 
 ## Purpose
-TBD - created by archiving change add-serverless-training-api. Update Purpose after archive.
+Isolate how the sim2policy demo API launches training runs behind an orchestration interface with
+`mock` and `nebius` implementations, where the nebius path shells out to the validated
+`jobs/submit.sh` wrapper. This covers the data-plane demo API only; the tenant SaaS app's
+SDK-based counterpart is specified in `saas-nebius-orchestration`.
+
 ## Requirements
 ### Requirement: Orchestration backend abstraction
 

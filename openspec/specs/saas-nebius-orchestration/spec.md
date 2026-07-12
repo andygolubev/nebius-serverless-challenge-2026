@@ -45,7 +45,7 @@ The system SHALL store the Nebius-returned `aijob-*` resource ID on the job reco
 
 ### Requirement: Status polling drives the tenant lifecycle
 
-The Nebius backend SHALL poll `JobService.get()` for each active job and map Nebius job states onto the tenant-visible lifecycle (`queued`, `starting`, `training`, `evaluating`, `rendering`, `completed`, `failed`). Polling SHALL stop once a job reaches a terminal state.
+The Nebius backend SHALL poll `JobService.get()` for each active job and map Nebius job states onto the tenant-visible lifecycle (`queued`, `starting`, `training`, `rendering`, `evaluating`, `completed`, `failed` — the same order as the data plane's canonical run lifecycle). Polling SHALL stop once a job reaches a terminal state.
 
 #### Scenario: Running job is reflected to the tenant
 

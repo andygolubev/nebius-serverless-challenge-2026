@@ -1,4 +1,12 @@
-## ADDED Requirements
+# saas-orchestration-infrastructure Specification
+
+## Purpose
+Provision the cloud-side prerequisites for real SaaS job orchestration: a dedicated least-privilege
+orchestrator service account authenticated via the VM's renewable metadata token, machine-readable
+OpenTofu outputs for the complete `saas-nebius` environment contract, and identity-based
+reconciliation of MysteryBox secret versions into Kubernetes Secrets without exposing values.
+
+## Requirements
 
 ### Requirement: Dedicated orchestration identity
 The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` service account and SHALL grant project-level `editor` only to that account for Serverless AI job creation and cancellation. The grant MUST be documented as temporary until Nebius offers a job-scoped role and MUST NOT broaden the SaaS server, CI, or artifact identities.
@@ -12,7 +20,7 @@ The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` servi
 - **THEN** the isolated access binding can be replaced without changing the SaaS server, CI, or artifact identities
 
 ### Requirement: Metadata-based orchestrator authentication
-The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, mount the VM-managed instance-metadata token file read-only into the SaaS pod, and authenticate the Nebius SDK with a renewable file bearer without a private SDK credential.
+The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, mount the VM-managed instance-metadata directory (containing the renewable token file) read-only into the SaaS pod — mounting the directory rather than the token file itself so Nebius's atomic rotation of the underlying symlink target is picked up instead of pinning a stale inode — and authenticate the Nebius SDK with a renewable file bearer without a private SDK credential.
 
 #### Scenario: Backend starts on the SaaS VM
 - **WHEN** the Nebius backend constructs the SDK with the mounted metadata token file
