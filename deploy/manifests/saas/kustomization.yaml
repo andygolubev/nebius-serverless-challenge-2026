@@ -16,4 +16,4 @@ resources:
 images:
 - name: sim2policy-saas
   newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
-  newTag: 9bd9726ce6c8
+  newTag: 61cf06cfeef6
