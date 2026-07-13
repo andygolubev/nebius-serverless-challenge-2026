@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 STATUS_QUEUED = "queued"
 STATUS_STARTING = "starting"
 STATUS_TRAINING = "training"
+STATUS_FINALIZING = "finalizing"
 STATUS_RENDERING = "rendering"
 STATUS_EVALUATING = "evaluating"
 STATUS_COMPLETED = "completed"
@@ -23,6 +24,7 @@ LIFECYCLE = [
     STATUS_QUEUED,
     STATUS_STARTING,
     STATUS_TRAINING,
+    STATUS_FINALIZING,
     STATUS_RENDERING,
     STATUS_EVALUATING,
     STATUS_COMPLETED,
@@ -66,6 +68,18 @@ class Job(BaseModel):
     nebius_job_id: str | None = None
     # Short, sanitized failure summary surfaced to the tenant. Never raw errors.
     error: str | None = None
+    phase: str | None = None
+    failure_phase: str | None = None
+    artifacts_status: str = "pending"
+
+
+class Artifact(BaseModel):
+    id: str
+    name: str
+    kind: str = "file"
+    content_type: str = "application/octet-stream"
+    size_bytes: int | None = None
+    key: str
 
 
 class ArtifactManifest(BaseModel):
@@ -73,3 +87,4 @@ class ArtifactManifest(BaseModel):
     status: str
     metrics: dict[str, Any] = {}
     media: list[str] = []
+    artifacts: list[Artifact] = []

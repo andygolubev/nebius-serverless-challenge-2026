@@ -77,6 +77,11 @@ flowchart LR
   authenticated job API with verified-email tenant scoping, SQLite persistence, and pluggable mock
   or Nebius orchestration, plus a React + Vite + TypeScript frontend (`saas/frontend/`). One
   multi-stage image serves API and UI.
+- The production catalog is derived from executable GPU job specifications and exposes three
+  increasing Go1 MJX/JAX PPO profiles on H100. Unsupported or primarily CPU-bound combinations are
+  neither listed nor accepted. Remote success enters durable finalization and `completed` is
+  artifact-gated; validated artifacts use tenant-authorized opaque routes and short-lived storage
+  redirects for HTML5 MP4 playback without making the bucket public.
 - `deploy/` holds the GitOps state ArgoCD reconciles: `deploy/argocd/` (app-of-apps `Application`s)
   and `deploy/manifests/saas/` (Deployment, SQLite PVC, Service, Traefik Ingress, and immutable
   kustomize image mapping).

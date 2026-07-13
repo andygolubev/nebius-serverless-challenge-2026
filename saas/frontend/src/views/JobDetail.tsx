@@ -7,6 +7,7 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
   const [job, setJob] = useState<Job | null>(null);
   const [artifacts, setArtifacts] = useState<ArtifactManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -19,7 +20,12 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
         if (j.status === "completed") {
           try {
             const m = await api.getArtifacts(jobId);
-            if (alive) setArtifacts(m);
+            if (alive) {
+              setArtifacts(m);
+              const videos = m.artifacts.filter((a) => a.kind === "video");
+              const final = videos.find((a) => a.id.toLowerCase().includes("final")) ?? videos[0];
+              setSelectedVideo((current) => current ?? final?.id ?? null);
+            }
           } catch {
             // 409 while artifacts settle; next poll picks them up
           }
@@ -72,6 +78,10 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
 
       <LifecycleTimeline status={job.status} />
 
+      {job.status === "finalizing" && (
+        <div className="alert">GPU training finished. Reports and playable media are being finalized.</div>
+      )}
+
       <div className="card" style={{ margin: "var(--sp-4) 0" }}>
         <h2 style={{ fontSize: "var(--fs-md)", marginBottom: "var(--sp-3)" }}>Configuration</h2>
         <dl className="kv">
@@ -105,22 +115,26 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
                 {Object.entries(artifacts.metrics).map(([k, v]) => (
                   <div className="metric" key={k}>
                     <div className="label">{k}</div>
-                    <div className="value">{String(v)}</div>
+                    <pre className="value" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{displayMetric(v)}</pre>
                   </div>
                 ))}
               </div>
-              {artifacts.media.length > 0 && (
+              {artifacts.artifacts.some((a) => a.kind === "video") && (
                 <>
                   <h3 style={{ fontSize: "var(--fs-sm)", marginBottom: "var(--sp-2)" }}>Media</h3>
-                  <ul style={{ margin: 0, paddingLeft: "1.2rem", fontSize: "var(--fs-sm)", wordBreak: "break-all" }}>
-                    {artifacts.media.map((m) => (
-                      <li key={m}>
-                        <a href={m} target="_blank" rel="noreferrer">
-                          {m}
-                        </a>
-                      </li>
+                  {artifacts.artifacts.filter((a) => a.kind === "video" && a.id === selectedVideo).map((a) => (
+                    <div key={a.id}>
+                      <video controls preload="metadata" style={{ width: "100%", maxHeight: "32rem", background: "#000" }} src={a.url}>
+                        Your browser does not support HTML5 video.
+                      </video>
+                      <p><a href={a.url} target="_blank" rel="noreferrer">Open</a> · <a href={a.download_url}>Download</a></p>
+                    </div>
+                  ))}
+                  <div className="env-grid" role="radiogroup" aria-label="Select video">
+                    {artifacts.artifacts.filter((a) => a.kind === "video").map((a) => (
+                      <button key={a.id} type="button" role="radio" aria-checked={a.id === selectedVideo} className={`env-card ${a.id === selectedVideo ? "selected" : ""}`} onClick={() => setSelectedVideo(a.id)}>{a.name}</button>
                     ))}
-                  </ul>
+                  </div>
                 </>
               )}
             </>
@@ -129,8 +143,17 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
       )}
 
       {job.status === "failed" && (
-        <div className="alert alert-error">This job failed. Check the run logs on the server for details.</div>
+        <div className="alert alert-error">
+          <strong>Failed{job.failure_phase ? ` during ${job.failure_phase}` : ""}.</strong>{" "}
+          {job.error ?? "The service did not provide a safe failure reason."}
+        </div>
       )}
     </>
   );
+}
+
+function displayMetric(value: unknown): string {
+  if (value === null) return "—";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
 }

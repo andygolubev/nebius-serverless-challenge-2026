@@ -45,6 +45,10 @@ unset TOKEN
 Do not copy stale parameter bounds from old runs. The unauthenticated catalog endpoint is the source
 of truth for environments, compatible algorithms, presets, defaults, and validation ranges:
 
+Production exposes three GPU-accelerated Go1 MJX/JAX PPO profiles: Quick, Standard, and Quality.
+SB3 and combinations without an executable H100 job specification are intentionally absent and
+rejected by direct API submission.
+
 ```bash
 curl --fail-with-body --silent --show-error \
   "$BASE_URL/training-options" | jq .
@@ -166,10 +170,14 @@ curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer $TOKEN" | jq .
 ```
 
-HTTP `409 artifacts not ready` means `report/artifacts.json` has not been published. A training-only
-job may already be `completed` and have checkpoints under
-`s3://sim2policy-artifacts/sim2policy/<run-id>/` while this endpoint remains 409; finalized reports
-and media require the separate finalization pipeline.
+The response contains opaque artifact identifiers and tenant-authorized application URLs, not raw
+S3 keys. MP4 URLs redirect to short-lived object-storage URLs suitable for browser byte-range
+playback; callers cannot request arbitrary bucket keys.
+
+Remote training success enters `finalizing`; a job becomes `completed` only after its required
+manifest, metrics, and media validate. A terminal failure includes sanitized `error` and
+`failure_phase` fields. Preserve the SaaS job ID and remote `nebius_job_id` for diagnosis, but never
+copy a bearer token or raw provider response into a log.
 
 ## Common responses
 

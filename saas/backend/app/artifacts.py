@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import json
 import logging
+import mimetypes
+import re
 from typing import Any
 
-from .models import ArtifactManifest
+from .models import Artifact, ArtifactManifest
 from .settings import NebiusSettings
 
 log = logging.getLogger(__name__)
 
 RUN_PREFIX = "sim2policy"
 _MEDIA_SUFFIXES = (".mp4", ".png", ".gif")
+_SAFE_REL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 
 
 def build_s3_client(settings: NebiusSettings):
@@ -73,17 +76,31 @@ class S3ArtifactReader:
             artifact_map = manifest
         status = self._read_json(self._key(run_id, "metadata/status.json")) or {}
         metrics = self._read_json(self._key(run_id, "report/metrics.json")) or {}
-        media = sorted(
-            self._key(run_id, rel)
-            for rel in artifact_map.values()
-            if isinstance(rel, str) and rel.endswith(_MEDIA_SUFFIXES)
-        )
+        artifacts = []
+        for logical_name, rel in sorted(artifact_map.items()):
+            if not isinstance(rel, str) or not _SAFE_REL.fullmatch(rel) or ".." in rel.split("/"):
+                raise ValueError("artifact manifest contains an unsafe path")
+            key = self._key(run_id, rel)
+            content_type = mimetypes.guess_type(rel)[0] or "application/octet-stream"
+            artifacts.append(Artifact(id=str(logical_name), name=_label(str(logical_name)), kind="video" if rel.endswith(".mp4") else "image" if rel.endswith((".png", ".gif")) else "file", content_type=content_type, key=key))
+        media = sorted(a.key for a in artifacts if a.key.endswith(_MEDIA_SUFFIXES))
         return ArtifactManifest(
             job_id=job_id,
             status=str(status.get("status", "completed")),
             metrics=metrics if isinstance(metrics, dict) else {},
             media=media,
+            artifacts=artifacts,
         )
+
+    def presigned_url(self, key: str, *, download_name: str | None = None) -> str:
+        params = {"Bucket": self._bucket, "Key": key}
+        if download_name:
+            params["ResponseContentDisposition"] = f'attachment; filename="{download_name}"'
+        return self._client.generate_presigned_url("get_object", Params=params, ExpiresIn=300)
+
+
+def _label(value: str) -> str:
+    return value.replace("_", " ").replace("-", " ").strip().title()
 
 
 def _is_missing_key_error(e: Exception) -> bool:

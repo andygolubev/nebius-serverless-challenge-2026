@@ -64,18 +64,6 @@ ALGORITHMS: dict[str, Algorithm] = {
 }
 
 ENVIRONMENTS: dict[str, Environment] = {
-    "halfcheetah": Environment(
-        id="halfcheetah",
-        label="HalfCheetah",
-        description="Planar cheetah — learn to sprint forward.",
-        algorithms=("ppo-sb3",),
-    ),
-    "ant": Environment(
-        id="ant",
-        label="Ant",
-        description="Quadruped ant — stable omnidirectional walking.",
-        algorithms=("ppo-sb3", "ppo-mjx"),
-    ),
     "go1": Environment(
         id="go1",
         label="Go1",
@@ -86,13 +74,12 @@ ENVIRONMENTS: dict[str, Environment] = {
 
 # Presets are named shortcuts that expand to a full configuration. The flagship
 # MJX track is listed first and marked default; the composer pre-selects it.
-DEFAULT_PRESET = "go1-mjx-demo"
+DEFAULT_PRESET = "go1-mjx-standard"
 
 PRESETS: dict[str, dict[str, Any]] = {
-    "go1-mjx-demo": {"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_000}},
-    "halfcheetah-demo": {"environment": "halfcheetah", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
-    "ant-demo": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 100_000}},
-    "ant-quality": {"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 1_000_000}},
+    "go1-mjx-quick": {"label": "Go1 Quick", "description": "Fast GPU demo · provisional 15–30 min", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 5_000_000}},
+    "go1-mjx-standard": {"label": "Go1 Standard", "description": "Balanced GPU run · provisional 1–2 hr", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 25_000_000}},
+    "go1-mjx-quality": {"label": "Go1 Quality", "description": "Flagship GPU result · up to 4 hr", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_000}},
 }
 
 
@@ -128,28 +115,6 @@ _SB3_PARAM_PATHS = {
 }
 
 JOB_SPECS: dict[tuple[str, str], JobSpec] = {
-    ("halfcheetah", "ppo-sb3"): JobSpec(
-        module="sim2policy.train_sb3",
-        config="configs/halfcheetah_sb3.yaml",
-        image_key="sb3",
-        platform="gpu-l40s-a",
-        preset="1gpu-8vcpu-32gb",
-        timeout="1h",
-        max_total_timesteps=500_000,
-        param_paths=_SB3_PARAM_PATHS,
-    ),
-    ("ant", "ppo-sb3"): JobSpec(
-        module="sim2policy.train_sb3",
-        config="configs/ant_sb3.yaml",
-        image_key="sb3",
-        platform="gpu-l40s-a",
-        preset="1gpu-8vcpu-32gb",
-        timeout="8h",
-        max_total_timesteps=5_000_000,
-        param_paths=_SB3_PARAM_PATHS,
-    ),
-    # ant/ppo-mjx has no pinned training config yet, so it has no job spec: the
-    # nebius backend refuses it while the mock backend still demos it.
     ("go1", "ppo-mjx"): JobSpec(
         module="sim2policy.train_mjx",
         config="configs/go1_mjx.yaml",
@@ -179,7 +144,8 @@ class ValidationError(Exception):
 def expand_preset(preset: str) -> dict[str, Any]:
     if preset not in PRESETS:
         raise ValidationError("preset", f"unknown preset: {preset}")
-    return PRESETS[preset]
+    value = PRESETS[preset]
+    return {k: v for k, v in value.items() if k in {"environment", "algorithm", "params"}}
 
 
 def resolve_config(environment: str, algorithm: str, params: dict[str, Any]) -> dict[str, Any]:
@@ -190,6 +156,8 @@ def resolve_config(environment: str, algorithm: str, params: dict[str, Any]) -> 
     if algorithm not in env.algorithms:
         allowed = ", ".join(env.algorithms)
         raise ValidationError("algorithm", f"algorithm {algorithm!r} not available for {environment} (allowed: {allowed})")
+    if job_spec(environment, algorithm) is None:
+        raise ValidationError("algorithm", f"algorithm {algorithm!r} is not executable for {environment}")
     algo = ALGORITHMS[algorithm]
     known = {p.name: p for p in algo.params}
     for name in params:
@@ -233,7 +201,7 @@ def serialize() -> dict[str, Any]:
                     for p in a.params
                 ],
             }
-            for a in ALGORITHMS.values()
+            for a in ALGORITHMS.values() if a.id == "ppo-mjx"
         ],
         "presets": [{"id": name, "default": name == DEFAULT_PRESET, **cfg} for name, cfg in PRESETS.items()],
     }

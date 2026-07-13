@@ -26,6 +26,8 @@ export type Environment = {
 
 export type Preset = {
   id: string;
+  label?: string;
+  description?: string;
   // Exactly one catalog preset is the flagship default the composer pre-selects.
   default: boolean;
   environment: string;
@@ -54,6 +56,21 @@ export type Job = {
   status: string;
   created_at: string;
   updated_at: string;
+  nebius_job_id?: string | null;
+  error?: string | null;
+  phase?: string | null;
+  failure_phase?: string | null;
+  artifacts_status: string;
+};
+
+export type Artifact = {
+  id: string;
+  name: string;
+  kind: "video" | "image" | "file";
+  content_type: string;
+  size_bytes: number | null;
+  url: string;
+  download_url: string;
 };
 
 export type ArtifactManifest = {
@@ -61,6 +78,7 @@ export type ArtifactManifest = {
   status: string;
   metrics: Record<string, unknown>;
   media: string[];
+  artifacts: Artifact[];
 };
 
 export type FieldError = { field: string; message: string };
@@ -144,5 +162,5 @@ export const api = {
   getArtifacts: (id: string) => request<ArtifactManifest>(`/jobs/${id}/artifacts`),
 };
 
-export const LIFECYCLE = ["queued", "starting", "training", "rendering", "evaluating", "completed"];
+export const LIFECYCLE = ["queued", "starting", "training", "finalizing", "rendering", "evaluating", "completed"];
 export const TERMINAL = new Set(["completed", "failed"]);

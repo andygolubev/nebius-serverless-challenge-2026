@@ -14,20 +14,17 @@ def test_training_options_catalog(client):
     assert res.status_code == 200
     data = res.json()
     env_ids = {e["id"] for e in data["environments"]}
-    assert {"halfcheetah", "ant", "go1"} <= env_ids
-    algo = next(a for a in data["algorithms"] if a["id"] == "ppo-sb3")
+    assert env_ids == {"go1"}
+    assert [a["id"] for a in data["algorithms"]] == ["ppo-mjx"]
+    algo = data["algorithms"][0]
     lr = next(p for p in algo["params"] if p["name"] == "learning_rate")
     assert {"type", "default", "min", "max"} <= set(lr)
-    assert any(p["id"] == "ant-demo" for p in data["presets"])
+    assert [p["id"] for p in data["presets"]] == ["go1-mjx-quick", "go1-mjx-standard", "go1-mjx-quality"]
     # Exactly one default preset: the MJX flagship track, listed first.
     defaults = [p for p in data["presets"] if p.get("default")]
-    assert [p["id"] for p in defaults] == ["go1-mjx-demo"]
-    assert data["presets"][0]["id"] == "go1-mjx-demo"
-    assert data["presets"][0]["params"]["total_timesteps"] == 100_000_000
-    sb3_steps = next(p for p in algo["params"] if p["name"] == "total_timesteps")
+    assert [p["id"] for p in defaults] == ["go1-mjx-standard"]
     mjx = next(a for a in data["algorithms"] if a["id"] == "ppo-mjx")
     mjx_steps = next(p for p in mjx["params"] if p["name"] == "total_timesteps")
-    assert sb3_steps["max"] == 5_000_000
     assert mjx_steps["max"] == 100_000_000
 
 
@@ -35,17 +32,17 @@ def test_valid_custom_job(client, sender, login):
     headers = login(_email())
     res = client.post(
         "/jobs",
-        json={"environment": "ant", "algorithm": "ppo-sb3", "params": {"learning_rate": 1e-3}},
+        json={"environment": "go1", "algorithm": "ppo-mjx", "params": {"learning_rate": 1e-3}},
         headers=headers,
     )
     assert res.status_code == 201
     job = res.json()
-    assert job["environment"] == "ant"
-    assert job["algorithm"] == "ppo-sb3"
+    assert job["environment"] == "go1"
+    assert job["algorithm"] == "ppo-mjx"
     cfg = job["resolved_config"]
     assert cfg["params"]["learning_rate"] == 1e-3
     # Defaults are merged in and visible.
-    assert cfg["params"]["total_timesteps"] == 100_000
+    assert cfg["params"]["total_timesteps"] == 100_000_000
     assert "seed" in cfg["params"]
 
 
@@ -53,7 +50,7 @@ def test_out_of_range_param_rejected(client, sender, login):
     headers = login(_email())
     res = client.post(
         "/jobs",
-        json={"environment": "ant", "algorithm": "ppo-sb3", "params": {"total_timesteps": 10_000_000}},
+        json={"environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_001}},
         headers=headers,
     )
     assert res.status_code == 422
@@ -92,7 +89,7 @@ def test_unknown_param_rejected(client, sender, login):
     headers = login(_email())
     res = client.post(
         "/jobs",
-        json={"environment": "ant", "algorithm": "ppo-sb3", "params": {"docker_image": "evil"}},
+        json={"environment": "go1", "algorithm": "ppo-mjx", "params": {"docker_image": "evil"}},
         headers=headers,
     )
     assert res.status_code == 422
@@ -101,14 +98,14 @@ def test_unknown_param_rejected(client, sender, login):
 
 def test_preset_expansion(client, sender, login):
     headers = login(_email())
-    res = client.post("/jobs", json={"preset": "ant-demo", "seed": 42}, headers=headers)
+    res = client.post("/jobs", json={"preset": "go1-mjx-quick", "seed": 42}, headers=headers)
     assert res.status_code == 201
     job = res.json()
-    assert job["preset"] == "ant-demo"
-    assert job["environment"] == "ant"
-    assert job["algorithm"] == "ppo-sb3"
+    assert job["preset"] == "go1-mjx-quick"
+    assert job["environment"] == "go1"
+    assert job["algorithm"] == "ppo-mjx"
     assert job["resolved_config"]["params"]["seed"] == 42
-    assert job["resolved_config"]["params"]["total_timesteps"] == 100_000
+    assert job["resolved_config"]["params"]["total_timesteps"] == 5_000_000
 
 
 def test_unknown_preset_rejected(client, sender, login):
@@ -122,12 +119,12 @@ def test_resolved_config_visible_on_get(client, sender, login):
     headers = login(_email())
     created = client.post(
         "/jobs",
-        json={"environment": "halfcheetah", "algorithm": "ppo-sb3", "params": {"learning_rate": 5e-4}},
+        json={"environment": "go1", "algorithm": "ppo-mjx", "params": {"learning_rate": 5e-4}},
         headers=headers,
     ).json()
     res = client.get(f"/jobs/{created['id']}", headers=headers)
     assert res.status_code == 200
     cfg = res.json()["resolved_config"]
-    assert cfg["environment"] == "halfcheetah"
+    assert cfg["environment"] == "go1"
     assert cfg["params"]["learning_rate"] == 5e-4
-    assert cfg["params"]["total_timesteps"] == 100_000
+    assert cfg["params"]["total_timesteps"] == 100_000_000

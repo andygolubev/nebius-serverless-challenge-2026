@@ -114,21 +114,37 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
   return (
     <form onSubmit={submit}>
       <h1 className="section-title">New training job</h1>
-      <p className="section-sub">Pick an environment, choose a policy, tune the parameters.</p>
+      <p className="section-sub">Choose a GPU-accelerated Go1 PPO workload.</p>
+
+      <div className="env-grid" role="radiogroup" aria-label="GPU workload">
+        {catalog.presets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={p.id === presetId}
+            className={`env-card ${p.id === presetId ? "selected" : ""}`}
+            onClick={() => applyPreset(catalog, p.id)}
+          >
+            <h3>{p.label ?? p.id}</h3>
+            <p>{p.description}</p>
+            <p>{Number(p.params.total_timesteps).toLocaleString()} timesteps</p>
+          </button>
+        ))}
+      </div>
 
       <div className="field" style={{ maxWidth: 320 }}>
-        <label htmlFor="preset">Start from a preset (optional)</label>
+        <label htmlFor="preset">GPU workload</label>
         <select id="preset" className="input" value={presetId} onChange={(e) => applyPreset(catalog, e.target.value)}>
-          <option value="">— custom —</option>
           {catalog.presets.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.id}
+              {p.label ?? p.id}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="field">
+      <div className="field" hidden>
         <label>Environment</label>
         <div className="env-grid" role="radiogroup" aria-label="Environment">
           {catalog.environments.map((e) => (
@@ -148,7 +164,7 @@ export function Composer({ onSubmitted }: { onSubmitted: () => void }) {
         {serverErrors.environment && <span className="field-error">{serverErrors.environment}</span>}
       </div>
 
-      <div className="field" style={{ maxWidth: 320 }}>
+      <div className="field" style={{ maxWidth: 320 }} hidden>
         <label htmlFor="algo">Policy</label>
         <select id="algo" className="input" value={algoId} onChange={(e) => selectAlgo(catalog, e.target.value)}>
           {(env?.algorithms ?? []).map((id) => {

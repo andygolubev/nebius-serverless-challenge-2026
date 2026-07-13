@@ -130,7 +130,7 @@ def test_logout_revokes_session(client, sender, login):
 
 def test_tenant_isolation(client, sender, login):
     alice, bob = login(_email()), login(_email())
-    res = client.post("/jobs", json={"preset": "ant-demo"}, headers=alice)
+    res = client.post("/jobs", json={"preset": "go1-mjx-quick"}, headers=alice)
     assert res.status_code == 201
     job_id = res.json()["id"]
     assert client.get(f"/jobs/{job_id}", headers=alice).status_code == 200

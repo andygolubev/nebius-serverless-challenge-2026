@@ -17,6 +17,7 @@ from .models import (
     LIFECYCLE,
     STATUS_COMPLETED,
     STATUS_FAILED,
+    STATUS_FINALIZING,
     STATUS_STARTING,
     STATUS_TRAINING,
     ArtifactManifest,
@@ -127,16 +128,39 @@ class NebiusBackend:
 
     name = "nebius"
 
-    def __init__(self, settings, client, artifact_reader, poll_interval: float = 10.0) -> None:
+    def __init__(self, settings, client, artifact_reader, poll_interval: float = 10.0, finalize_attempts: int = 360) -> None:
         self._settings = settings
         self._client = client
         self._artifacts = artifact_reader
         self.artifact_reader = artifact_reader
         self.poll_interval = poll_interval
+        self.finalize_attempts = finalize_attempts
+        self._active: set[str] = set()
+        self._active_lock = threading.Lock()
 
     def launch(self, job: Job, store: JobStore) -> None:
-        thread = threading.Thread(target=self._run, args=(job, store), daemon=True)
-        thread.start()
+        self._start(job, self._run, job, store)
+
+    def _start(self, job: Job, target, *args) -> bool:
+        with self._active_lock:
+            if job.id in self._active:
+                return False
+            self._active.add(job.id)
+        def guarded() -> None:
+            try:
+                target(*args)
+            finally:
+                with self._active_lock:
+                    self._active.discard(job.id)
+        threading.Thread(target=guarded, daemon=True).start()
+        return True
+
+    def resume(self, store: JobStore) -> None:
+        for job in store.list_active():
+            if not job.nebius_job_id:
+                self._fail(job, store, "job was interrupted before remote creation", phase="submission")
+                continue
+            self._start(job, self._poll, job, store, time.monotonic() + POLL_TIMEOUT_MARGIN_SECONDS)
 
     # -- submission --
 
@@ -173,7 +197,9 @@ class NebiusBackend:
             "--set", f"storage.endpoint_url={s.s3_endpoint_url}",
             "--set", f"storage.region={s.s3_region}",
         ]
-        image = s.mjx_job_image if spec.image_key == "mjx" else s.job_image
+        if spec.image_key != "mjx" or spec.platform != "gpu-h100-sxm":
+            raise ValueError("production catalog permits only GPU-accelerated MJX/H100 jobs")
+        image = s.mjx_job_image
         return JobSubmission(
             name=f"sim2policy-{job.id}",
             image=image,
@@ -193,20 +219,20 @@ class NebiusBackend:
 
     # -- lifecycle --
 
-    def _fail(self, job: Job, store: JobStore, error: str) -> None:
-        store.put(job.model_copy(update={"status": STATUS_FAILED, "error": error, "updated_at": _now()}))
+    def _fail(self, job: Job, store: JobStore, error: str, phase: str = "orchestration") -> None:
+        store.put(job.model_copy(update={"status": STATUS_FAILED, "phase": phase, "failure_phase": phase, "error": error, "updated_at": _now()}))
 
     def _run(self, job: Job, store: JobStore) -> None:
         try:
             submission = self.build_submission(job)
         except ValueError as e:
-            self._fail(job, store, str(e))
+            self._fail(job, store, str(e), phase="submission")
             return
         try:
             nebius_job_id = self._client.create_job(submission)
         except Exception as e:
             log.exception("nebius job submission failed for job %s", job.id)
-            self._fail(job, store, sanitize_error(e, (self._settings.aws_secret_access_key,)))
+            self._fail(job, store, sanitize_error(e, (self._settings.aws_secret_access_key,)), phase="submission")
             return
         # Record the aijob-* ID before reporting any further status.
         job = job.model_copy(update={"nebius_job_id": nebius_job_id, "status": STATUS_STARTING, "updated_at": _now()})
@@ -216,7 +242,7 @@ class NebiusBackend:
     def _poll(self, job: Job, store: JobStore, deadline: float) -> None:
         while True:
             if time.monotonic() > deadline:
-                self._fail(job, store, "job exceeded its timeout and was marked failed")
+                self._fail(job, store, "job exceeded its timeout and was marked failed", phase=job.phase or "training")
                 return
             time.sleep(self.poll_interval)
             try:
@@ -228,24 +254,34 @@ class NebiusBackend:
             if status is None or status == job.status:
                 continue
             if status == STATUS_COMPLETED:
-                self._complete(job, store)
+                self._complete(job, store, deadline)
                 return
             job = job.model_copy(update={"status": status, "updated_at": _now()})
             store.put(job)
             if status == STATUS_FAILED:
+                self._fail(job, store, "remote job failed", phase="training")
                 return
 
-    def _complete(self, job: Job, store: JobStore) -> None:
-        try:
-            manifest = self._artifacts.read_manifest(job.id, job.id)
-        except Exception as e:
-            log.exception("artifact read failed for job %s", job.id)
-            manifest = None
-        if manifest is not None:
-            store.set_artifacts(manifest)
-        # Artifacts may lag the job state briefly; /jobs/{id}/artifacts keeps
-        # returning 409 until the manifest exists in S3.
-        store.put(job.model_copy(update={"status": STATUS_COMPLETED, "updated_at": _now()}))
+    def _complete(self, job: Job, store: JobStore, deadline: float) -> None:
+        job = job.model_copy(update={"status": STATUS_FINALIZING, "phase": "finalization", "artifacts_status": "pending", "updated_at": _now()})
+        store.put(job)
+        for _ in range(self.finalize_attempts):
+            if time.monotonic() > deadline:
+                break
+            try:
+                manifest = self._artifacts.read_manifest(job.id, job.id)
+            except ValueError as e:
+                self._fail(job, store, sanitize_error(e), phase="artifact_validation")
+                return
+            except Exception:
+                log.warning("artifact read failed for job %s; retrying", job.id, exc_info=True)
+                manifest = None
+            if manifest is not None:
+                store.set_artifacts(manifest)
+                store.put(job.model_copy(update={"status": STATUS_COMPLETED, "phase": STATUS_COMPLETED, "artifacts_status": "ready", "updated_at": _now()}))
+                return
+            time.sleep(self.poll_interval)
+        self._fail(job, store, "artifacts did not finalize before timeout", phase="finalization")
 
 
 def build_backend(name: str) -> OrchestrationBackend:

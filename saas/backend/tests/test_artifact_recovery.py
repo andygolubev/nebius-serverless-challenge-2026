@@ -45,6 +45,10 @@ class StubReader:
             raise self.error
         return self.manifest
 
+    def presigned_url(self, key: str, *, download_name: str | None = None) -> str:
+        suffix = f"&download={download_name}" if download_name else ""
+        return f"https://objects.example/artifact?key=opaque{suffix}"
+
 
 class StubBackend:
     name = "stub"
@@ -131,3 +135,31 @@ def test_backend_without_reader_keeps_409(client, sender, login, backend_reader)
 
     res = client.get(f"/jobs/{job.id}/artifacts", headers=headers)
     assert res.status_code == 409
+
+
+def test_legacy_media_is_normalized_and_owner_can_open(client, sender, login, backend_reader):
+    email = _email()
+    headers = login(email)
+    job = _put_job(email, STATUS_COMPLETED)
+    manifest = ArtifactManifest(job_id=job.id, status=STATUS_COMPLETED, media=[f"sim2policy/{job.id}/videos/final.mp4"])
+    backend_reader(StubReader(manifest))
+
+    response = client.get(f"/jobs/{job.id}/artifacts", headers=headers)
+    artifact = response.json()["artifacts"][0]
+    assert response.status_code == 200
+    assert artifact["kind"] == "video"
+    assert "key" not in artifact
+    assert artifact["url"].startswith("https://objects.example/")
+    assert "download=final.mp4" in artifact["download_url"]
+
+
+def test_artifact_access_is_tenant_scoped(client, sender, login, backend_reader):
+    owner, other = _email(), _email()
+    owner_headers, other_headers = login(owner), login(other)
+    job = _put_job(owner, STATUS_COMPLETED)
+    manifest = ArtifactManifest(job_id=job.id, status=STATUS_COMPLETED, media=[f"sim2policy/{job.id}/videos/final.mp4"])
+    backend_reader(StubReader(manifest))
+    artifact = client.get(f"/jobs/{job.id}/artifacts", headers=owner_headers).json()["artifacts"][0]
+    assert artifact["url"].startswith("https://objects.example/")
+    assert client.get(f"/jobs/{job.id}/artifacts/{artifact['id']}", headers=other_headers).status_code == 404
+    assert client.get(f"/jobs/{job.id}/artifacts/not-in-manifest", headers=owner_headers).status_code == 404

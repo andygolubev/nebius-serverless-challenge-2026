@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import catalog
@@ -22,6 +23,7 @@ from .email_sender import EmailDeliveryError, build_email_sender
 from .models import (
     STATUS_COMPLETED,
     STATUS_QUEUED,
+    Artifact,
     ArtifactManifest,
     AuthRequest,
     Job,
@@ -40,6 +42,13 @@ _db_path = resolve_path()
 _store = JobStore(_db_path)
 _backend = build_backend(os.environ.get("SAAS_ORCHESTRATION_BACKEND", "mock"))
 _auth = AuthService(AuthStore(_db_path), build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")))
+
+
+@app.on_event("startup")
+def resume_jobs() -> None:
+    resume = getattr(_backend, "resume", None)
+    if resume is not None:
+        resume(_store)
 
 
 def _now() -> str:
@@ -169,7 +178,7 @@ def get_job(job_id: str, session: Session = Depends(require_session)) -> Job:
 
 
 @app.get("/jobs/{job_id}/artifacts")
-def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> ArtifactManifest:
+def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> dict:
     # Enforce ownership before returning artifacts.
     job = _store.get(session.email, job_id)
     if job is None:
@@ -179,7 +188,50 @@ def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> A
         manifest = _recover_artifacts(job)
     if manifest is None:
         raise HTTPException(status_code=409, detail="artifacts not ready")
-    return manifest
+    manifest = _normalize_legacy_manifest(manifest)
+    data = manifest.model_dump(exclude={"artifacts": {"__all__": {"key"}}})
+    data["media"] = []
+    reader = getattr(_backend, "artifact_reader", None)
+    for artifact, stored in zip(data["artifacts"], manifest.artifacts, strict=True):
+        if reader is not None and hasattr(reader, "presigned_url"):
+            artifact["url"] = reader.presigned_url(stored.key)
+            artifact["download_url"] = reader.presigned_url(stored.key, download_name=stored.key.rsplit("/", 1)[-1])
+        else:
+            artifact["url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}"
+            artifact["download_url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}?download=true"
+    return data
+
+
+@app.get("/jobs/{job_id}/artifacts/{artifact_id}")
+def access_artifact(job_id: str, artifact_id: str, download: bool = False, session: Session = Depends(require_session)):
+    job = _store.get(session.email, job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    manifest = _store.get_artifacts(job_id) or _recover_artifacts(job)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    manifest = _normalize_legacy_manifest(manifest)
+    artifact = next((item for item in manifest.artifacts if item.id == artifact_id), None)
+    reader = getattr(_backend, "artifact_reader", None)
+    if artifact is None or reader is None or not hasattr(reader, "presigned_url"):
+        raise HTTPException(status_code=404, detail="artifact not found")
+    filename = artifact.key.rsplit("/", 1)[-1] if download else None
+    return RedirectResponse(reader.presigned_url(artifact.key, download_name=filename), status_code=307)
+
+
+def _normalize_legacy_manifest(manifest: ArtifactManifest) -> ArtifactManifest:
+    if manifest.artifacts or not manifest.media:
+        return manifest
+    artifacts = []
+    for index, key in enumerate(manifest.media):
+        if not isinstance(key, str) or ".." in key.split("/"):
+            continue
+        filename = key.rsplit("/", 1)[-1]
+        stem = filename.rsplit(".", 1)[0]
+        artifacts.append(Artifact(id=f"legacy-{index}-{stem}", name=stem.replace("_", " ").replace("-", " ").title(), kind="video" if filename.endswith(".mp4") else "file", content_type="video/mp4" if filename.endswith(".mp4") else "application/octet-stream", key=key))
+    normalized = manifest.model_copy(update={"artifacts": artifacts})
+    _store.set_artifacts(normalized)
+    return normalized
 
 
 def _recover_artifacts(job: Job) -> ArtifactManifest | None:

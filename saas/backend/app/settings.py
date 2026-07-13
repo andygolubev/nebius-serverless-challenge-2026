@@ -19,7 +19,6 @@ class SettingsError(RuntimeError):
 _REQUIRED = {
     "NEBIUS_PROJECT_ID": "project_id",
     "NEBIUS_SUBNET_ID": "subnet_id",
-    "SIM2POLICY_JOB_IMAGE": "job_image",
     "SIM2POLICY_MJX_JOB_IMAGE": "mjx_job_image",
     "NEBIUS_S3_SECRET_SELECTOR": "s3_secret_selector",
     "AWS_ACCESS_KEY_ID": "aws_access_key_id",
@@ -29,7 +28,7 @@ _REQUIRED = {
     "SIM2POLICY_S3_BUCKET": "s3_bucket",
 }
 
-_OPTIONAL = {"NEBIUS_REGISTRY_SECRET": "registry_secret"}
+_OPTIONAL = {"NEBIUS_REGISTRY_SECRET": "registry_secret", "SIM2POLICY_JOB_IMAGE": "job_image"}
 
 
 @dataclass(frozen=True)
@@ -37,7 +36,6 @@ class NebiusSettings:
     # Job submission
     project_id: str
     subnet_id: str
-    job_image: str  # SB3 runtime image; specs with image_key="mjx" use mjx_job_image
     mjx_job_image: str
     # MysteryBox selector resolving the artifact secret access key inside jobs
     # (the SDK equivalent of `nebius ai job create --env-secret`).
@@ -51,6 +49,7 @@ class NebiusSettings:
     s3_bucket: str
     # Optional
     registry_secret: str | None = None
+    job_image: str | None = None  # legacy SB3 image; no longer required by the GPU-only catalog
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> NebiusSettings:

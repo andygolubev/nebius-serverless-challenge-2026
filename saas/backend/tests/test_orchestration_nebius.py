@@ -10,7 +10,7 @@ import json
 import pytest
 
 from app.artifacts import S3ArtifactReader
-from app.models import STATUS_COMPLETED, STATUS_FAILED, STATUS_QUEUED, STATUS_STARTING, STATUS_TRAINING, Job
+from app.models import STATUS_COMPLETED, STATUS_FAILED, STATUS_QUEUED, STATUS_STARTING, STATUS_TRAINING, ArtifactManifest, Job
 from app.orchestration import (
     MockBackend,
     NebiusBackend,
@@ -41,13 +41,13 @@ def _job(**overrides) -> Job:
     defaults = dict(
         id="a" * 32,
         tenant_id="user@example.com",
-        preset="ant-demo",
-        environment="ant",
-        algorithm="ppo-sb3",
+        preset="go1-mjx-quick",
+        environment="go1",
+        algorithm="ppo-mjx",
         resolved_config={
-            "environment": "ant",
-            "algorithm": "ppo-sb3",
-            "params": {"total_timesteps": 100_000, "learning_rate": 3e-4, "seed": 7},
+            "environment": "go1",
+            "algorithm": "ppo-mjx",
+            "params": {"total_timesteps": 5_000_000, "learning_rate": 3e-4, "seed": 7},
         },
         status=STATUS_QUEUED,
         created_at="2026-07-11T00:00:00+00:00",
@@ -79,6 +79,19 @@ class FakeArtifactReader:
 
     def read_manifest(self, job_id, run_id):
         return self.manifest
+
+
+class SequenceArtifactReader:
+    def __init__(self, values):
+        self.values = list(values)
+        self.calls = 0
+
+    def read_manifest(self, job_id, run_id):
+        value = self.values.pop(0) if len(self.values) > 1 else self.values[0]
+        self.calls += 1
+        if isinstance(value, Exception):
+            raise value
+        return value
 
 
 def _backend(client=None, reader=None) -> NebiusBackend:
@@ -117,20 +130,19 @@ def test_settings_reports_all_missing_vars():
 def test_submission_derives_from_catalog_only():
     sub = _backend().build_submission(_job())
     assert sub.name == f"sim2policy-{'a' * 32}"
-    assert sub.image == SETTINGS.job_image
+    assert sub.image == SETTINGS.mjx_job_image
     assert sub.command == "python"
-    assert sub.args[:2] == ["-m", "sim2policy.train_sb3"]
-    assert "configs/ant_sb3.yaml" in sub.args
+    assert sub.args[:2] == ["-m", "sim2policy.train_mjx"]
+    assert "configs/go1_mjx.yaml" in sub.args
     joined = " ".join(sub.args)
-    assert "training.total_steps=100000" in joined
+    assert "training.total_steps=5000000" in joined
     # learning_rate is not an allowed override path; it must never reach the args
     assert "learning_rate" not in joined
     assert "seed=7" in joined
     assert "storage.bucket=sim2policy-artifacts" in joined
-    # SB3 runs on the right-sized L40S shape, not the MJX H100
-    assert sub.platform == "gpu-l40s-a"
-    assert sub.preset == "1gpu-8vcpu-32gb"
-    assert sub.timeout_seconds == 8 * 3600
+    assert sub.platform == "gpu-h100-sxm"
+    assert sub.preset == "1gpu-16vcpu-200gb"
+    assert sub.timeout_seconds == 4 * 3600
     assert sub.parent_id == SETTINGS.project_id
 
 
@@ -212,7 +224,7 @@ def test_step_cap_enforced():
 
 
 def test_happy_path_records_id_and_completes():
-    manifest_reader = FakeArtifactReader(manifest=None)
+    manifest_reader = FakeArtifactReader(manifest=ArtifactManifest(job_id="a" * 32, status=STATUS_COMPLETED))
     client = FakeJobsClient(states=("PROVISIONING", "RUNNING", "COMPLETED",))
     backend, store = _backend(client, manifest_reader), JobStore()
     job = _job()
@@ -221,8 +233,41 @@ def test_happy_path_records_id_and_completes():
     stored = store.get(job.tenant_id, job.id)
     assert stored.nebius_job_id == "aijob-e00fake"
     assert stored.status == STATUS_COMPLETED
-    # No manifest in S3 yet -> artifacts stay unavailable (API returns 409).
-    assert store.get_artifacts(job.id) is None
+    assert store.get_artifacts(job.id) is not None
+
+
+def test_remote_success_waits_for_delayed_manifest():
+    manifest = ArtifactManifest(job_id="a" * 32, status=STATUS_COMPLETED)
+    reader = SequenceArtifactReader([None, RuntimeError("temporary S3 failure"), manifest])
+    backend = NebiusBackend(SETTINGS, FakeJobsClient(states=("COMPLETED",)), reader, poll_interval=0, finalize_attempts=4)
+    store, job = JobStore(), _job()
+    store.put(job)
+    backend._run(job, store)
+    stored = store.get(job.tenant_id, job.id)
+    assert reader.calls == 3
+    assert stored.status == STATUS_COMPLETED
+    assert stored.artifacts_status == "ready"
+
+
+def test_finalization_timeout_is_terminal_and_sanitized():
+    backend = NebiusBackend(SETTINGS, FakeJobsClient(states=("COMPLETED",)), FakeArtifactReader(None), poll_interval=0, finalize_attempts=2)
+    store, job = JobStore(), _job()
+    store.put(job)
+    backend._run(job, store)
+    stored = store.get(job.tenant_id, job.id)
+    assert stored.status == STATUS_FAILED
+    assert stored.failure_phase == "finalization"
+    assert "timeout" in stored.error
+
+
+def test_active_job_guard_prevents_duplicate_reconciler():
+    backend = NebiusBackend(SETTINGS, FakeJobsClient(), FakeArtifactReader(None), poll_interval=0)
+    job = _job(nebius_job_id="aijob-existing", status=STATUS_STARTING)
+    import threading
+    release = threading.Event()
+    assert backend._start(job, release.wait)
+    assert not backend._start(job, release.wait)
+    release.set()
 
 
 def test_remote_failure_marks_job_failed():

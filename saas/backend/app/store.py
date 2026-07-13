@@ -44,6 +44,12 @@ class JobStore:
             ).fetchall()
         return [Job.model_validate_json(r[0]) for r in rows]
 
+    def list_active(self) -> list[Job]:
+        with self._lock:
+            rows = self._conn.execute("SELECT data FROM jobs").fetchall()
+        jobs = [Job.model_validate_json(row[0]) for row in rows]
+        return [job for job in jobs if job.status not in {"completed", "failed"}]
+
     def set_artifacts(self, manifest: ArtifactManifest) -> None:
         with self._lock:
             self._conn.execute(
