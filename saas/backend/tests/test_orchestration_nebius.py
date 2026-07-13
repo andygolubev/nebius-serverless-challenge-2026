@@ -132,7 +132,7 @@ def test_submission_derives_from_catalog_only():
     assert sub.name == f"sim2policy-{'a' * 32}"
     assert sub.image == SETTINGS.mjx_job_image
     assert sub.command == "python"
-    assert sub.args[:2] == ["-m", "sim2policy.train_mjx"]
+    assert sub.args[:2] == ["-m", "sim2policy.hosted_mjx"]
     assert "configs/go1_mjx.yaml" in sub.args
     joined = " ".join(sub.args)
     assert "training.total_steps=5000000" in joined
@@ -159,7 +159,7 @@ def test_mjx_submission_uses_mjx_image_and_h100():
     )
     sub = _backend().build_submission(job)
     assert sub.image == SETTINGS.mjx_job_image
-    assert sub.args[:2] == ["-m", "sim2policy.train_mjx"]
+    assert sub.args[:2] == ["-m", "sim2policy.hosted_mjx"]
     assert "configs/go1_mjx.yaml" in sub.args
     assert sub.platform == "gpu-h100-sxm"
     assert sub.preset == "1gpu-16vcpu-200gb"

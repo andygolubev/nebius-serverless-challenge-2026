@@ -116,7 +116,7 @@ _SB3_PARAM_PATHS = {
 
 JOB_SPECS: dict[tuple[str, str], JobSpec] = {
     ("go1", "ppo-mjx"): JobSpec(
-        module="sim2policy.train_mjx",
+        module="sim2policy.hosted_mjx",
         config="configs/go1_mjx.yaml",
         image_key="mjx",
         platform="gpu-h100-sxm",
