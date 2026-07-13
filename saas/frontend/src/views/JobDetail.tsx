@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, Artifact, ArtifactManifest, Job, TERMINAL } from "../api";
 import { LifecycleTimeline, relativeTime, StatusBadge } from "./shared";
 import { buildResultView, MetricEntry } from "./resultView";
@@ -141,6 +141,9 @@ function CompletedResults({
   );
   const [mediaError, setMediaError] = useState(false);
   const [mediaRetry, setMediaRetry] = useState(0);
+  const [mediaPlaying, setMediaPlaying] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  useEffect(() => setMediaPlaying(false), [selectedVideo, mediaRetry]);
   if (artifactError) {
     return (
       <div className="alert alert-error result-loading-error" role="alert">
@@ -154,6 +157,20 @@ function CompletedResults({
   const videos = artifacts.artifacts.filter((artifact) => artifact.kind === "video");
   const selected = videos.find((artifact) => artifact.id === selectedVideo) ?? videos[0];
   const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video");
+
+  async function togglePlayback() {
+    const player = videoRef.current;
+    if (!player) return;
+    if (mediaPlaying) {
+      player.pause();
+      return;
+    }
+    try {
+      await player.play();
+    } catch {
+      setMediaError(true);
+    }
+  }
 
   return (
     <section className="results-shell" aria-labelledby="results-heading">
@@ -183,7 +200,17 @@ function CompletedResults({
           </div>
           {selected ? (
             <>
-              <video key={`${selected.id}-${mediaRetry}`} controls preload="metadata" src={selected.url} onError={() => setMediaError(true)}>
+              <video
+                key={`${selected.id}-${mediaRetry}`}
+                ref={videoRef}
+                controls
+                preload="metadata"
+                src={selected.url}
+                onPlay={() => setMediaPlaying(true)}
+                onPause={() => setMediaPlaying(false)}
+                onEnded={() => setMediaPlaying(false)}
+                onError={() => setMediaError(true)}
+              >
                 Your browser does not support HTML5 video.
               </video>
               {mediaError && (
@@ -193,6 +220,14 @@ function CompletedResults({
                 </div>
               )}
               <div className="media-actions">
+                <button
+                  className="btn btn-ghost"
+                  type="button"
+                  aria-label={mediaPlaying ? "Pause rollout" : "Play rollout"}
+                  onClick={togglePlayback}
+                >
+                  {mediaPlaying ? "Pause" : "Play"}
+                </button>
                 <a className="btn btn-ghost" href={selected.url} target="_blank" rel="noreferrer">Open media</a>
                 <a className="btn btn-ghost" href={selected.download_url}>Download</a>
               </div>

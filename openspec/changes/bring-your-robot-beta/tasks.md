@@ -73,7 +73,7 @@
 - [x] 5.4 Make the final rollout/player and media selector visually prominent beside the summary on
   wider screens and above details on narrow screens, preserving retry/open/download controls while
   reducing card padding, empty space, and repeated labels.
-- [ ] 5.5 Add frontend behavioral and visual-layout coverage for long checkpoints/run IDs, deeply
+- [x] 5.5 Add frontend behavioral and visual-layout coverage for long checkpoints/run IDs, deeply
   nested metrics, many episodes, missing optional metrics, media and no-media results, completed /
   finalizing / failed states, keyboard interaction, dark mode, and 375px/768px/desktop widths;
   render browser screenshots at each width and verify no narrow JSON columns, clipping, or
@@ -93,7 +93,7 @@
 - [x] 6.4 Run deploy-manifest and GitOps assertions to confirm the existing SQLite PVC and Recreate
   strategy remain sufficient and that the change introduces no GPU job, runtime image, secret,
   bucket, VM, disk, IP, or other cloud resource requirement.
-- [ ] 6.5 After deployment, use an authenticated production browser session and begin acceptance
+- [x] 6.5 After deployment, use an authenticated production browser session and begin acceptance
   from the visible **Jobs** dashboard—not a copied detail URL or API-only check. Click each
   available retained job row, use **Back to jobs** between records, and verify the redesigned detail
   page for at least one completed job plus every failed/finalizing job currently present; record

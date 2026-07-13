@@ -79,6 +79,16 @@ describe("job results", () => {
     expect(screen.getAllByText("Go1JoystickFlatTerrain")[0]).toBeVisible();
     await waitFor(() => expect(container.querySelector("video")).toHaveAttribute("src", artifacts.artifacts[1].url));
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", artifacts.artifacts[1].download_url);
+    const video = container.querySelector("video")!;
+    const play = vi.spyOn(video, "play").mockResolvedValue(undefined);
+    const pause = vi.spyOn(video, "pause").mockImplementation(() => undefined);
+    fireEvent.click(screen.getByRole("button", { name: "Play rollout" }));
+    expect(play).toHaveBeenCalledOnce();
+    fireEvent.play(video);
+    expect(screen.getByRole("button", { name: "Pause rollout" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Pause rollout" }));
+    expect(pause).toHaveBeenCalledOnce();
+    fireEvent.pause(video);
     fireEvent.error(container.querySelector("video")!);
     expect(screen.getByRole("button", { name: "Retry playback" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Retry playback" }));
@@ -117,5 +127,20 @@ describe("job results", () => {
     expect(screen.getAllByText("—").length).toBeGreaterThan(1);
     expect(screen.getAllByTitle(artifacts.metrics.checkpoint)[0]).toBeVisible();
     expect(document.querySelector(".metrics-grid")).not.toBeInTheDocument();
+  });
+
+  it("keeps dark-mode tokens and all result breakpoints in the shipped stylesheet", async () => {
+    // The application tsconfig intentionally omits Node types; Vitest itself runs in Node.
+    // @ts-expect-error -- test-only runtime import, never bundled into the application.
+    const { readFileSync } = await import("node:fs");
+    const cwd = (globalThis as unknown as { process: { cwd: () => string } }).process.cwd();
+    const stylesheet = readFileSync(`${cwd}/src/styles.css`, "utf8") as string;
+    expect(stylesheet).toContain("@media (prefers-color-scheme: dark)");
+    for (const token of ["--bg", "--surface", "--surface-2", "--border", "--text", "--text-muted", "--accent", "--focus-ring"]) {
+      expect(stylesheet.match(new RegExp(`${token}:`, "g"))).toHaveLength(2);
+    }
+    expect(stylesheet).toContain("@media (max-width: 900px)");
+    expect(stylesheet).toContain("@media (max-width: 640px)");
+    expect(stylesheet).toContain("@media (max-width: 390px)");
   });
 });
