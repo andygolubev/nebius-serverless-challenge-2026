@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # Job lifecycle states. The mock backend walks a job through these to a terminal state.
 # Order matches the data plane's canonical run lifecycle (sim2policy runstate.py):
@@ -42,6 +42,8 @@ class JobRequest(BaseModel):
     algorithm: str | None = Field(default=None, description="Catalog algorithm id.")
     params: dict[str, Any] = Field(default_factory=dict, description="Bounded overrides.")
     seed: int | None = Field(default=None, description="Legacy alias for params.seed.")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class AuthRequest(BaseModel):
@@ -85,6 +87,144 @@ class Artifact(BaseModel):
 class ArtifactManifest(BaseModel):
     job_id: str
     status: str
-    metrics: dict[str, Any] = {}
-    media: list[str] = []
-    artifacts: list[Artifact] = []
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    media: list[str] = Field(default_factory=list)
+    artifacts: list[Artifact] = Field(default_factory=list)
+
+
+# -- Bring Your Robot beta ---------------------------------------------------------------
+
+RobotType = Literal["quadruped", "biped"]
+
+
+class FieldError(BaseModel):
+    """Stable field-oriented diagnostic returned without echoing tenant content."""
+
+    field: str
+    message: str
+
+
+class ValidationSummary(BaseModel):
+    body_count: int
+    joint_count: int
+    actuator_count: int
+    geom_count: int
+    joint_names: list[str]
+    actuator_names: list[str]
+
+
+class RobotAsset(BaseModel):
+    id: str
+    # Used by the persistence layer, deliberately omitted from API serialization.
+    tenant_id: str = Field(default="", exclude=True)
+    name: str
+    filename: str
+    robot_type: RobotType
+    digest: str
+    validation: ValidationSummary
+    validated_at: str
+    readiness: Literal["validated"] = "validated"
+    trainable: Literal[False] = False
+    reason: Literal["custom-training-not-enabled"] = "custom-training-not-enabled"
+
+
+class RobotSample(BaseModel):
+    id: str
+    name: str
+    filename: str
+    description: str
+    robot_type: RobotType
+    digest: str
+    validation: ValidationSummary
+
+
+class CatalogObjectInput(BaseModel):
+    object_type: Literal["box", "ramp", "hurdle", "step"]
+    x: float | None = None
+    y: float | None = None
+    z: float | None = None
+    yaw_degrees: float | None = None
+    width: float | None = None
+    depth: float | None = None
+    height: float | None = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CatalogObject(BaseModel):
+    object_type: Literal["box", "ramp", "hurdle", "step"]
+    x: float
+    y: float
+    z: float
+    yaw_degrees: float
+    width: float
+    depth: float
+    height: float
+    source: Literal["preset", "custom"]
+
+
+class ObjectParameter(BaseModel):
+    name: str
+    label: str
+    default: float
+    minimum: float
+    maximum: float
+    unit: str
+
+
+class ObjectCatalogEntry(BaseModel):
+    id: Literal["box", "ramp", "hurdle", "step"]
+    label: str
+    description: str
+    parameters: list[ObjectParameter]
+
+
+class TaskTemplate(BaseModel):
+    id: Literal["stand-balance", "walk-forward", "recover-from-fall"]
+    label: str
+    description: str
+    compatible_robot_types: list[RobotType]
+    contract: dict[str, str]
+
+
+class ScenePreset(BaseModel):
+    id: Literal["flat-arena", "ramp-course", "hurdle-course", "step-course"]
+    label: str
+    description: str
+    objects: list[CatalogObject]
+
+
+class EnvironmentCatalog(BaseModel):
+    task_templates: list[TaskTemplate]
+    scene_presets: list[ScenePreset]
+    object_types: list[ObjectCatalogEntry]
+    max_objects: int = 6
+    max_setups: int = 50
+    arena_bounds: dict[str, list[float]]
+
+
+class RobotSetupRequest(BaseModel):
+    name: str
+    robot_id: str
+    task_template_id: str
+    scene_preset_id: str
+    objects: list[CatalogObjectInput] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class RobotSetup(BaseModel):
+    id: str
+    tenant_id: str = Field(default="", exclude=True)
+    name: str
+    robot_id: str
+    robot_name: str
+    robot_type: RobotType
+    task_template_id: str
+    scene_preset_id: str
+    objects: list[CatalogObject]
+    digest: str
+    created_at: str
+    readiness: Literal["validated"] = "validated"
+    trainable: Literal[False] = False
+    reason: Literal["custom-training-not-enabled"] = "custom-training-not-enabled"

@@ -17,6 +17,7 @@ COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./
+COPY samples ./samples
 # Bring in the built static assets produced by stage 1.
 COPY --from=frontend /app/backend/static ./static
 

@@ -12,7 +12,17 @@ import time
 from dataclasses import dataclass
 
 from . import db
-from .models import ArtifactManifest, Job
+from .models import ArtifactManifest, Job, RobotAsset, RobotSetup
+
+ROBOT_QUOTA = 20
+SETUP_QUOTA = 50
+
+
+class QuotaExceeded(Exception):
+    def __init__(self, field: str, limit: int) -> None:
+        self.field = field
+        self.limit = limit
+        super().__init__(f"{field} quota of {limit} reached")
 
 
 class JobStore:
@@ -65,6 +75,162 @@ class JobStore:
         if row is None:
             return None
         return ArtifactManifest.model_validate_json(row[0])
+
+
+class RobotStore:
+    """Transactional, tenant-scoped storage for immutable robots and setup drafts."""
+
+    def __init__(self, db_path: str | None = None) -> None:
+        self._lock = threading.Lock()
+        self._conn = db.connect(db_path)
+
+    @staticmethod
+    def _robot(row: tuple[str, str]) -> RobotAsset:
+        return RobotAsset.model_validate_json(row[1]).model_copy(update={"tenant_id": row[0]})
+
+    @staticmethod
+    def _setup(row: tuple[str, str]) -> RobotSetup:
+        return RobotSetup.model_validate_json(row[1]).model_copy(update={"tenant_id": row[0]})
+
+    def create_robot(self, robot: RobotAsset, xml_content: str) -> tuple[RobotAsset, bool]:
+        """Create once, or return the active same-tenant/type/content version."""
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """SELECT tenant_id, data FROM robot_assets
+                       WHERE tenant_id = ? AND robot_type = ? AND digest = ?
+                         AND deleted_at IS NULL""",
+                    (robot.tenant_id, robot.robot_type, robot.digest),
+                ).fetchone()
+                if existing is not None:
+                    self._conn.execute("COMMIT")
+                    return self._robot(existing), False
+                count = self._conn.execute(
+                    "SELECT COUNT(*) FROM robot_assets WHERE tenant_id = ? AND deleted_at IS NULL",
+                    (robot.tenant_id,),
+                ).fetchone()[0]
+                if count >= ROBOT_QUOTA:
+                    raise QuotaExceeded("robots", ROBOT_QUOTA)
+                self._conn.execute(
+                    """INSERT INTO robot_assets
+                       (id, tenant_id, digest, robot_type, data, xml_content, deleted_at)
+                       VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+                    (
+                        robot.id,
+                        robot.tenant_id,
+                        robot.digest,
+                        robot.robot_type,
+                        robot.model_dump_json(),
+                        xml_content,
+                    ),
+                )
+                self._conn.execute("COMMIT")
+                return robot, True
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+
+    def list_robots(self, tenant_id: str) -> list[RobotAsset]:
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_assets
+                   WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY rowid DESC""",
+                (tenant_id,),
+            ).fetchall()
+        return [self._robot(row) for row in rows]
+
+    def get_robot(self, tenant_id: str, robot_id: str) -> RobotAsset | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_assets
+                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (robot_id, tenant_id),
+            ).fetchone()
+        return None if row is None else self._robot(row)
+
+    def get_robot_content(self, tenant_id: str, robot_id: str) -> tuple[RobotAsset, str] | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data, xml_content FROM robot_assets
+                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (robot_id, tenant_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return self._robot((row[0], row[1])), row[2]
+
+    def delete_robot(self, tenant_id: str, robot_id: str) -> bool:
+        with self._lock:
+            cursor = self._conn.execute(
+                """UPDATE robot_assets SET deleted_at = ?
+                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (time.time(), robot_id, tenant_id),
+            )
+        return cursor.rowcount == 1
+
+    def create_setup(self, setup: RobotSetup) -> tuple[RobotSetup, bool]:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """SELECT tenant_id, data FROM robot_setups
+                       WHERE tenant_id = ? AND digest = ? AND deleted_at IS NULL""",
+                    (setup.tenant_id, setup.digest),
+                ).fetchone()
+                if existing is not None:
+                    self._conn.execute("COMMIT")
+                    return self._setup(existing), False
+                count = self._conn.execute(
+                    "SELECT COUNT(*) FROM robot_setups WHERE tenant_id = ? AND deleted_at IS NULL",
+                    (setup.tenant_id,),
+                ).fetchone()[0]
+                if count >= SETUP_QUOTA:
+                    raise QuotaExceeded("setups", SETUP_QUOTA)
+                self._conn.execute(
+                    """INSERT INTO robot_setups
+                       (id, tenant_id, robot_id, digest, data, deleted_at)
+                       VALUES (?, ?, ?, ?, ?, NULL)""",
+                    (
+                        setup.id,
+                        setup.tenant_id,
+                        setup.robot_id,
+                        setup.digest,
+                        setup.model_dump_json(),
+                    ),
+                )
+                self._conn.execute("COMMIT")
+                return setup, True
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+
+    def list_setups(self, tenant_id: str) -> list[RobotSetup]:
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_setups
+                   WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY rowid DESC""",
+                (tenant_id,),
+            ).fetchall()
+        return [self._setup(row) for row in rows]
+
+    def get_setup(self, tenant_id: str, setup_id: str) -> RobotSetup | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_setups
+                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (setup_id, tenant_id),
+            ).fetchone()
+        return None if row is None else self._setup(row)
+
+    def delete_setup(self, tenant_id: str, setup_id: str) -> bool:
+        with self._lock:
+            cursor = self._conn.execute(
+                """UPDATE robot_setups SET deleted_at = ?
+                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (time.time(), setup_id, tenant_id),
+            )
+        return cursor.rowcount == 1
 
 
 @dataclass

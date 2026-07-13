@@ -34,6 +34,29 @@ CREATE TABLE IF NOT EXISTS artifacts (
     job_id TEXT PRIMARY KEY,
     data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS robot_assets (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    robot_type TEXT NOT NULL,
+    data TEXT NOT NULL,
+    xml_content TEXT NOT NULL,
+    deleted_at REAL
+);
+CREATE INDEX IF NOT EXISTS robot_assets_tenant ON robot_assets (tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS robot_assets_active_digest
+    ON robot_assets (tenant_id, robot_type, digest) WHERE deleted_at IS NULL;
+CREATE TABLE IF NOT EXISTS robot_setups (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    robot_id TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    data TEXT NOT NULL,
+    deleted_at REAL
+);
+CREATE INDEX IF NOT EXISTS robot_setups_tenant ON robot_setups (tenant_id);
+CREATE UNIQUE INDEX IF NOT EXISTS robot_setups_active_digest
+    ON robot_setups (tenant_id, digest) WHERE deleted_at IS NULL;
 """
 
 
