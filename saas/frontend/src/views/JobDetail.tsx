@@ -1,33 +1,37 @@
-import { useEffect, useState } from "react";
-import { api, ArtifactManifest, Job, TERMINAL } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { api, ApiError, Artifact, ArtifactManifest, Job, TERMINAL } from "../api";
 import { LifecycleTimeline, relativeTime, StatusBadge } from "./shared";
+import { buildResultView, MetricEntry } from "./resultView";
 
-// Resolved configuration, live lifecycle, and results once the job completes.
 export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void }) {
   const [job, setJob] = useState<Job | null>(null);
   const [artifacts, setArtifacts] = useState<ArtifactManifest | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [artifactError, setArtifactError] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     let alive = true;
     async function refresh() {
       try {
-        const j = await api.getJob(jobId);
+        const loadedJob = await api.getJob(jobId);
         if (!alive) return;
-        setJob(j);
+        setJob(loadedJob);
         setError(null);
-        if (j.status === "completed") {
+        if (loadedJob.status === "completed") {
           try {
-            const m = await api.getArtifacts(jobId);
-            if (alive) {
-              setArtifacts(m);
-              const videos = m.artifacts.filter((a) => a.kind === "video");
-              const final = videos.find((a) => a.id.toLowerCase().includes("final")) ?? videos[0];
-              setSelectedVideo((current) => current ?? final?.id ?? null);
-            }
-          } catch {
-            // 409 while artifacts settle; next poll picks them up
+            const manifest = await api.getArtifacts(jobId);
+            if (!alive) return;
+            setArtifacts(manifest);
+            setArtifactError(false);
+            const videos = manifest.artifacts.filter((artifact) => artifact.kind === "video");
+            const final = videos.find((artifact) => artifact.id.toLowerCase().includes("final")) ?? videos[0];
+            setSelectedVideo((current) =>
+              current && videos.some((artifact) => artifact.id === current) ? current : final?.id ?? null,
+            );
+          } catch (cause) {
+            if (alive && (!(cause instanceof ApiError) || cause.status !== 409)) setArtifactError(true);
           }
         }
       } catch {
@@ -35,125 +39,266 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
       }
     }
     refresh();
-    const t = setInterval(() => {
+    const timer = setInterval(() => {
       if (job && TERMINAL.has(job.status) && (job.status !== "completed" || artifacts)) return;
       refresh();
     }, 2000);
     return () => {
       alive = false;
-      clearInterval(t);
+      clearInterval(timer);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, job?.status, artifacts !== null]);
+  }, [jobId, job?.status, artifacts !== null, retry]);
 
   if (error) {
     return (
       <>
-        <button className="btn-link" onClick={onBack}>
-          ← Back to jobs
-        </button>
+        <button className="btn-link" onClick={onBack}>← Back to jobs</button>
         <div className="alert alert-error">{error}</div>
       </>
     );
   }
-
-  if (!job) {
-    return <div className="skeleton" style={{ height: "12rem" }} aria-label="Loading job" />;
-  }
+  if (!job) return <div className="skeleton" style={{ height: "12rem" }} aria-label="Loading job" />;
 
   return (
-    <>
-      <button className="btn-link" onClick={onBack}>
-        ← Back to jobs
-      </button>
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)", margin: "var(--sp-3) 0" }}>
-        <h1 className="section-title" style={{ flex: 1, marginBottom: 0 }}>
-          {job.environment} · {job.algorithm}
-        </h1>
-        <StatusBadge status={job.status} />
-      </div>
-      <p className="section-sub">
-        #{job.id.slice(0, 8)} · created {relativeTime(job.created_at)} · updated {relativeTime(job.updated_at)}
-      </p>
-
-      <LifecycleTimeline status={job.status} />
+    <div className="job-detail">
+      <button className="btn-link back-link" onClick={onBack}>← Back to jobs</button>
+      <header className="job-detail-header">
+        <div className="job-title-row">
+          <div>
+            <p className="eyebrow">Training job</p>
+            <h1>{job.environment} · {job.algorithm}</h1>
+          </div>
+          <StatusBadge status={job.status} />
+        </div>
+        <p className="job-meta" title={job.id}>
+          <span>#{job.id}</span>
+          <span>Created {relativeTime(job.created_at)}</span>
+          <span>Updated {relativeTime(job.updated_at)}</span>
+        </p>
+        <LifecycleTimeline status={job.status} />
+      </header>
 
       {job.status === "finalizing" && (
-        <div className="alert">GPU training finished. Reports and playable media are being finalized.</div>
+        <div className="alert alert-info finalizing-callout" role="status">
+          <strong>Training is complete.</strong> Reports and playable media are being finalized.
+        </div>
       )}
 
-      <div className="card" style={{ margin: "var(--sp-4) 0" }}>
-        <h2 style={{ fontSize: "var(--fs-md)", marginBottom: "var(--sp-3)" }}>Configuration</h2>
-        <dl className="kv">
-          {job.preset && (
-            <>
-              <dt>preset</dt>
-              <dd>{job.preset}</dd>
-            </>
-          )}
-          <dt>environment</dt>
-          <dd>{job.resolved_config.environment}</dd>
-          <dt>algorithm</dt>
-          <dd>{job.resolved_config.algorithm}</dd>
-          {Object.entries(job.resolved_config.params).map(([k, v]) => (
-            <span key={k} style={{ display: "contents" }}>
-              <dt>{k}</dt>
-              <dd>{String(v)}</dd>
-            </span>
-          ))}
-        </dl>
-      </div>
-
       {job.status === "completed" && (
-        <div className="card">
-          <h2 style={{ fontSize: "var(--fs-md)", marginBottom: "var(--sp-3)" }}>Results</h2>
-          {!artifacts ? (
-            <div className="skeleton" style={{ height: "5rem" }} aria-label="Loading results" />
-          ) : (
-            <>
-              <div className="metrics-grid" style={{ marginBottom: "var(--sp-4)" }}>
-                {Object.entries(artifacts.metrics).map(([k, v]) => (
-                  <div className="metric" key={k}>
-                    <div className="label">{k}</div>
-                    <pre className="value" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{displayMetric(v)}</pre>
-                  </div>
-                ))}
-              </div>
-              {artifacts.artifacts.some((a) => a.kind === "video") && (
-                <>
-                  <h3 style={{ fontSize: "var(--fs-sm)", marginBottom: "var(--sp-2)" }}>Media</h3>
-                  {artifacts.artifacts.filter((a) => a.kind === "video" && a.id === selectedVideo).map((a) => (
-                    <div key={a.id}>
-                      <video controls preload="metadata" style={{ width: "100%", maxHeight: "32rem", background: "#000" }} src={a.url}>
-                        Your browser does not support HTML5 video.
-                      </video>
-                      <p><a href={a.url} target="_blank" rel="noreferrer">Open</a> · <a href={a.download_url}>Download</a></p>
-                    </div>
-                  ))}
-                  <div className="env-grid" role="radiogroup" aria-label="Select video">
-                    {artifacts.artifacts.filter((a) => a.kind === "video").map((a) => (
-                      <button key={a.id} type="button" role="radio" aria-checked={a.id === selectedVideo} className={`env-card ${a.id === selectedVideo ? "selected" : ""}`} onClick={() => setSelectedVideo(a.id)}>{a.name}</button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </div>
+        <CompletedResults
+          job={job}
+          artifacts={artifacts}
+          artifactError={artifactError}
+          selectedVideo={selectedVideo}
+          onSelectVideo={setSelectedVideo}
+          onRetry={() => { setArtifactError(false); setRetry((value) => value + 1); }}
+        />
       )}
 
       {job.status === "failed" && (
-        <div className="alert alert-error">
-          <strong>Failed{job.failure_phase ? ` during ${job.failure_phase}` : ""}.</strong>{" "}
-          {job.error ?? "The service did not provide a safe failure reason."}
+        <div className="failure-panel" role="alert">
+          <span className="failure-icon" aria-hidden>!</span>
+          <div>
+            <h2>Failed{job.failure_phase ? ` during ${job.failure_phase}` : ""}</h2>
+            <p>{job.error ?? "The service did not provide a safe failure reason."}</p>
+          </div>
         </div>
       )}
-    </>
+
+      <details className="configuration-details" open={job.status !== "completed"}>
+        <summary>Configuration <span>{job.preset ?? "Custom catalog settings"}</span></summary>
+        <dl className="compact-kv">
+          {job.preset && <KeyValue label="Preset" value={job.preset} />}
+          <KeyValue label="Environment" value={job.resolved_config.environment} />
+          <KeyValue label="Algorithm" value={job.resolved_config.algorithm} />
+          {Object.entries(job.resolved_config.params).map(([key, value]) => (
+            <KeyValue key={key} label={key.replace(/_/g, " ")} value={String(value)} />
+          ))}
+        </dl>
+      </details>
+    </div>
   );
 }
 
-function displayMetric(value: unknown): string {
-  if (value === null) return "—";
-  if (typeof value === "object") return JSON.stringify(value, null, 2);
-  return String(value);
+function CompletedResults({
+  job,
+  artifacts,
+  artifactError,
+  selectedVideo,
+  onSelectVideo,
+  onRetry,
+}: {
+  job: Job;
+  artifacts: ArtifactManifest | null;
+  artifactError: boolean;
+  selectedVideo: string | null;
+  onSelectVideo: (id: string) => void;
+  onRetry: () => void;
+}) {
+  const view = useMemo(
+    () => buildResultView(artifacts?.metrics ?? {}, job.environment),
+    [artifacts, job.environment],
+  );
+  const [mediaError, setMediaError] = useState(false);
+  const [mediaRetry, setMediaRetry] = useState(0);
+  if (artifactError) {
+    return (
+      <div className="alert alert-error result-loading-error" role="alert">
+        Results could not be loaded.
+        <button className="btn btn-ghost" onClick={onRetry}>Retry results</button>
+      </div>
+    );
+  }
+  if (!artifacts) return <div className="skeleton result-skeleton" aria-label="Loading results" />;
+
+  const videos = artifacts.artifacts.filter((artifact) => artifact.kind === "video");
+  const selected = videos.find((artifact) => artifact.id === selectedVideo) ?? videos[0];
+  const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video");
+
+  return (
+    <section className="results-shell" aria-labelledby="results-heading">
+      <div className="result-primary-grid">
+        <div className="result-summary-panel">
+          <div className="result-section-heading">
+            <div>
+              <p className="eyebrow">Completed run</p>
+              <h2 id="results-heading">Training result</h2>
+            </div>
+            <span className="badge completed">Artifacts ready</span>
+          </div>
+          <div className="kpi-grid">
+            {view.kpis.map((kpi) => (
+              <div className={`kpi ${kpi.emphasis ? "primary" : ""}`} key={kpi.label}>
+                <span>{kpi.label}</span>
+                <strong title={kpi.title}>{kpi.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="media-panel">
+          <div className="result-section-heading">
+            <div><p className="eyebrow">Policy rollout</p><h2>{selected?.name ?? "Final media"}</h2></div>
+            {selected && <span className="metadata-line">{formatBytes(selected.size_bytes)}</span>}
+          </div>
+          {selected ? (
+            <>
+              <video key={`${selected.id}-${mediaRetry}`} controls preload="metadata" src={selected.url} onError={() => setMediaError(true)}>
+                Your browser does not support HTML5 video.
+              </video>
+              {mediaError && (
+                <div className="alert alert-error media-error" role="alert">
+                  Playback failed to load.
+                  <button className="btn btn-ghost" onClick={() => { setMediaError(false); setMediaRetry((value) => value + 1); }}>Retry playback</button>
+                </div>
+              )}
+              <div className="media-actions">
+                <a className="btn btn-ghost" href={selected.url} target="_blank" rel="noreferrer">Open media</a>
+                <a className="btn btn-ghost" href={selected.download_url}>Download</a>
+              </div>
+              {videos.length > 1 && (
+                <div className="media-selector" role="radiogroup" aria-label="Select rollout media">
+                  {videos.map((video) => (
+                    <button
+                      key={video.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={video.id === selected.id}
+                      className={video.id === selected.id ? "selected" : ""}
+                      onClick={() => { setMediaError(false); onSelectVideo(video.id); }}
+                      title={video.name}
+                    >
+                      <span aria-hidden>▶</span>{video.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="no-media">This completed run has metrics but no playable rollout media.</div>
+          )}
+        </div>
+      </div>
+
+      <div className="semantic-details">
+        <MetricDetails title="Evaluation" subtitle={`${view.evaluation.length} measurements`} entries={view.evaluation} defaultOpen />
+        <EpisodeDetails episodes={view.episodes} />
+        <MetricDetails title="Compute" subtitle={`${view.compute.length} properties`} entries={view.compute} />
+        <MetricDetails title="Run" subtitle={`${view.run.length} identifiers`} entries={view.run} />
+      </div>
+
+      {otherFiles.length > 0 && <ArtifactFiles artifacts={otherFiles} />}
+
+      <details className="raw-diagnostics">
+        <summary>Raw diagnostics <span>Structured JSON for debugging</span></summary>
+        <pre>{JSON.stringify(artifacts.metrics, null, 2)}</pre>
+      </details>
+    </section>
+  );
+}
+
+function MetricDetails({ title, subtitle, entries, defaultOpen = false }: { title: string; subtitle: string; entries: MetricEntry[]; defaultOpen?: boolean }) {
+  return (
+    <details className="result-detail" open={defaultOpen}>
+      <summary><strong>{title}</strong><span>{subtitle}</span></summary>
+      {entries.length ? (
+        <dl className="metric-list">
+          {entries.map((entry) => <KeyValue key={entry.rawKey} label={entry.label} value={entry.value} />)}
+        </dl>
+      ) : <p className="detail-empty">No {title.toLowerCase()} metrics were published.</p>}
+    </details>
+  );
+}
+
+function EpisodeDetails({ episodes }: { episodes: ReturnType<typeof buildResultView>["episodes"] }) {
+  return (
+    <details className="result-detail">
+      <summary><strong>Episodes</strong><span>{episodes.length ? `${episodes.length} evaluated` : "No episode list"}</span></summary>
+      {episodes.length ? (
+        <div className="episode-table">
+          <div className="episode-header" aria-hidden><span>Episode</span><span>Reward</span><span>Length</span><span>Outcome</span><span>Mean velocity</span></div>
+          {episodes.map((episode, index) => (
+            <div className="episode-row" key={`${episode.index}-${index}`}>
+              <EpisodeCell label="Episode" value={episode.index} />
+              <EpisodeCell label="Reward" value={episode.reward} />
+              <EpisodeCell label="Length" value={episode.length} />
+              <EpisodeCell label="Outcome" value={episode.outcome} />
+              <EpisodeCell label="Mean velocity" value={episode.velocity} />
+            </div>
+          ))}
+        </div>
+      ) : <p className="detail-empty">This run did not publish per-episode rows.</p>}
+    </details>
+  );
+}
+
+function EpisodeCell({ label, value }: { label: string; value: string }) {
+  return <span><small>{label}</small><strong>{value}</strong></span>;
+}
+
+function ArtifactFiles({ artifacts }: { artifacts: Artifact[] }) {
+  return (
+    <details className="result-detail artifact-files">
+      <summary><strong>Result files</strong><span>{artifacts.length} downloadable</span></summary>
+      <ul>
+        {artifacts.map((artifact) => (
+          <li key={artifact.id}>
+            <span><strong>{artifact.name}</strong><small>{formatBytes(artifact.size_bytes)}</small></span>
+            <span><a href={artifact.url} target="_blank" rel="noreferrer">Open</a><a href={artifact.download_url}>Download</a></span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+function KeyValue({ label, value }: { label: string; value: string }) {
+  return <div><dt>{label}</dt><dd title={value}>{value}</dd></div>;
+}
+
+function formatBytes(value: number | null): string {
+  if (value === null) return "Size unavailable";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
 }

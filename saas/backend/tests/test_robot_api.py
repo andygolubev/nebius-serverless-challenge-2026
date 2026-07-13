@@ -91,6 +91,7 @@ def test_robot_upload_errors_are_bounded_sanitized_and_non_persistent(client, lo
         ({"name": "", "robot_type": "quadruped"}, ("robot.xml", b"<mujoco/>", "application/xml"), "name"),
         ({"name": "Robot", "robot_type": "snake"}, ("robot.xml", b"<mujoco/>", "application/xml"), "robot_type"),
         ({"name": "Robot", "robot_type": "quadruped"}, ("../robot.xml", b"<mujoco/>", "application/xml"), "file"),
+        ({"name": "Robot", "robot_type": "quadruped"}, ('bad"name.xml', b"<mujoco/>", "application/xml"), "file"),
         ({"name": "Robot", "robot_type": "quadruped"}, ("robot.xml", b"<!DOCTYPE x><mujoco/>", "application/xml"), "file"),
         ({"name": "Robot", "robot_type": "quadruped"}, ("robot.xml", b"secret-raw-content", "application/xml"), "file"),
     ]

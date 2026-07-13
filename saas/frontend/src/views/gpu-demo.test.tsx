@@ -53,21 +53,69 @@ describe("GPU composer", () => {
 });
 
 describe("job results", () => {
-  it("renders nested metrics and selectable playable video", async () => {
+  it("renders formatted KPIs, semantic details, episodes, and selectable playable video", async () => {
     const job = { id: "job1", preset: "go1-mjx-quality", environment: "go1", algorithm: "ppo-mjx", resolved_config: { environment: "go1", algorithm: "ppo-mjx", params: {} }, status: "completed", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), artifacts_status: "ready" };
-    const artifacts = { job_id: "job1", status: "completed", metrics: { aggregate: { reward: 28.4 } }, media: [], artifacts: [{ id: "video_final", name: "Final", kind: "video", content_type: "video/mp4", size_bytes: 123, url: "https://objects.example/final.mp4", download_url: "https://objects.example/final.mp4?download=1" }] };
+    const artifacts = { job_id: "job1", status: "completed", metrics: {
+      aggregate: { episodes: 2, mean_reward: 31.581, std_reward: 2.036, success_rate: 1 },
+      benchmark: { currency: "USD", estimated_cost: 0.5327, gpu_utilization_percent: 52 },
+      checkpoint: "final-000102400000.zip",
+      environment: "Go1JoystickFlatTerrain",
+      episodes: [
+        { index: 0, reward: 30.9, length: 1000, fell: false, mean_velocity: -0.013 },
+        { index: 1, reward: 32.2, length: 1000, fell: false, mean_velocity: 0.018 },
+      ],
+      run_id: "121455e7fd974a2baf6dd49b80910adc3",
+      runtime_seconds: 650.1,
+    }, media: [], artifacts: [
+      { id: "video_learning", name: "Learning rollout", kind: "video", content_type: "video/mp4", size_bytes: 100, url: "https://objects.example/learning.mp4", download_url: "https://objects.example/learning.mp4?download=1" },
+      { id: "video_final", name: "Final rollout", kind: "video", content_type: "video/mp4", size_bytes: 123, url: "https://objects.example/final.mp4", download_url: "https://objects.example/final.mp4?download=1" },
+    ] };
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input).endsWith("/artifacts") ? json(artifacts) : json(job)));
     const { container } = render(<JobDetail jobId="job1" onBack={() => undefined} />);
-    expect(await screen.findByText(/"reward": 28.4/)).toBeVisible();
-    await waitFor(() => expect(container.querySelector("video")).toHaveAttribute("src", artifacts.artifacts[0].url));
-    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", artifacts.artifacts[0].download_url);
+    expect((await screen.findAllByText("31.58"))[0]).toBeVisible();
+    expect(screen.getAllByText("$0.53")[0]).toBeVisible();
+    expect(screen.getAllByText("52%")[0]).toBeVisible();
+    expect(screen.getAllByText("10m 50s")[0]).toBeVisible();
+    expect(screen.getAllByText("Go1JoystickFlatTerrain")[0]).toBeVisible();
+    await waitFor(() => expect(container.querySelector("video")).toHaveAttribute("src", artifacts.artifacts[1].url));
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", artifacts.artifacts[1].download_url);
+    fireEvent.error(container.querySelector("video")!);
+    expect(screen.getByRole("button", { name: "Retry playback" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Retry playback" }));
+    expect(screen.queryByRole("button", { name: "Retry playback" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: /Learning rollout/ }));
+    expect(container.querySelector("video")).toHaveAttribute("src", artifacts.artifacts[0].url);
+
+    fireEvent.click(container.querySelectorAll(".result-detail > summary")[1]);
+    expect(screen.getAllByText("Completed")[0]).toBeVisible();
+    expect(screen.getByText("-0.01")).toBeVisible();
+    const raw = screen.getByText(/"mean_reward": 31.581/);
+    expect(raw).not.toBeVisible();
   });
 
-  it("shows finalization and sanitized failure states", async () => {
+  it("keeps finalization visible", async () => {
+    const finalizing = { id: "job-finalizing", preset: "go1-mjx-standard", environment: "go1", algorithm: "ppo-mjx", resolved_config: { environment: "go1", algorithm: "ppo-mjx", params: {} }, status: "finalizing", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), artifacts_status: "pending" };
+    vi.stubGlobal("fetch", vi.fn(() => json(finalizing)));
+    render(<JobDetail jobId="job-finalizing" onBack={() => undefined} />);
+    expect(await screen.findByText(/Reports and playable media are being finalized/)).toBeVisible();
+  });
+
+  it("shows sanitized failure states", async () => {
     const failed = { id: "job2", preset: "go1-mjx-quick", environment: "go1", algorithm: "ppo-mjx", resolved_config: { environment: "go1", algorithm: "ppo-mjx", params: {} }, status: "failed", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), artifacts_status: "pending", failure_phase: "submission", error: "quota unavailable" };
     vi.stubGlobal("fetch", vi.fn(() => json(failed)));
     render(<JobDetail jobId="job2" onBack={() => undefined} />);
     expect(await screen.findByText(/Failed during submission/)).toBeVisible();
     expect(screen.getByText(/quota unavailable/)).toBeVisible();
+  });
+
+  it("handles missing optional metrics and completed results without media", async () => {
+    const job = { id: "job3-with-a-very-long-id-that-must-wrap-safely", preset: null, environment: "go1", algorithm: "ppo-mjx", resolved_config: { environment: "go1", algorithm: "ppo-mjx", params: {} }, status: "completed", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), artifacts_status: "ready" };
+    const artifacts = { job_id: job.id, status: "completed", metrics: { checkpoint: "final-checkpoint-with-an-extremely-long-name-that-must-not-create-a-column.zip" }, media: [], artifacts: [] };
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input).endsWith("/artifacts") ? json(artifacts) : json(job)));
+    render(<JobDetail jobId={job.id} onBack={() => undefined} />);
+    expect(await screen.findByText("This completed run has metrics but no playable rollout media.")).toBeVisible();
+    expect(screen.getAllByText("—").length).toBeGreaterThan(1);
+    expect(screen.getAllByTitle(artifacts.metrics.checkpoint)[0]).toBeVisible();
+    expect(document.querySelector(".metrics-grid")).not.toBeInTheDocument();
   });
 });

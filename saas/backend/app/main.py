@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -221,7 +222,11 @@ async def upload_robot(
     if robot_type not in {"quadruped", "biped"}:
         raise _field_error("robot_type", "choose quadruped or biped")
     filename = file.filename or ""
-    if not filename or Path(filename).name != filename or Path(filename).suffix.lower() != ".xml":
+    if (
+        not filename
+        or Path(filename).name != filename
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._ -]{0,115}\.xml", filename, re.IGNORECASE)
+    ):
         raise _field_error("file", "upload one .xml file with a safe filename")
     content = bytearray()
     try:

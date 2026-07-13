@@ -360,7 +360,7 @@ function RobotAvatar({ type }: { type: RobotType }) {
 }
 
 function humanize(value: string): string {
-  return value.replaceAll("-", " ").replace(/\b\w/g, (character) => character.toUpperCase());
+  return value.replace(/-/g, " ").replace(/\b\w/g, (character: string) => character.toUpperCase());
 }
 
 function EnvironmentBuilder({
