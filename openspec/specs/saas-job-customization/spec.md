@@ -6,11 +6,23 @@ hyperparameters — validated server-side against a single catalog that also dri
 keeping presets as named shortcuts and never accepting arbitrary code.
 ## Requirements
 ### Requirement: Training options catalog
-The system SHALL expose `GET /training-options` describing what users can configure: the list of environments (e.g. halfcheetah, ant, go1), the list of policy algorithms/backends available per environment, and for each tunable parameter its type, default, and allowed range or enum values. The catalog SHALL be the single source of truth the frontend renders the job composer from.
+The system SHALL expose `GET /training-options` as the production-executable source of truth for the frontend composer. Every returned environment/algorithm combination and preset MUST resolve to a production `JOB_SPEC`; entries without an immutable runtime selection, training config, GPU platform/preset, timeout, and bounded parameter mapping SHALL NOT be returned or accepted by `POST /jobs`. The public catalog SHALL contain only GPU-accelerated MJX/JAX PPO workloads and SHALL exclude SB3 workloads even when their compute shape includes a GPU.
+
+#### Scenario: Catalog contains only executable GPU workloads
+- **WHEN** a client requests `/training-options`
+- **THEN** every returned option resolves to an MJX/JAX PPO production job spec on an allowlisted GPU platform and can be submitted without a missing-spec failure
+
+#### Scenario: Unsupported combination is hidden and rejected
+- **WHEN** an environment/algorithm combination has no production job spec
+- **THEN** it is absent from `/training-options` and a direct `POST /jobs` request for it is rejected with 422 before a job record or remote resource is created
+
+#### Scenario: SB3 is not publicly offered
+- **WHEN** a client requests `/training-options`
+- **THEN** no SB3 algorithm, environment-only SB3 option, or SB3 preset is returned
 
 #### Scenario: Catalog lists environments and policies
 - **WHEN** a client requests `/training-options`
-- **THEN** the response enumerates environments, compatible policy options per environment, and per-parameter constraints (type, default, min/max or allowed values)
+- **THEN** the response enumerates the executable Go1 MJX/JAX PPO environment-policy combination, its three workload profiles, and bounded parameter constraints
 
 ### Requirement: Custom job submission
 The system SHALL accept job submissions at `POST /jobs` containing an environment id, a policy configuration (algorithm plus optional hyperparameter overrides such as learning rate, total timesteps, seed), and optional run settings. The system SHALL validate every field against the catalog's allowlists and bounds server-side; unknown fields, unknown environments/algorithms, or out-of-range values SHALL be rejected with 422 and a field-level error message. Arbitrary code, images, or shell commands SHALL NOT be accepted.
@@ -35,18 +47,30 @@ The system SHALL persist and return the fully resolved configuration (user overr
 - **THEN** the response includes the environment, policy, the overridden learning rate, and the defaulted values for all other parameters
 
 ### Requirement: Backward-compatible presets
-The system SHALL keep presets available as named shortcuts that expand to a full environment + policy configuration; submitting `{"preset": "..."}` SHALL remain valid and be recorded as the expanded configuration. The catalog SHALL designate exactly one preset as the default (`go1-mjx-demo`, the MJX flagship track), SHALL mark it explicitly in the `/training-options` response, and SHALL list it first; the job composer UI SHALL pre-select the default preset on load while allowing the user to switch to any other preset or clear the selection.
+The system SHALL expose three named Go1 MJX/JAX PPO workload profiles using the verified H100 platform and immutable MJX runtime: `go1-mjx-quick`, `go1-mjx-standard`, and `go1-mjx-quality`. The profiles SHALL define increasing bounded workload sizes and complete server-owned execution settings, including total timesteps, checkpoint cadence, evaluation scope, rendered progression scope, and timeout. Exactly one profile SHALL be marked as the default. Existing Go1 preset aliases MAY be accepted during migration, but removed SB3 presets SHALL NOT remain publicly listed or create new production jobs.
 
-The default MJX preset SHALL request 100,000,000 timesteps, and the MJX algorithm's validation ceiling SHALL permit that value without raising the SB3 ceiling above 5,000,000.
+The quality profile SHALL retain the verified 100,000,000-timestep workload. Quick and Standard values SHALL be chosen through bounded H100 acceptance runs so that their displayed duration/cost labels reflect observed end-to-end execution rather than timestep ratios alone.
+
+#### Scenario: Three GPU workload sizes are listed
+- **WHEN** a client requests `/training-options`
+- **THEN** the response contains Quick, Standard, and Quality Go1 MJX PPO profiles with increasing workload sizes and user-facing duration/cost guidance
+
+#### Scenario: Quality profile preserves the flagship run
+- **WHEN** `go1-mjx-quality` is resolved
+- **THEN** it selects Go1 MJX/JAX PPO on `gpu-h100-sxm` / `1gpu-16vcpu-200gb` with 100,000,000 total timesteps and the verified production runtime
+
+#### Scenario: Removed SB3 preset is rejected
+- **WHEN** a tenant submits a removed HalfCheetah or Ant SB3 preset
+- **THEN** the system responds 422 and creates neither a SaaS job record nor a Nebius job
 
 #### Scenario: Preset submission still works
-- **WHEN** an authenticated user submits `{"preset": "ant-demo"}`
-- **THEN** the system responds 201 and the job's resolved configuration matches the preset's expansion
+- **WHEN** an authenticated tenant submits Quick, Standard, or Quality by preset ID
+- **THEN** the system responds 201 and records the selected profile's fully expanded Go1 MJX configuration
 
 #### Scenario: Catalog marks the flagship default preset
 - **WHEN** a client requests `/training-options`
-- **THEN** the presets list contains exactly one entry flagged as the default, it is `go1-mjx-demo`, and it appears first in the list
+- **THEN** exactly one of the three GPU workload profiles is explicitly marked as the default
 
 #### Scenario: Composer opens on the flagship preset
-- **WHEN** an authenticated user opens the job composer
-- **THEN** the form is pre-filled from the default preset's environment, algorithm, and parameters, and the user can still select a different preset or edit any field before submitting
+- **WHEN** an authenticated tenant opens the job composer
+- **THEN** the default GPU workload profile is pre-selected and the tenant can select either of the other executable GPU profiles

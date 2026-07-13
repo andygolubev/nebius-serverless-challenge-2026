@@ -19,6 +19,22 @@ The SaaS backend SHALL read status, metrics, manifests, and media metadata from 
 - **WHEN** a manifest references a missing, unsafe, or out-of-prefix object
 - **THEN** the backend refuses to expose the reference and records a sanitized artifact-validation failure
 
+#### Scenario: Completed job returns real artifacts
+- **WHEN** a finalized Nebius-backed job's owner requests its artifacts
+- **THEN** the response is derived from validated objects under the run prefix and contains structured artifact metadata rather than in-process placeholders
+
+#### Scenario: Artifacts not yet written
+- **WHEN** required finalized artifacts are not yet readable
+- **THEN** the artifact API returns structured not-ready state and the job remains non-terminal
+
+#### Scenario: Manifest published after job completion
+- **WHEN** a historical completed job has no cached manifest and finalization later publishes `report/artifacts.json`
+- **THEN** an owner request reads, validates, and durably caches the manifest before returning structured artifacts
+
+#### Scenario: Lazy read failure degrades to not-ready
+- **WHEN** an on-demand historical manifest read encounters a missing key or transient S3 error
+- **THEN** the API reports artifacts not ready without leaking the storage error or returning an unhandled 5xx
+
 ## ADDED Requirements
 
 ### Requirement: Tenant-authorized artifact delivery
@@ -39,4 +55,3 @@ The backend SHALL expose an opaque artifact access URL for each manifest-declare
 #### Scenario: Arbitrary object key is rejected
 - **WHEN** a caller supplies an object key or artifact identifier not present in the owned job's validated manifest
 - **THEN** the API returns 404 and performs no S3 read for the caller-supplied key
-

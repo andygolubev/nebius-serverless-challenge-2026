@@ -15,6 +15,22 @@ The Nebius backend SHALL build each job submission exclusively from a catalog-re
 - **WHEN** the backend builds a submission whose run ID does not match the safe pattern `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`
 - **THEN** the backend refuses to submit and the job is marked failed
 
+#### Scenario: Submission derives from the preset catalog
+- **WHEN** a tenant submits an allowlisted GPU workload profile
+- **THEN** image, command, config, platform, preset, timeout, and bounds come entirely from its server-owned production job specification
+
+#### Scenario: MJX spec runs on the MJX runtime image
+- **WHEN** the backend builds any public production submission
+- **THEN** it uses the configured immutable MJX runtime image on the profile's allowlisted H100 shape
+
+#### Scenario: SB3 spec runs on the SB3 runtime image and right-sized hardware
+- **WHEN** production is configured with the GPU-only public catalog
+- **THEN** no public submission resolves to an SB3 runtime or SB3 compute shape
+
+#### Scenario: Missing MJX image configuration fails startup
+- **WHEN** the Nebius backend starts without its immutable MJX runtime image configuration
+- **THEN** settings validation fails before readiness and no job can be submitted
+
 ### Requirement: Status polling drives the tenant lifecycle
 The Nebius backend SHALL reconcile active Nebius jobs onto the tenant lifecycle across process restarts. Remote training success SHALL transition the tenant job into finalization rather than directly to `completed`; `completed` SHALL be persisted only after the required report, metrics, artifact manifest, and declared media outputs are readable from object storage. Polling and finalization checks SHALL use bounded retry and timeout policies, persist phase and last-update information, and stop only at `completed` or `failed`.
 
@@ -38,6 +54,10 @@ The Nebius backend SHALL reconcile active Nebius jobs onto the tenant lifecycle 
 - **WHEN** a job makes no acceptable progress beyond its configured deadline or required artifacts never finalize before timeout
 - **THEN** it becomes `failed` with a sanitized failure phase and reason instead of remaining indefinitely in `starting` or loading results
 
+#### Scenario: Terminal states end polling
+- **WHEN** reconciliation persists artifact-gated `completed` or a terminal `failed` state
+- **THEN** the backend stops polling and finalization checks for that job
+
 ### Requirement: Launch failure handling
 If submission, polling, training, finalization, or artifact validation fails terminally, the system SHALL mark the job `failed` with a sanitized error summary and failure phase. It SHALL NOT leak credentials, raw provider responses, stack traces, tenant identifiers, or secret selectors to the tenant. The job API SHALL retain the remote job identity and last successful phase when available for operator diagnosis.
 
@@ -48,4 +68,3 @@ If submission, polling, training, finalization, or artifact validation fails ter
 #### Scenario: Finalization failure is distinguishable
 - **WHEN** remote training succeeds but finalization fails terminally
 - **THEN** the job status becomes `failed` with phase `finalization`, retaining its remote job identity and a sanitized tenant-visible reason
-

@@ -15,6 +15,10 @@ The system SHALL expose `GET /training-options` as the production-executable sou
 - **WHEN** a client requests `/training-options`
 - **THEN** no SB3 algorithm, environment-only SB3 option, or SB3 preset is returned
 
+#### Scenario: Catalog lists environments and policies
+- **WHEN** a client requests `/training-options`
+- **THEN** the response enumerates the executable Go1 MJX/JAX PPO environment-policy combination, its three workload profiles, and bounded parameter constraints
+
 ### Requirement: Backward-compatible presets
 The system SHALL expose three named Go1 MJX/JAX PPO workload profiles using the verified H100 platform and immutable MJX runtime: `go1-mjx-quick`, `go1-mjx-standard`, and `go1-mjx-quality`. The profiles SHALL define increasing bounded workload sizes and complete server-owned execution settings, including total timesteps, checkpoint cadence, evaluation scope, rendered progression scope, and timeout. Exactly one profile SHALL be marked as the default. Existing Go1 preset aliases MAY be accepted during migration, but removed SB3 presets SHALL NOT remain publicly listed or create new production jobs.
 
@@ -32,3 +36,14 @@ The quality profile SHALL retain the verified 100,000,000-timestep workload. Qui
 - **WHEN** a tenant submits a removed HalfCheetah or Ant SB3 preset
 - **THEN** the system responds 422 and creates neither a SaaS job record nor a Nebius job
 
+#### Scenario: Preset submission still works
+- **WHEN** an authenticated tenant submits Quick, Standard, or Quality by preset ID
+- **THEN** the system responds 201 and records the selected profile's fully expanded Go1 MJX configuration
+
+#### Scenario: Catalog marks the flagship default preset
+- **WHEN** a client requests `/training-options`
+- **THEN** exactly one of the three GPU workload profiles is explicitly marked as the default
+
+#### Scenario: Composer opens on the flagship preset
+- **WHEN** an authenticated tenant opens the job composer
+- **THEN** the default GPU workload profile is pre-selected and the tenant can select either of the other executable GPU profiles

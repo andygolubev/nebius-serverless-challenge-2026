@@ -19,33 +19,35 @@ The SaaS app SHALL provide a `nebius` orchestration backend, selected via `SAAS_
 - **THEN** the `mock` backend is used and no Nebius API calls are made
 
 ### Requirement: Job creation from allowlisted presets only
+The Nebius backend SHALL build each job submission exclusively from a catalog-resolved production job specification and the server-generated job ID. It SHALL NOT accept tenant-supplied images, commands, code, environment variables, or secret references. Each public production option MUST use the configured immutable MJX runtime image and an allowlisted H100 GPU platform/preset; the backend SHALL validate this invariant before creating the local job record or remote Nebius resource.
 
-The Nebius backend SHALL build each job submission exclusively from the catalog-resolved preset configuration and the server-generated job ID. It SHALL NOT accept tenant-supplied images, commands, environment IDs, or code, and SHALL apply the preset's platform, timeout, and step limits to the submission. Each submission SHALL use the runtime image and compute shape (platform and preset) declared by the catalog job spec for the run's environment/algorithm combination: SB3-backed specs use the configured SB3 runtime image, and MJX-backed specs use the configured MJX runtime image. The backend's settings contract SHALL require both runtime image references at startup and SHALL fail readiness when either is missing.
+#### Scenario: GPU profile derives from the production catalog
+- **WHEN** a tenant submits Quick, Standard, or Quality
+- **THEN** the backend derives the immutable MJX image, Go1 config, H100 platform/preset, bounded workload settings, timeout, and secret selectors entirely from the server-owned job specification
 
-#### Scenario: Submission derives from the preset catalog
-
-- **WHEN** a tenant posts a job with an allowlisted preset
-- **THEN** the backend submits a Serverless AI job whose image, container command, platform/preset, timeout, and limits come from the server-side catalog, parameterized only by the generated run ID and optional safe seed override
-
-#### Scenario: MJX spec runs on the MJX runtime image
-
-- **WHEN** the backend builds the submission for an MJX-backed job spec (e.g. `go1`/`ppo-mjx`)
-- **THEN** the submission's image is the configured MJX runtime image and its platform/preset are the shape declared by that job spec
-
-#### Scenario: SB3 spec runs on the SB3 runtime image and right-sized hardware
-
-- **WHEN** the backend builds the submission for an SB3-backed job spec
-- **THEN** the submission's image is the configured SB3 runtime image and its platform/preset are the SB3 spec's declared shape, which is not required to match the MJX shape
-
-#### Scenario: Missing MJX image configuration fails startup
-
-- **WHEN** the nebius backend is selected but the MJX runtime image variable is unset
-- **THEN** settings validation fails at startup and the pod does not become ready, and no job submission is attempted
+#### Scenario: Non-GPU or missing job spec is refused before creation
+- **WHEN** a request resolves to an SB3, non-GPU, or missing production job specification
+- **THEN** validation returns 422 before a SaaS job record or Nebius job is created
 
 #### Scenario: Unsafe run IDs are refused
-
 - **WHEN** the backend builds a submission whose run ID does not match the safe pattern `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`
 - **THEN** the backend refuses to submit and the job is marked failed
+
+#### Scenario: Submission derives from the preset catalog
+- **WHEN** a tenant submits an allowlisted GPU workload profile
+- **THEN** image, command, config, platform, preset, timeout, and bounds come entirely from its server-owned production job specification
+
+#### Scenario: MJX spec runs on the MJX runtime image
+- **WHEN** the backend builds any public production submission
+- **THEN** it uses the configured immutable MJX runtime image on the profile's allowlisted H100 shape
+
+#### Scenario: SB3 spec runs on the SB3 runtime image and right-sized hardware
+- **WHEN** production is configured with the GPU-only public catalog
+- **THEN** no public submission resolves to an SB3 runtime or SB3 compute shape
+
+#### Scenario: Missing MJX image configuration fails startup
+- **WHEN** the Nebius backend starts without its immutable MJX runtime image configuration
+- **THEN** settings validation fails before readiness and no job can be submitted
 
 ### Requirement: Nebius job ID persistence
 
@@ -57,24 +59,39 @@ The system SHALL store the Nebius-returned `aijob-*` resource ID on the job reco
 - **THEN** the job record is updated with the `aijob-*` ID before any status is reported to the tenant
 
 ### Requirement: Status polling drives the tenant lifecycle
-
-The Nebius backend SHALL poll `JobService.get()` for each active job and map Nebius job states onto the tenant-visible lifecycle (`queued`, `starting`, `training`, `rendering`, `evaluating`, `completed`, `failed` — the same order as the data plane's canonical run lifecycle). Polling SHALL stop once a job reaches a terminal state.
+The Nebius backend SHALL reconcile active Nebius jobs onto the tenant lifecycle across process restarts. Remote training success SHALL transition the tenant job into finalization rather than directly to `completed`; `completed` SHALL be persisted only after the required report, metrics, artifact manifest, and declared media outputs are readable from object storage. Polling and finalization checks SHALL use bounded retry and timeout policies, persist phase and last-update information, and stop only at `completed` or `failed`.
 
 #### Scenario: Running job is reflected to the tenant
-
 - **WHEN** the Nebius job is executing
-- **THEN** `GET /jobs/{job_id}` returns a non-terminal lifecycle status derived from the latest poll
+- **THEN** `GET /jobs/{job_id}` returns a non-terminal lifecycle status derived from the latest reconciliation
+
+#### Scenario: Remote success waits for finalized artifacts
+- **WHEN** the Nebius job succeeds but required finalization outputs are not yet available
+- **THEN** the tenant job remains in a non-terminal finalization lifecycle state and the artifact API reports its structured readiness state
+
+#### Scenario: Finalized run becomes completed
+- **WHEN** all required report and media outputs are readable and valid
+- **THEN** the artifact manifest is cached durably, the job becomes `completed`, and reconciliation stops
+
+#### Scenario: Active jobs resume after SaaS restart
+- **WHEN** the SaaS process starts with non-terminal jobs persisted in SQLite
+- **THEN** it resumes reconciliation from their stored remote job identities without creating duplicate Nebius jobs
+
+#### Scenario: Stale job fails with a bounded reason
+- **WHEN** a job makes no acceptable progress beyond its configured deadline or required artifacts never finalize before timeout
+- **THEN** it becomes `failed` with a sanitized failure phase and reason instead of remaining indefinitely in `starting` or loading results
 
 #### Scenario: Terminal states end polling
-
-- **WHEN** the Nebius job succeeds or fails
-- **THEN** the job record is set to `completed` or `failed` respectively and the backend stops polling that job
+- **WHEN** reconciliation persists artifact-gated `completed` or a terminal `failed` state
+- **THEN** the backend stops polling and finalization checks for that job
 
 ### Requirement: Launch failure handling
-
-If the Serverless AI job submission fails (SDK error, permission error, quota), the system SHALL mark the job `failed` with an error summary, SHALL NOT leak credentials or raw stack traces to the tenant, and SHALL report the failure on subsequent status requests.
+If submission, polling, training, finalization, or artifact validation fails terminally, the system SHALL mark the job `failed` with a sanitized error summary and failure phase. It SHALL NOT leak credentials, raw provider responses, stack traces, tenant identifiers, or secret selectors to the tenant. The job API SHALL retain the remote job identity and last successful phase when available for operator diagnosis.
 
 #### Scenario: Submission failure marks the job failed
+- **WHEN** Nebius job creation raises a terminal error
+- **THEN** the job status becomes `failed`, the stored failure phase is `submission`, and the public summary excludes secrets
 
-- **WHEN** `JobServiceClient.create()` raises an error
-- **THEN** the job status becomes `failed`, the stored error summary excludes secrets, and `GET /jobs/{job_id}` reports the failure
+#### Scenario: Finalization failure is distinguishable
+- **WHEN** remote training succeeds but finalization fails terminally
+- **THEN** the job status becomes `failed` with phase `finalization`, retaining its remote job identity and a sanitized tenant-visible reason

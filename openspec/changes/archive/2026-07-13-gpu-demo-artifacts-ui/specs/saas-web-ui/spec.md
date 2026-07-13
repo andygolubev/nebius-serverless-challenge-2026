@@ -15,6 +15,10 @@ The web app SHALL render the production-executable `/training-options` catalog a
 - **WHEN** the user types a value outside a profile's declared bounds
 - **THEN** the input shows the violation and the submit action is disabled until fixed
 
+#### Scenario: Compose and submit a custom job
+- **WHEN** an authenticated user selects one of the three GPU workload profiles and submits it
+- **THEN** the executable Go1 MJX job is created and appears in the dashboard without a page reload
+
 ### Requirement: Jobs dashboard
 The web app SHALL show tenant jobs with live lifecycle, artifact-readiness, relative timestamps, and stale-state indications. A failed job detail SHALL show its sanitized reason and failure phase; operator-visible remote identity SHALL be presented only where authorized. A completed job SHALL link to a results view with structured metrics and validated artifact controls, while finalizing jobs SHALL display their current phase rather than an indefinite skeleton.
 
@@ -33,6 +37,14 @@ The web app SHALL show tenant jobs with live lifecycle, artifact-readiness, rela
 #### Scenario: Nested metrics remain readable
 - **WHEN** result metrics contain nested objects or arrays
 - **THEN** the UI renders summaries and expandable structured values rather than `[object Object]`
+
+#### Scenario: Results view
+- **WHEN** the user opens a completed job
+- **THEN** the UI shows its resolved profile, structured metrics, and validated player/download controls from the artifact manifest
+
+#### Scenario: Empty state
+- **WHEN** an authenticated user with no jobs opens the dashboard
+- **THEN** the UI guides them to create one of the available GPU workload profiles
 
 ## ADDED Requirements
 
@@ -54,4 +66,3 @@ The results view SHALL embed manifest-declared MP4 artifacts in an accessible HT
 #### Scenario: Media becomes unavailable
 - **WHEN** artifact access returns an expired, missing, or authorization error
 - **THEN** the player shows a human-readable unavailable state and offers a safe retry that obtains fresh artifact metadata
-

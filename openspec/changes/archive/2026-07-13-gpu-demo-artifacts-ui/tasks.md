@@ -40,4 +40,4 @@
 - [x] 6.2 Tune and run one bounded Go1 Standard H100 acceptance job; measure end-to-end time/cost and verify artifact playback/seeking before deleting the GPU resource.
 - [x] 6.3 Re-verify the existing or a bounded Quality path against the immutable image, including 100M-step limits and full artifact set; stop/delete all GPU resources immediately after artifact checks.
 - [x] 6.4 Audit and clean up AI jobs, VMs, disks, public IPs, temporary rules, and failed resources; record non-secret IDs, immutable image digest, measurements, results, and cleanup in `IMPLEMENTATION_LOG.MD`.
-- [ ] 6.5 Publish measured Quick/Standard/Quality guidance, deploy the immutable SaaS image through GitOps, and verify production catalog consistency, tenant isolation, failure visibility, MP4 playback/seeking, and download actions.
+- [x] 6.5 Publish measured Quick/Standard/Quality guidance, deploy the immutable SaaS image through GitOps, and verify production catalog consistency, tenant isolation, failure visibility, MP4 playback/seeking, and download actions.
