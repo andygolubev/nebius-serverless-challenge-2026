@@ -45,7 +45,7 @@ class StubReader:
             raise self.error
         return self.manifest
 
-    def presigned_url(self, key: str, *, download_name: str | None = None) -> str:
+    def presigned_url(self, key: str, *, content_type: str | None = None, download_name: str | None = None) -> str:
         suffix = f"&download={download_name}" if download_name else ""
         return f"https://objects.example/artifact?key=opaque{suffix}"
 

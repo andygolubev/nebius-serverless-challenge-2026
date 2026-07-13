@@ -16,7 +16,7 @@
 
 - [x] 3.1 Normalize current and legacy manifests into structured artifact records with opaque IDs, safe labels, media kinds, content types, sizes when available, and validated run-prefix keys.
 - [x] 3.2 Add owner-scoped artifact access routes that reject caller-controlled keys and cross-tenant access, returning short-lived presigned GET redirects by default.
-- [ ] 3.3 Verify presigned Nebius Object Storage MP4 responses provide correct content type, safe filename behavior, and HTTP byte-range seeking; implement authenticated range proxy fallback only if required.
+- [x] 3.3 Verify presigned Nebius Object Storage MP4 responses provide correct content type, safe filename behavior, and HTTP byte-range seeking; implement authenticated range proxy fallback only if required.
 - [x] 3.4 Add tests for manifest validation, legacy normalization, owner playback/download, fresh URL issuance, arbitrary-key rejection, cross-tenant 404 behavior, and missing objects.
 
 ## 4. GPU composer and results UI
@@ -25,7 +25,7 @@
 - [x] 4.2 Extend frontend API types and job details to display finalization/artifact readiness, stale state, sanitized failure phase/reason, and authorized remote identity only where permitted.
 - [x] 4.3 Render scalar and nested metrics with type-aware cards, summaries, and expandable structured details instead of string coercion.
 - [x] 4.4 Build an accessible HTML5 MP4 player with final rollout default selection, human-readable media switching, loading/unavailable/retry states, and open/download actions.
-- [ ] 4.5 Add frontend tests for the three-profile composer, hidden unsupported options, finalization and failure states, nested metrics, video selection, artifact retry, and mobile/keyboard accessibility.
+- [x] 4.5 Add frontend tests for the three-profile composer, hidden unsupported options, finalization and failure states, nested metrics, video selection, artifact retry, and mobile/keyboard accessibility.
 
 ## 5. Local and deployment verification
 

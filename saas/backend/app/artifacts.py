@@ -92,8 +92,10 @@ class S3ArtifactReader:
             artifacts=artifacts,
         )
 
-    def presigned_url(self, key: str, *, download_name: str | None = None) -> str:
+    def presigned_url(self, key: str, *, content_type: str | None = None, download_name: str | None = None) -> str:
         params = {"Bucket": self._bucket, "Key": key}
+        if content_type:
+            params["ResponseContentType"] = content_type
         if download_name:
             params["ResponseContentDisposition"] = f'attachment; filename="{download_name}"'
         return self._client.generate_presigned_url("get_object", Params=params, ExpiresIn=300)

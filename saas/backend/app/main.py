@@ -194,8 +194,8 @@ def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> d
     reader = getattr(_backend, "artifact_reader", None)
     for artifact, stored in zip(data["artifacts"], manifest.artifacts, strict=True):
         if reader is not None and hasattr(reader, "presigned_url"):
-            artifact["url"] = reader.presigned_url(stored.key)
-            artifact["download_url"] = reader.presigned_url(stored.key, download_name=stored.key.rsplit("/", 1)[-1])
+            artifact["url"] = reader.presigned_url(stored.key, content_type=stored.content_type)
+            artifact["download_url"] = reader.presigned_url(stored.key, content_type=stored.content_type, download_name=stored.key.rsplit("/", 1)[-1])
         else:
             artifact["url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}"
             artifact["download_url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}?download=true"
@@ -216,7 +216,7 @@ def access_artifact(job_id: str, artifact_id: str, download: bool = False, sessi
     if artifact is None or reader is None or not hasattr(reader, "presigned_url"):
         raise HTTPException(status_code=404, detail="artifact not found")
     filename = artifact.key.rsplit("/", 1)[-1] if download else None
-    return RedirectResponse(reader.presigned_url(artifact.key, download_name=filename), status_code=307)
+    return RedirectResponse(reader.presigned_url(artifact.key, content_type=artifact.content_type, download_name=filename), status_code=307)
 
 
 def _normalize_legacy_manifest(manifest: ArtifactManifest) -> ArtifactManifest:
