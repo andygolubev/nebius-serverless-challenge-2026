@@ -162,8 +162,9 @@ kubectl -n saas get secret saas-nebius -o json | jq -r '.data | keys[]'
 ```
 
 The contract includes both runtime images: `SIM2POLICY_JOB_IMAGE` (`sim2policy:sb3-runtime`) and
-`SIM2POLICY_MJX_JOB_IMAGE` (`sim2policy:mjx-runtime`). Both are required at startup by the nebius
-backend, so roll out in order: publish the `mjx-runtime` image (CI), rerun `saas-nebius-sync` so the
+`SIM2POLICY_MJX_JOB_IMAGE` (an immutable `sim2policy:mjx-<git-sha>` tag selected by
+`saas_mjx_image_tag`). Both are required at startup by the nebius backend, so roll out in order:
+publish the immutable image (CI), rerun `saas-nebius-sync` so the
 secret gains `SIM2POLICY_MJX_JOB_IMAGE`, then deploy the app — a pod started before the secret has
 the key fails readiness by design while the old ReplicaSet keeps serving.
 
@@ -221,5 +222,7 @@ Secret or use `kubectl describe` during verification.
 `sim2policy/**` changes. It uses the existing `sim2policy-saas-ci` account through repository
 secrets `NEBIUS_REGISTRY` and `NEBIUS_REGISTRY_TOKEN`, pushes the target-prefixed commit tag first
 (`sim2policy:sb3-<sha>` / `sim2policy:mjx-<sha>`), then updates the matching compatibility tag
-(`sim2policy:sb3-runtime` / `sim2policy:mjx-runtime`) to the same image and records the digest. A
+(`sim2policy:sb3-runtime` and the compatibility `sim2policy:mjx-runtime`) to the same image and
+records the digest. Production SaaS job submission remains pinned to `saas_mjx_image_tag`; update
+that variable only after the immutable tag passes bounded GPU acceptance. A
 failed immutable push never updates the compatibility tag.

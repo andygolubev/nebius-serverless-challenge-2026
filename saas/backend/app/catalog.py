@@ -77,9 +77,9 @@ ENVIRONMENTS: dict[str, Environment] = {
 DEFAULT_PRESET = "go1-mjx-standard"
 
 PRESETS: dict[str, dict[str, Any]] = {
-    "go1-mjx-quick": {"label": "Go1 Quick", "description": "Fast GPU demo · provisional 15–30 min", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 5_000_000}},
-    "go1-mjx-standard": {"label": "Go1 Standard", "description": "Balanced GPU run · provisional 1–2 hr", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 25_000_000}},
-    "go1-mjx-quality": {"label": "Go1 Quality", "description": "Flagship GPU result · up to 4 hr", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_000}},
+    "go1-mjx-quick": {"label": "Go1 Quick", "description": "Fast GPU demo · observed about 20 min", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 5_000_000}},
+    "go1-mjx-standard": {"label": "Go1 Standard", "description": "Balanced GPU run · observed about 21 min", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 25_000_000}},
+    "go1-mjx-quality": {"label": "Go1 Quality", "description": "Flagship GPU result · observed about 27 min", "environment": "go1", "algorithm": "ppo-mjx", "params": {"total_timesteps": 100_000_000}},
 }
 
 

@@ -45,5 +45,5 @@ output "sb3_image" {
 }
 
 output "mjx_image" {
-  value = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:mjx-runtime"
+  value = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_mjx_image_tag}"
 }

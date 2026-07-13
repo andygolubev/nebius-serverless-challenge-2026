@@ -77,6 +77,17 @@ variable "saas_job_registry_secret_version_id" {
   default     = ""
 }
 
+variable "saas_mjx_image_tag" {
+  description = "Immutable MJX runtime tag accepted for production GPU jobs."
+  type        = string
+  default     = "mjx-7c00c0a1c1e0c4b6c59470357e4949cc00e0737e"
+
+  validation {
+    condition     = can(regex("^mjx-[0-9a-f]{40}$", var.saas_mjx_image_tag))
+    error_message = "saas_mjx_image_tag must be an immutable mjx-<40-character git SHA> tag."
+  }
+}
+
 variable "saas_registry_pull_secret_id" {
   description = "Existing MysteryBox secret containing the CONTAINER_REGISTRY token under key `token`."
   type        = string

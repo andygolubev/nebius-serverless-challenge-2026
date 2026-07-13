@@ -34,7 +34,7 @@ output "saas_nebius_contract" {
     NEBIUS_PROJECT_ID          = var.project_id
     NEBIUS_SUBNET_ID           = var.saas_subnet_id
     SIM2POLICY_JOB_IMAGE       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    SIM2POLICY_MJX_JOB_IMAGE   = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:mjx-runtime"
+    SIM2POLICY_MJX_JOB_IMAGE   = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_mjx_image_tag}"
     NEBIUS_S3_SECRET_SELECTOR  = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
     NEBIUS_REGISTRY_SECRET     = var.saas_job_registry_secret_version_id
     AWS_ACCESS_KEY_ID          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
