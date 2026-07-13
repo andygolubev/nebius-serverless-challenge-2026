@@ -1,43 +1,43 @@
 ## 1. Persistence and API contracts
 
-- [ ] 1.1 Add the bounded robot, validation-summary, setup, task-template, scene-preset, and
+- [x] 1.1 Add the bounded robot, validation-summary, setup, task-template, scene-preset, and
   catalog-object API models, including stable `validated`/`trainable: false` readiness fields and
   field-level validation errors.
-- [ ] 1.2 Add additive SQLite schema and tenant-scoped stores for immutable robot XML/metadata and
+- [x] 1.2 Add additive SQLite schema and tenant-scoped stores for immutable robot XML/metadata and
   normalized environment drafts, including digest idempotency, soft deletion, and the 20-robot /
   50-draft tenant quotas.
-- [ ] 1.3 Add persistence tests proving old databases migrate automatically, robots and drafts
+- [x] 1.3 Add persistence tests proving old databases migrate automatically, robots and drafts
   survive store/process recreation, duplicate content is idempotent, quotas are atomic, and
   cross-tenant reads/deletes return 404.
 
 ## 2. MJCF validation and canonical samples
 
-- [ ] 2.1 Implement the 1 MiB UTF-8 MJCF validator with pre-parse DTD/entity rejection, prohibited
+- [x] 2.1 Implement the 1 MiB UTF-8 MJCF validator with pre-parse DTD/entity rejection, prohibited
   element/reference checks, primitive-only geometry, one floating root, unique-name and
   actuator-reference validation, and the documented body/joint/actuator/geom/depth limits.
-- [ ] 2.2 Add original primitive-only `sample-quadruped.xml` and `sample-biped.xml` files plus a
+- [x] 2.2 Add original primitive-only `sample-quadruped.xml` and `sample-biped.xml` files plus a
   README under `saas/samples/robots/`, with no third-party meshes, generated media, or external
   references.
-- [ ] 2.3 Add authenticated sample list/download and robot upload/list/detail/content/delete routes;
+- [x] 2.3 Add authenticated sample list/download and robot upload/list/detail/content/delete routes;
   stream multipart uploads only to the configured bound and return sanitized diagnostics without
   logging or reflecting raw XML.
-- [ ] 2.4 Add validator and route tests covering both accepted samples, malformed XML, invalid
+- [x] 2.4 Add validator and route tests covering both accepted samples, malformed XML, invalid
   UTF-8, oversized input, DTD/entity payloads, includes, meshes/textures/plugins, remote/file paths,
   unknown actuator joints, duplicate names, structural limits, digest stability, deletion, and
   tenant isolation.
 
 ## 3. Server-owned task and environment builder
 
-- [ ] 3.1 Implement declarative catalogs for the three locomotion tasks, four scene presets, and
+- [x] 3.1 Implement declarative catalogs for the three locomotion tasks, four scene presets, and
   four primitive object types with compatible robot types, user-facing metadata, defaults, and
   numeric bounds.
-- [ ] 3.2 Implement setup create/list/detail/delete routes that resolve catalog defaults, enforce
+- [x] 3.2 Implement setup create/list/detail/delete routes that resolve catalog defaults, enforce
   task/robot compatibility, validate arena and six-object limits, persist normalized immutable
   JSON plus digest, and always return the non-trainable readiness reason.
-- [ ] 3.3 Add builder tests for every task compatibility rule and scene preset, valid custom object
+- [x] 3.3 Add builder tests for every task compatibility rule and scene preset, valid custom object
   composition, default resolution, unknown objects, out-of-range and out-of-arena values, excessive
   objects, cross-tenant robot references, forbidden file/URL fields, persistence, and deletion.
-- [ ] 3.4 Add regression tests proving custom robots/setups remain absent from `/training-options`
+- [x] 3.4 Add regression tests proving custom robots/setups remain absent from `/training-options`
   and cannot be submitted through `POST /jobs`, while all existing Go1 workload submissions remain
   unchanged.
 
