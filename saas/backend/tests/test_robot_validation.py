@@ -11,7 +11,9 @@ from app.robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate
 SAMPLES = Path(__file__).resolve().parents[2] / "samples" / "robots"
 
 
-def _robot(*, inner: str = "", actuator: str = '<motor name="motor" joint="hinge"/>') -> bytes:
+def _robot(
+    *, inner: str = "", actuator: str = '<motor name="motor" joint="hinge"/>'
+) -> bytes:
     return f"""<mujoco><worldbody><body name="root"><freejoint name="free"/>
       <joint name="hinge" type="hinge"/><geom name="body_geom" type="box"/>{inner}
       </body></worldbody><actuator>{actuator}</actuator></mujoco>""".encode()
@@ -34,7 +36,7 @@ def test_canonical_samples_pass_the_public_validator():
         (b"", "empty"),
         (b"\xff\xfe", "UTF-8"),
         (b"PK\x03\x04archive", "archives"),
-        (b'<!DOCTYPE mujoco><mujoco/>', "DTD"),
+        (b"<!DOCTYPE mujoco><mujoco/>", "DTD"),
         (b'<!ENTITY x "boom"><mujoco/>', "entity"),
         (b"<mujoco>", "well-formed"),
         (b'<mujoco xmlns="urn:other"/>', "without a namespace"),
@@ -43,8 +45,14 @@ def test_canonical_samples_pass_the_public_validator():
         (_robot(inner='<texture name="pixels"/>'), "<texture>"),
         (_robot(inner='<hfield name="terrain"/>'), "<hfield>"),
         (_robot(inner='<geom name="mesh_geom" type="mesh"/>'), "geometry type"),
-        (_robot(inner='<geom name="bad" type="box" mesh="outside"/>'), "attribute 'mesh'"),
-        (_robot(inner='<site name="bad" src="https://example.test/x"/>'), "attribute 'src'"),
+        (
+            _robot(inner='<geom name="bad" type="box" mesh="outside"/>'),
+            "attribute 'mesh'",
+        ),
+        (
+            _robot(inner='<site name="bad" src="https://example.test/x"/>'),
+            "attribute 'src'",
+        ),
         (_robot(inner='<camera name="unsupported"/>'), "outside the supported"),
         (_robot(inner='<joint name="hinge" type="hinge"/>'), "duplicate joint"),
         (_robot(actuator='<motor name="motor" joint="missing"/>'), "unknown joint"),
@@ -72,13 +80,17 @@ def test_size_body_joint_actuator_geom_and_depth_limits():
     with pytest.raises(RobotValidationError, match="geom limit is 128"):
         validate_mjcf(_robot(inner=geoms))
 
-    actuators = "".join(f'<motor name="extra_motor_{i}" joint="hinge"/>' for i in range(65))
+    actuators = "".join(
+        f'<motor name="extra_motor_{i}" joint="hinge"/>' for i in range(65)
+    )
     with pytest.raises(RobotValidationError, match="actuator limit is 64"):
         validate_mjcf(_robot(actuator=actuators))
 
-    nested = "<body name=\"deep_0\">" + "".join(
-        f'<body name="deep_{i}">' for i in range(1, 15)
-    ) + "</body>" * 15
+    nested = (
+        '<body name="deep_0">'
+        + "".join(f'<body name="deep_{i}">' for i in range(1, 15))
+        + "</body>" * 15
+    )
     with pytest.raises(RobotValidationError, match="depth limit is 16"):
         validate_mjcf(_robot(inner=nested))
 

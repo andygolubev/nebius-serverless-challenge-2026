@@ -15,7 +15,7 @@ MAX_ACTUATORS = 64
 MAX_GEOMS = 128
 MAX_XML_DEPTH = 16
 
-_DECLARATION = re.compile(br"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
+_DECLARATION = re.compile(rb"<!\s*(?:DOCTYPE|ENTITY)\b", re.IGNORECASE)
 _ALLOWED_ELEMENTS = {
     "mujoco",
     "compiler",
@@ -43,7 +43,15 @@ _ALLOWED_ELEMENTS = {
     "connect",
     "weld",
 }
-_PROHIBITED_ELEMENTS = {"include", "plugin", "mesh", "texture", "hfield", "composite", "flexcomp"}
+_PROHIBITED_ELEMENTS = {
+    "include",
+    "plugin",
+    "mesh",
+    "texture",
+    "hfield",
+    "composite",
+    "flexcomp",
+}
 _PROHIBITED_ATTRIBUTES = {
     "file",
     "dir",
@@ -84,7 +92,9 @@ def _depth(element: ET.Element, current: int = 1) -> int:
     return max(_depth(child, current + 1) for child in element)
 
 
-def _require_unique_names(elements: list[ET.Element], namespace: str, *, required: bool) -> list[str]:
+def _require_unique_names(
+    elements: list[ET.Element], namespace: str, *, required: bool
+) -> list[str]:
     names: list[str] = []
     for element in elements:
         name = (element.get("name") or "").strip()
@@ -110,53 +120,73 @@ def validate_mjcf(raw: bytes) -> tuple[str, str, ValidationSummary]:
     if len(raw) > MAX_ROBOT_BYTES:
         raise RobotValidationError("file", "MJCF file must be at most 1 MiB")
     if raw.startswith((b"PK\x03\x04", b"\x1f\x8b")):
-        raise RobotValidationError("file", "archives are not supported; upload one .xml file")
+        raise RobotValidationError(
+            "file", "archives are not supported; upload one .xml file"
+        )
     if _DECLARATION.search(raw):
-        raise RobotValidationError("file", "DTD and entity declarations are not supported")
+        raise RobotValidationError(
+            "file", "DTD and entity declarations are not supported"
+        )
     try:
         xml_content = raw.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RobotValidationError("file", "MJCF must be valid UTF-8") from exc
     if "\x00" in xml_content:
-        raise RobotValidationError("file", "MJCF contains an unsupported control character")
+        raise RobotValidationError(
+            "file", "MJCF contains an unsupported control character"
+        )
     try:
         root = ET.fromstring(xml_content)
     except ET.ParseError as exc:
         raise RobotValidationError("file", "MJCF is not well-formed XML") from exc
 
     if root.tag != "mujoco":
-        raise RobotValidationError("file", "root element must be <mujoco> without a namespace")
+        raise RobotValidationError(
+            "file", "root element must be <mujoco> without a namespace"
+        )
     depth = _depth(root)
     if depth > MAX_XML_DEPTH:
-        raise RobotValidationError("file", f"XML depth limit is {MAX_XML_DEPTH}; received {depth}")
+        raise RobotValidationError(
+            "file", f"XML depth limit is {MAX_XML_DEPTH}; received {depth}"
+        )
 
     for element in root.iter():
         tag = _tag(element)
         if tag in _PROHIBITED_ELEMENTS:
             raise RobotValidationError("file", f"<{tag}> is not supported")
         if tag not in _ALLOWED_ELEMENTS:
-            raise RobotValidationError("file", f"<{tag}> is outside the supported robot contract")
+            raise RobotValidationError(
+                "file", f"<{tag}> is outside the supported robot contract"
+            )
         for attribute, value in element.attrib.items():
             local_attribute = attribute.rsplit("}", 1)[-1]
             if local_attribute in _PROHIBITED_ATTRIBUTES:
-                raise RobotValidationError("file", f"attribute {local_attribute!r} is not supported")
+                raise RobotValidationError(
+                    "file", f"attribute {local_attribute!r} is not supported"
+                )
             normalized_value = value.strip().lower().replace("\\", "/")
             if (
                 "://" in normalized_value
                 or normalized_value.startswith(("/", "~/"))
                 or "../" in normalized_value
             ):
-                raise RobotValidationError("file", "external paths and remote references are not supported")
+                raise RobotValidationError(
+                    "file", "external paths and remote references are not supported"
+                )
 
     worldbodies = [element for element in root if _tag(element) == "worldbody"]
     if len(worldbodies) != 1:
         raise RobotValidationError("file", "MJCF must contain exactly one <worldbody>")
     root_bodies = [element for element in worldbodies[0] if _tag(element) == "body"]
     if len(root_bodies) != 1:
-        raise RobotValidationError("file", "worldbody must contain exactly one floating robot root body")
+        raise RobotValidationError(
+            "file", "worldbody must contain exactly one floating robot root body"
+        )
 
     bodies = [element for element in root.iter() if _tag(element) == "body"]
-    joints = [element for element in root.iter() if _tag(element) in {"joint", "freejoint"}]
+    joints = [
+        element for element in root.iter() if _tag(element) in {"joint", "freejoint"}
+    ]
     geoms = [element for element in root.iter() if _tag(element) == "geom"]
     actuator_containers = [element for element in root if _tag(element) == "actuator"]
     actuator_elements = [
@@ -178,7 +208,9 @@ def validate_mjcf(raw: bytes) -> tuple[str, str, ValidationSummary]:
     for geom in geoms:
         geom_type = geom.get("type", "sphere")
         if geom_type not in _PRIMITIVE_GEOMS:
-            raise RobotValidationError("file", f"geometry type {geom_type!r} is not supported")
+            raise RobotValidationError(
+                "file", f"geometry type {geom_type!r} is not supported"
+            )
 
     all_free_joints = [
         element
@@ -188,10 +220,13 @@ def validate_mjcf(raw: bytes) -> tuple[str, str, ValidationSummary]:
     root_free_joints = [
         element
         for element in root_bodies[0]
-        if _tag(element) == "freejoint" or (_tag(element) == "joint" and element.get("type") == "free")
+        if _tag(element) == "freejoint"
+        or (_tag(element) == "joint" and element.get("type") == "free")
     ]
     if len(all_free_joints) != 1 or len(root_free_joints) != 1:
-        raise RobotValidationError("file", "robot must have one free joint directly on its root body")
+        raise RobotValidationError(
+            "file", "robot must have one free joint directly on its root body"
+        )
 
     hinge_names = {
         element.get("name", "")
@@ -199,9 +234,13 @@ def validate_mjcf(raw: bytes) -> tuple[str, str, ValidationSummary]:
         if _tag(element) == "joint" and element.get("type", "hinge") == "hinge"
     }
     if not hinge_names:
-        raise RobotValidationError("file", "robot must contain at least one named hinge joint")
+        raise RobotValidationError(
+            "file", "robot must contain at least one named hinge joint"
+        )
     if not actuator_elements:
-        raise RobotValidationError("file", "robot must contain at least one joint actuator")
+        raise RobotValidationError(
+            "file", "robot must contain at least one joint actuator"
+        )
     referenced: set[str] = set()
     for actuator in actuator_elements:
         reference = (actuator.get("joint") or "").strip()
@@ -209,10 +248,14 @@ def validate_mjcf(raw: bytes) -> tuple[str, str, ValidationSummary]:
             raise RobotValidationError("file", "every actuator must reference a joint")
         if reference not in joint_names:
             name = actuator.get("name", "unnamed")
-            raise RobotValidationError("file", f"actuator {name!r} references unknown joint {reference!r}")
+            raise RobotValidationError(
+                "file", f"actuator {name!r} references unknown joint {reference!r}"
+            )
         referenced.add(reference)
     if not (hinge_names & referenced):
-        raise RobotValidationError("file", "at least one hinge joint must be controllable by an actuator")
+        raise RobotValidationError(
+            "file", "at least one hinge joint must be controllable by an actuator"
+        )
 
     summary = ValidationSummary(
         body_count=len(bodies),

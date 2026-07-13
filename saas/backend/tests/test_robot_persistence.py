@@ -20,7 +20,9 @@ def _summary() -> ValidationSummary:
     )
 
 
-def _robot(index: int, tenant: str = "a@example.com", digest: str | None = None) -> RobotAsset:
+def _robot(
+    index: int, tenant: str = "a@example.com", digest: str | None = None
+) -> RobotAsset:
     return RobotAsset(
         id=f"robot-{tenant}-{index}",
         tenant_id=tenant,
@@ -43,7 +45,19 @@ def _setup(index: int, tenant: str = "a@example.com") -> RobotSetup:
         robot_type="quadruped",
         task_template_id="walk-forward",
         scene_preset_id="flat-arena",
-        objects=[CatalogObject(object_type="box", x=index / 10, y=0, z=0, yaw_degrees=0, width=1, depth=1, height=0.3, source="custom")],
+        objects=[
+            CatalogObject(
+                object_type="box",
+                x=index / 10,
+                y=0,
+                z=0,
+                yaw_degrees=0,
+                width=1,
+                depth=1,
+                height=0.3,
+                source="custom",
+            )
+        ],
         digest=f"{index:064x}",
         created_at="2026-07-13T00:00:00+00:00",
     )
@@ -68,7 +82,9 @@ def test_existing_database_migrates_and_assets_survive_reopen(tmp_path):
     assert reopened.get_robot("a@example.com", robot.id) == robot
     assert reopened.get_robot_content("a@example.com", robot.id) == (robot, "<mujoco/>")
     assert reopened.get_setup("a@example.com", setup.id) == setup
-    assert sqlite3.connect(path).execute("SELECT id FROM jobs").fetchone() == ("old-job",)
+    assert sqlite3.connect(path).execute("SELECT id FROM jobs").fetchone() == (
+        "old-job",
+    )
 
 
 def test_duplicate_content_is_idempotent_and_soft_delete_allows_new_version(tmp_path):
@@ -81,7 +97,9 @@ def test_duplicate_content_is_idempotent_and_soft_delete_allows_new_version(tmp_
     assert store.get_robot_content("a@example.com", original.id) == (original, "first")
 
     assert store.delete_robot("a@example.com", original.id)
-    replacement, created = store.create_robot(_robot(3, digest=original.digest), "third")
+    replacement, created = store.create_robot(
+        _robot(3, digest=original.digest), "third"
+    )
     assert created and replacement.id != original.id
     assert store.get_robot("a@example.com", original.id) is None
 
@@ -101,7 +119,9 @@ def test_robot_quota_is_atomic_across_store_instances(tmp_path):
             return "quota"
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda args: create(*args), [(first, 100), (second, 101)]))
+        results = list(
+            pool.map(lambda args: create(*args), [(first, 100), (second, 101)])
+        )
     assert sorted(results) == ["created", "quota"]
     assert len(first.list_robots("a@example.com")) == 20
 
@@ -121,7 +141,9 @@ def test_setup_quota_is_atomic_and_preserves_existing_rows(tmp_path):
             return "quota"
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        results = list(pool.map(lambda args: create(*args), [(first, 100), (second, 101)]))
+        results = list(
+            pool.map(lambda args: create(*args), [(first, 100), (second, 101)])
+        )
     assert sorted(results) == ["created", "quota"]
     assert len(first.list_setups("a@example.com")) == 50
 

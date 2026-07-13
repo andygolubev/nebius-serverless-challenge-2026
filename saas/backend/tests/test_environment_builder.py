@@ -39,10 +39,18 @@ def test_environment_catalog_has_exact_bounded_server_owned_choices(client, logi
         "hurdle-course",
         "step-course",
     ]
-    assert [object_["id"] for object_ in data["object_types"]] == ["box", "ramp", "hurdle", "step"]
+    assert [object_["id"] for object_ in data["object_types"]] == [
+        "box",
+        "ramp",
+        "hurdle",
+        "step",
+    ]
     assert data["max_objects"] == 6
     for object_ in data["object_types"]:
-        assert all({"default", "minimum", "maximum"} <= set(param) for param in object_["parameters"])
+        assert all(
+            {"default", "minimum", "maximum"} <= set(param)
+            for param in object_["parameters"]
+        )
 
 
 def test_valid_setup_resolves_defaults_persists_and_is_idempotent(client, login):
@@ -74,7 +82,9 @@ def test_valid_setup_resolves_defaults_persists_and_is_idempotent(client, login)
         "height": 0.2,
         "source": "custom",
     }
-    retry = client.post("/robot-setups", json={**body, "name": "Retry"}, headers=headers)
+    retry = client.post(
+        "/robot-setups", json={**body, "name": "Retry"}, headers=headers
+    )
     assert retry.status_code == 201
     assert retry.json()["id"] == setup["id"]
     assert client.get("/robot-setups", headers=headers).json() == [setup]
@@ -92,7 +102,9 @@ def test_valid_setup_resolves_defaults_persists_and_is_idempotent(client, login)
         ("sample-biped", "biped", "recover-from-fall", 422),
     ],
 )
-def test_every_task_compatibility_rule(client, login, sample_id, robot_type, task_id, expected):
+def test_every_task_compatibility_rule(
+    client, login, sample_id, robot_type, task_id, expected
+):
     headers = login(_email())
     robot = _upload_sample(client, headers, sample_id, robot_type)
     response = client.post(
@@ -112,7 +124,9 @@ def test_every_task_compatibility_rule(client, login, sample_id, robot_type, tas
     ("scene_id", "preset_objects"),
     [("flat-arena", 0), ("ramp-course", 1), ("hurdle-course", 3), ("step-course", 3)],
 )
-def test_every_scene_preset_resolves_to_normalized_objects(client, login, scene_id, preset_objects):
+def test_every_scene_preset_resolves_to_normalized_objects(
+    client, login, scene_id, preset_objects
+):
     headers = login(_email())
     robot = _upload_sample(client, headers, "sample-quadruped", "quadruped")
     response = client.post(
@@ -130,7 +144,9 @@ def test_every_scene_preset_resolves_to_normalized_objects(client, login, scene_
     assert all(object_["source"] == "preset" for object_ in response.json()["objects"])
 
 
-def test_builder_rejects_incompatible_excessive_out_of_bounds_and_file_like_fields(client, login):
+def test_builder_rejects_incompatible_excessive_out_of_bounds_and_file_like_fields(
+    client, login
+):
     headers = login(_email())
     biped = _upload_sample(client, headers, "sample-biped", "biped")
     base = {
@@ -150,14 +166,20 @@ def test_builder_rejects_incompatible_excessive_out_of_bounds_and_file_like_fiel
         assert response.status_code == 422
         assert response.json()["detail"]["field"] == field
     for forbidden in ["object_file", "environment_url", "task_code"]:
-        response = client.post("/robot-setups", json={**base, forbidden: "https://evil.test"}, headers=headers)
+        response = client.post(
+            "/robot-setups",
+            json={**base, forbidden: "https://evil.test"},
+            headers=headers,
+        )
         assert response.status_code == 422
     for objects in [
         [{"object_type": "pyramid"}],
         [{"object_type": "box", "height": 3}],
         [{"object_type": "box", "mesh_url": "https://evil.test/object.obj"}],
     ]:
-        response = client.post("/robot-setups", json={**base, "objects": objects}, headers=headers)
+        response = client.post(
+            "/robot-setups", json={**base, "objects": objects}, headers=headers
+        )
         assert response.status_code == 422
     assert client.get("/robot-setups", headers=headers).json() == []
 
@@ -168,18 +190,35 @@ def test_setup_routes_hide_other_tenants_and_soft_delete(client, login):
     robot = _upload_sample(client, owner, "sample-quadruped", "quadruped")
     foreign_reference = client.post(
         "/robot-setups",
-        json={"name": "No", "robot_id": robot["id"], "task_template_id": "walk-forward", "scene_preset_id": "flat-arena"},
+        json={
+            "name": "No",
+            "robot_id": robot["id"],
+            "task_template_id": "walk-forward",
+            "scene_preset_id": "flat-arena",
+        },
         headers=stranger,
     )
     assert foreign_reference.status_code == 404
     setup = client.post(
         "/robot-setups",
-        json={"name": "Owned", "robot_id": robot["id"], "task_template_id": "walk-forward", "scene_preset_id": "flat-arena"},
+        json={
+            "name": "Owned",
+            "robot_id": robot["id"],
+            "task_template_id": "walk-forward",
+            "scene_preset_id": "flat-arena",
+        },
         headers=owner,
     ).json()
-    assert client.get(f"/robot-setups/{setup['id']}", headers=stranger).status_code == 404
-    assert client.delete(f"/robot-setups/{setup['id']}", headers=stranger).status_code == 404
-    assert client.delete(f"/robot-setups/{setup['id']}", headers=owner).status_code == 204
+    assert (
+        client.get(f"/robot-setups/{setup['id']}", headers=stranger).status_code == 404
+    )
+    assert (
+        client.delete(f"/robot-setups/{setup['id']}", headers=stranger).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"/robot-setups/{setup['id']}", headers=owner).status_code == 204
+    )
     assert client.get(f"/robot-setups/{setup['id']}", headers=owner).status_code == 404
 
 
@@ -188,12 +227,27 @@ def test_custom_robots_and_setups_never_enter_training_catalog_or_jobs(client, l
     robot = _upload_sample(client, headers, "sample-quadruped", "quadruped")
     setup = client.post(
         "/robot-setups",
-        json={"name": "Not trainable", "robot_id": robot["id"], "task_template_id": "walk-forward", "scene_preset_id": "flat-arena"},
+        json={
+            "name": "Not trainable",
+            "robot_id": robot["id"],
+            "task_template_id": "walk-forward",
+            "scene_preset_id": "flat-arena",
+        },
         headers=headers,
     ).json()
     options = client.get("/training-options").json()
     assert {environment["id"] for environment in options["environments"]} == {"go1"}
     assert robot["id"] not in str(options)
     assert setup["id"] not in str(options)
-    assert client.post("/jobs", json={"robot_id": robot["id"]}, headers=headers).status_code == 422
-    assert client.post("/jobs", json={"setup_id": setup["id"]}, headers=headers).status_code == 422
+    assert (
+        client.post(
+            "/jobs", json={"robot_id": robot["id"]}, headers=headers
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/jobs", json={"setup_id": setup["id"]}, headers=headers
+        ).status_code
+        == 422
+    )

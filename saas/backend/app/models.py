@@ -37,10 +37,14 @@ class JobRequest(BaseModel):
     Everything is validated against the server-side catalog; no free-form code or env.
     """
 
-    preset: str | None = Field(default=None, description="Named shortcut, e.g. ant-demo.")
+    preset: str | None = Field(
+        default=None, description="Named shortcut, e.g. ant-demo."
+    )
     environment: str | None = Field(default=None, description="Catalog environment id.")
     algorithm: str | None = Field(default=None, description="Catalog algorithm id.")
-    params: dict[str, Any] = Field(default_factory=dict, description="Bounded overrides.")
+    params: dict[str, Any] = Field(
+        default_factory=dict, description="Bounded overrides."
+    )
     seed: int | None = Field(default=None, description="Legacy alias for params.seed.")
 
     model_config = ConfigDict(extra="forbid")

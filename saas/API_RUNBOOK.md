@@ -84,7 +84,7 @@ response="$(curl --fail-with-body --silent --show-error \
     -H "Authorization: Bearer $TOKEN" \
     -H 'Content-Type: application/json' \
     --data '{
-      "preset": "halfcheetah-demo",
+      "preset": "go1-mjx-quick",
       "params": {
         "total_timesteps": 200000,
         "seed": 7
@@ -106,8 +106,8 @@ response="$(curl --fail-with-body --silent --show-error \
     -H "Authorization: Bearer $TOKEN" \
     -H 'Content-Type: application/json' \
     --data '{
-      "environment": "ant",
-      "algorithm": "ppo-sb3",
+      "environment": "go1",
+      "algorithm": "ppo-mjx",
       "params": {
         "total_timesteps": 250000,
         "seed": 42
@@ -120,6 +120,52 @@ JOB_ID="$(printf '%s' "$response" | jq -er '.id')"
 
 Always inspect `resolved_config` in the response. It is the server-validated configuration after
 preset expansion and default merging.
+
+## Validate a custom robot and setup
+
+Custom models are validation-only in this release. They cannot be inserted into `/jobs`; keep the
+production Go1 catalog workflow above separate from the onboarding workflow below.
+
+List and download the canonical examples without printing the bearer token or model content:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  "$BASE_URL/robot-samples" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+
+curl --fail-with-body --silent --show-error \
+  "$BASE_URL/robot-samples/sample-quadruped" \
+  -H "Authorization: Bearer $TOKEN" \
+  --output /tmp/sample-quadruped.xml
+```
+
+Upload one bounded XML file with a declared type:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  -X POST "$BASE_URL/robots" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F 'name=Quadruped API check' \
+  -F 'robot_type=quadruped' \
+  -F 'file=@/tmp/sample-quadruped.xml;type=application/xml' | jq .
+```
+
+The response must say `readiness: validated`, `trainable: false`, and
+`reason: custom-training-not-enabled`. Capture the opaque `.id` only if continuing the setup test;
+do not log private XML or bearer values. Discover the server-owned task/scene/object choices and
+bounds before composing a draft:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  "$BASE_URL/environment-catalog" \
+  -H "Authorization: Bearer $TOKEN" | jq .
+```
+
+`POST /robot-setups` accepts JSON containing `name`, an owned `robot_id`, a compatible
+`task_template_id`, a `scene_preset_id`, and up to six total bounded catalog objects. It does not
+accept file, URL, mesh, environment code, or task code fields. Robot and setup list/detail/content/
+delete routes are tenant scoped and return 404 for another tenant. Deletion is soft; do not use it
+during retained production acceptance when the user wants to inspect the same rows afterward.
 
 ## Follow lifecycle and remote job identity
 
@@ -151,9 +197,10 @@ while true; do
 done
 ```
 
-The tenant lifecycle is `queued → starting → training → completed` or `failed`. Some workloads may
-also report `evaluating` or `rendering`. `nebius_job_id` appears after remote creation succeeds and
-can be inspected with the Nebius CLI when operator cloud access is available:
+The full tenant lifecycle is
+`queued → starting → training → finalizing → rendering → evaluating → completed`, or `failed` from
+any phase. `nebius_job_id` appears after remote creation succeeds and can be inspected with the
+Nebius CLI when operator cloud access is available:
 
 ```bash
 NEBIUS_JOB_ID="$(printf '%s' "$job" | jq -er '.nebius_job_id')"

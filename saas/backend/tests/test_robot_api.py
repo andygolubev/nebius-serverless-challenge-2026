@@ -9,7 +9,9 @@ def _email() -> str:
     return f"robot-{uuid.uuid4().hex[:10]}@example.com"
 
 
-def test_sample_routes_require_auth_and_samples_round_trip_through_upload(client, login):
+def test_sample_routes_require_auth_and_samples_round_trip_through_upload(
+    client, login
+):
     assert client.get("/robot-samples").status_code == 401
     headers = login(_email())
     response = client.get("/robot-samples", headers=headers)
@@ -58,14 +60,18 @@ def test_robot_upload_list_detail_content_idempotency_and_soft_delete(client, lo
     assert duplicate.status_code == 201
     assert duplicate.json()["id"] == robot["id"]
     assert duplicate.json()["name"] == "Warehouse walker"
-    assert [item["id"] for item in client.get("/robots", headers=headers).json()] == [robot["id"]]
+    assert [item["id"] for item in client.get("/robots", headers=headers).json()] == [
+        robot["id"]
+    ]
     assert client.get(f"/robots/{robot['id']}", headers=headers).json() == robot
     content = client.get(f"/robots/{robot['id']}/content", headers=headers)
     assert content.content == sample
     assert "my-robot.xml" in content.headers["content-disposition"]
     assert client.delete(f"/robots/{robot['id']}", headers=headers).status_code == 204
     assert client.get(f"/robots/{robot['id']}", headers=headers).status_code == 404
-    assert client.get(f"/robots/{robot['id']}/content", headers=headers).status_code == 404
+    assert (
+        client.get(f"/robots/{robot['id']}/content", headers=headers).status_code == 404
+    )
     assert client.get("/robots", headers=headers).json() == []
 
 
@@ -80,7 +86,9 @@ def test_robot_routes_hide_other_tenants(client, login):
         headers=owner,
     ).json()
     for method, suffix in [("get", ""), ("get", "/content"), ("delete", "")]:
-        response = getattr(client, method)(f"/robots/{created['id']}{suffix}", headers=stranger)
+        response = getattr(client, method)(
+            f"/robots/{created['id']}{suffix}", headers=stranger
+        )
         assert response.status_code == 404
     assert client.get(f"/robots/{created['id']}", headers=owner).status_code == 200
 
@@ -88,15 +96,41 @@ def test_robot_routes_hide_other_tenants(client, login):
 def test_robot_upload_errors_are_bounded_sanitized_and_non_persistent(client, login):
     headers = login(_email())
     cases = [
-        ({"name": "", "robot_type": "quadruped"}, ("robot.xml", b"<mujoco/>", "application/xml"), "name"),
-        ({"name": "Robot", "robot_type": "snake"}, ("robot.xml", b"<mujoco/>", "application/xml"), "robot_type"),
-        ({"name": "Robot", "robot_type": "quadruped"}, ("../robot.xml", b"<mujoco/>", "application/xml"), "file"),
-        ({"name": "Robot", "robot_type": "quadruped"}, ('bad"name.xml', b"<mujoco/>", "application/xml"), "file"),
-        ({"name": "Robot", "robot_type": "quadruped"}, ("robot.xml", b"<!DOCTYPE x><mujoco/>", "application/xml"), "file"),
-        ({"name": "Robot", "robot_type": "quadruped"}, ("robot.xml", b"secret-raw-content", "application/xml"), "file"),
+        (
+            {"name": "", "robot_type": "quadruped"},
+            ("robot.xml", b"<mujoco/>", "application/xml"),
+            "name",
+        ),
+        (
+            {"name": "Robot", "robot_type": "snake"},
+            ("robot.xml", b"<mujoco/>", "application/xml"),
+            "robot_type",
+        ),
+        (
+            {"name": "Robot", "robot_type": "quadruped"},
+            ("../robot.xml", b"<mujoco/>", "application/xml"),
+            "file",
+        ),
+        (
+            {"name": "Robot", "robot_type": "quadruped"},
+            ('bad"name.xml', b"<mujoco/>", "application/xml"),
+            "file",
+        ),
+        (
+            {"name": "Robot", "robot_type": "quadruped"},
+            ("robot.xml", b"<!DOCTYPE x><mujoco/>", "application/xml"),
+            "file",
+        ),
+        (
+            {"name": "Robot", "robot_type": "quadruped"},
+            ("robot.xml", b"secret-raw-content", "application/xml"),
+            "file",
+        ),
     ]
     for data, file, field in cases:
-        response = client.post("/robots", data=data, files={"file": file}, headers=headers)
+        response = client.post(
+            "/robots", data=data, files={"file": file}, headers=headers
+        )
         assert response.status_code == 422
         assert response.json()["detail"]["field"] == field
         assert "secret-raw-content" not in response.text

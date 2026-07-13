@@ -10,10 +10,11 @@ the full lifecycle with no Nebius credentials or GPU.
 
 ```
 saas/
-├── backend/            FastAPI app (email-code auth, catalog, jobs API, mock orchestrator)
+├── backend/            FastAPI app (auth, jobs, robot/setup validation, orchestration)
 │   ├── app/
 │   └── tests/          pytest suite (auth + job validation)
-├── frontend/           React + Vite + TypeScript UI (login, composer, dashboard, results)
+├── frontend/           React + Vite UI (jobs, compact results, My Robots workspace)
+├── samples/robots/     Original primitive-only quadruped and biped MJCF examples
 └── Dockerfile          builds the frontend, serves it from the backend (one image)
 ```
 
@@ -30,7 +31,8 @@ Passwordless email + one-time code:
 
 ## Persistence
 
-Users, sessions, jobs, and artifact manifests are stored in SQLite at `SAAS_DB_PATH`
+Users, sessions, jobs, artifact manifests, immutable robot XML/metadata, and normalized robot setup
+drafts are stored in SQLite at `SAAS_DB_PATH`
 (default `saas.db` in the working directory — no setup needed locally). In the cluster the
 path points at a PersistentVolumeClaim (`/data/saas.db`), so logins and job history survive
 pod restarts and redeploys. Pending one-time codes and rate-limit counters are intentionally
@@ -111,6 +113,18 @@ polling, and artifacts, see [API_RUNBOOK.md](API_RUNBOOK.md).
 | GET  | `/jobs` | bearer | list this tenant's jobs |
 | GET  | `/jobs/{id}` | bearer | job status + resolved config (404 for another tenant's job) |
 | GET  | `/jobs/{id}/artifacts` | bearer | result manifest once completed |
+| GET  | `/robot-samples` | bearer | list the two canonical upload-compatible MJCF examples |
+| GET  | `/robot-samples/{id}` | bearer | download the exact canonical sample XML |
+| POST | `/robots` | bearer | upload and validate one bounded multipart MJCF file |
+| GET  | `/robots` | bearer | list active tenant robot versions |
+| GET  | `/robots/{id}` | bearer | inspect one owned active robot version |
+| GET  | `/robots/{id}/content` | bearer | download the immutable owned XML |
+| DELETE | `/robots/{id}` | bearer | soft-delete an owned robot version |
+| GET  | `/environment-catalog` | bearer | task, scene, object, default, and bound contracts |
+| POST | `/robot-setups` | bearer | save an immutable normalized environment draft |
+| GET  | `/robot-setups` | bearer | list active tenant setup drafts |
+| GET  | `/robot-setups/{id}` | bearer | inspect one owned active setup |
+| DELETE | `/robot-setups/{id}` | bearer | soft-delete an owned setup |
 
 Submit either a custom configuration or a preset shortcut — both are validated against the
 catalog in `app/catalog.py` (allowlisted environments/algorithms, bounded parameters; no custom
@@ -119,16 +133,61 @@ code, images, or environment variables):
 ```bash
 # custom
 curl -X POST /jobs -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"environment": "ant", "algorithm": "ppo-sb3", "params": {"learning_rate": 0.001, "seed": 42}}'
+  -d '{"environment": "go1", "algorithm": "ppo-mjx", "params": {"learning_rate": 0.001, "seed": 42}}'
 # preset
 curl -X POST /jobs -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"preset": "ant-demo", "seed": 42}'
+  -d '{"preset": "go1-mjx-quick", "seed": 42}'
 ```
 
 The response carries `resolved_config` — user overrides merged over catalog defaults — so a job
 always shows exactly what ran. Validation failures return 422 with `{"field", "message"}`.
 
-Select the orchestration backend with `SAAS_ORCHESTRATION_BACKEND` (only `mock` today).
+Select `mock` or `nebius` with `SAAS_ORCHESTRATION_BACKEND`; production uses the bounded Nebius
+adapter.
+
+## Bring Your Robot beta contract
+
+An MJCF robot is not a complete reinforcement-learning environment. It describes bodies, joints,
+actuators, and geometry, but not the accepted observation/action mapping, reward, termination,
+evaluation rule, or production job specification. The beta therefore separates three concepts:
+
+- **Robot model:** one owned, immutable, structurally validated MJCF XML version.
+- **Task template:** a server-owned objective (`stand-balance`, `walk-forward`, or the
+  quadruped-only `recover-from-fall`) with no tenant reward or termination code.
+- **Scene:** one server-owned preset (`flat-arena`, `ramp-course`, `hurdle-course`, or
+  `step-course`) plus bounded primitive catalog objects (`box`, `ramp`, `hurdle`, `step`).
+
+`POST /robots` accepts multipart fields `name`, `robot_type` (`quadruped` or `biped`), and `file`.
+The filename must be a safe `.xml` name and the file must be at most 1 MiB of UTF-8. Validation
+rejects DTD/entities before parsing; archives, includes, plugins, meshes, textures, height fields,
+external paths/URLs, file references, unknown elements, and non-primitive geometry. A model must
+have exactly one floating root, at least one actuated hinge, unique names, and valid actuator joint
+references. Limits are 64 bodies, 64 joints, 64 actuators, 128 geoms, and XML depth 16.
+
+Download `sample-quadruped.xml` or `sample-biped.xml` in **My Robots** to exercise the exact same
+public validator. A successful response contains a SHA-256 digest and deterministic structural
+summary. Re-uploading identical content for the same tenant and declared type returns the active
+version. Tenants can keep at most 20 active robot versions; deletion is soft and all reads/downloads
+remain owner-scoped with cross-tenant identifiers returning 404.
+
+The environment builder resolves all omitted object values from the published catalog, admits at
+most six total objects including preset composition, enforces the declared ±10 m arena position
+bounds plus per-object dimension/rotation bounds, and persists canonical JSON plus a digest. A
+tenant can keep at most 50 active setup drafts. It accepts no object file, mesh, scene XML/package,
+remote URL, Python environment, reward function, or executable task definition. These choices keep
+validation deterministic and avoid parser, units, collision, licensing, storage, and code-execution
+ambiguity while still covering realistic balance, walking, recovery, ramp, hurdle, box, and step
+workflows.
+
+Every accepted robot and setup deliberately returns:
+
+```json
+{"readiness":"validated","trainable":false,"reason":"custom-training-not-enabled"}
+```
+
+Neither resource appears in `/training-options` or is accepted by `POST /jobs`. The existing Go1
+Quick/Standard/Quality training path is unchanged; custom GPU training requires a later accepted
+adapter and convergence/operations validation.
 
 Run the backend tests:
 

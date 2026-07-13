@@ -41,7 +41,7 @@ flowchart LR
       AR --> SAAS["Tenant SaaS app (FastAPI + React)"]
       KS --> SAAS
       TEN["Tenants"] -->|"HTTPS 443"| SAAS
-      SAAS --> DB["SQLite on saas-data PVC"]
+      SAAS --> DB["SQLite: auth, jobs, robots, setup drafts"]
       SAAS --> MAIL["Mailjet SMTP relay"]
       SAAS --> API["Nebius Serverless AI API"]
       API --> J
@@ -74,9 +74,10 @@ flowchart LR
   `nebius_vpc_v1_security_group` that admits only 22/443/80;
   `cloud-init/saas-server.yaml.tftpl` bootstraps k3s, ArgoCD, and root-owned Secret reconcilers.
 - `saas/` is the tenant-facing SaaS application: a FastAPI backend (`saas/backend/`) exposing the
-  authenticated job API with verified-email tenant scoping, SQLite persistence, and pluggable mock
-  or Nebius orchestration, plus a React + Vite + TypeScript frontend (`saas/frontend/`). One
-  multi-stage image serves API and UI.
+  authenticated job API and validation-only robot/setup APIs with verified-email tenant scoping,
+  SQLite persistence, and pluggable mock or Nebius orchestration, plus a React + Vite + TypeScript
+  frontend (`saas/frontend/`). Original primitive MJCF examples live under `saas/samples/robots/`.
+  One multi-stage image serves API, samples, and UI.
 - The production catalog is derived from executable GPU job specifications and exposes three
   increasing Go1 MJX/JAX PPO profiles on H100. Unsupported or primarily CPU-bound combinations are
   neither listed nor accepted. Remote success enters durable finalization and `completed` is
@@ -114,14 +115,41 @@ k3s API (6443) and the ArgoCD UI are **not** public — operators manage the clu
 tunnel** (`ssh -L`). Only the tenant SaaS app is exposed, on 443 via Traefik. The app itself is
 tenant-scoped: passwordless email verification issues opaque bearer sessions, and every job and
 artifact derives its tenant from the verified email rather than a caller-controlled header. Users,
-sessions, jobs, and artifact manifests persist in SQLite on the single-writer `saas-data` PVC so a
-valid token issued before a restart stays valid after it; pending one-time codes and rate-limit
-windows stay in process memory (short-lived by design, safe to lose on restart). Training artifacts
-remain durable in S3. The active orchestration adapter submits
+sessions, jobs, artifact manifests, bounded immutable robot XML/metadata, and normalized setup
+drafts persist in SQLite on the single-writer `saas-data` PVC so a valid token and tenant state
+survive restart; pending one-time codes and rate-limit windows stay in process memory (short-lived
+by design, safe to lose on restart). Training artifacts remain durable in S3. The active
+orchestration adapter submits
 bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
 The server-side catalog selects the runtime and compute shape per job spec: SB3 uses the isolated
 SB3 image on the right-sized L40S shape, while the default `go1-mjx-demo` expands to the verified
 100M-step MJX workload using the isolated MJX image on a single H100.
+
+### Bring Your Robot validation boundary
+
+The robot-onboarding path is deliberately inside the existing SaaS control plane and outside the
+training data plane. One authenticated tenant may store up to 20 active immutable MJCF versions in
+the existing SQLite/PVC database. Each upload is limited to 1 MiB UTF-8 XML, primitive geometry,
+one floating root, 64 bodies, 64 joints, 64 actuators, 128 geoms, and depth 16; DTD/entities,
+archives, includes, plugins, meshes, textures, height fields, external references, paths, and
+unknown/executable elements are rejected before persistence. The original quadruped and biped
+samples are packaged into the SaaS image and pass the same validator without an exception path.
+
+A robot model supplies morphology, not a complete RL contract. The builder therefore combines one
+owned validated robot with a server-owned task (`stand-balance`, `walk-forward`, or quadruped-only
+`recover-from-fall`) and a server-owned scene preset (`flat-arena`, `ramp-course`,
+`hurdle-course`, or `step-course`). Optional scene edits are restricted to at most six total
+bounded `box`, `ramp`, `hurdle`, and `step` objects inside the published arena. There is no object
+file, mesh, scene package, URL, reward, environment code, container, or plugin upload surface. A
+tenant may keep 50 active immutable normalized setup drafts; robot/setup deletion is soft and all
+access derives ownership from the bearer session.
+
+Both resource types say `readiness: validated`, `trainable: false`, and
+`reason: custom-training-not-enabled`. They never enter `/training-options` or the `/jobs`
+submission path. Consequently this feature needs no new GPU job specification, runtime image,
+secret, bucket, VM, disk, IP, or cloud workflow. A future custom-MJX adapter must separately define
+and accept observation/action, reward, termination, evaluation, convergence, isolation, cost, and
+operations contracts before changing that readiness state.
 
 ### Secrets in use
 

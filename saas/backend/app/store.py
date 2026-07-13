@@ -86,13 +86,19 @@ class RobotStore:
 
     @staticmethod
     def _robot(row: tuple[str, str]) -> RobotAsset:
-        return RobotAsset.model_validate_json(row[1]).model_copy(update={"tenant_id": row[0]})
+        return RobotAsset.model_validate_json(row[1]).model_copy(
+            update={"tenant_id": row[0]}
+        )
 
     @staticmethod
     def _setup(row: tuple[str, str]) -> RobotSetup:
-        return RobotSetup.model_validate_json(row[1]).model_copy(update={"tenant_id": row[0]})
+        return RobotSetup.model_validate_json(row[1]).model_copy(
+            update={"tenant_id": row[0]}
+        )
 
-    def create_robot(self, robot: RobotAsset, xml_content: str) -> tuple[RobotAsset, bool]:
+    def create_robot(
+        self, robot: RobotAsset, xml_content: str
+    ) -> tuple[RobotAsset, bool]:
         """Create once, or return the active same-tenant/type/content version."""
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
@@ -149,7 +155,9 @@ class RobotStore:
             ).fetchone()
         return None if row is None else self._robot(row)
 
-    def get_robot_content(self, tenant_id: str, robot_id: str) -> tuple[RobotAsset, str] | None:
+    def get_robot_content(
+        self, tenant_id: str, robot_id: str
+    ) -> tuple[RobotAsset, str] | None:
         with self._lock:
             row = self._conn.execute(
                 """SELECT tenant_id, data, xml_content FROM robot_assets
@@ -272,7 +280,11 @@ class AuthStore:
     def allow_code_request(self, email: str, limit: int, window_seconds: float) -> bool:
         now = time.time()
         with self._lock:
-            times = [t for t in self._request_times.get(email, []) if now - t < window_seconds]
+            times = [
+                t
+                for t in self._request_times.get(email, [])
+                if now - t < window_seconds
+            ]
             if len(times) >= limit:
                 self._request_times[email] = times
                 return False
@@ -328,7 +340,8 @@ class AuthStore:
     def get_session(self, token: str) -> Session | None:
         with self._lock:
             row = self._conn.execute(
-                "SELECT token, email, expires_at FROM sessions WHERE token = ?", (token,)
+                "SELECT token, email, expires_at FROM sessions WHERE token = ?",
+                (token,),
             ).fetchone()
             if row is None:
                 return None

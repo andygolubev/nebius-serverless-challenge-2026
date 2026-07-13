@@ -48,7 +48,10 @@ _db_path = resolve_path()
 _store = JobStore(_db_path)
 _robot_store = RobotStore(_db_path)
 _backend = build_backend(os.environ.get("SAAS_ORCHESTRATION_BACKEND", "mock"))
-_auth = AuthService(AuthStore(_db_path), build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")))
+_auth = AuthService(
+    AuthStore(_db_path),
+    build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")),
+)
 
 
 @app.on_event("startup")
@@ -66,7 +69,9 @@ def _now() -> str:
 
 
 def _field_error(field: str, message: str, *, status_code: int = 422) -> HTTPException:
-    return HTTPException(status_code=status_code, detail={"field": field, "message": message})
+    return HTTPException(
+        status_code=status_code, detail={"field": field, "message": message}
+    )
 
 
 _SAMPLE_DEFINITIONS = {
@@ -101,7 +106,12 @@ def _samples_dir() -> Path:
 def _load_robot_samples() -> dict[str, tuple[RobotSample, bytes]]:
     loaded: dict[str, tuple[RobotSample, bytes]] = {}
     directory = _samples_dir()
-    for sample_id, (name, filename, robot_type, description) in _SAMPLE_DEFINITIONS.items():
+    for sample_id, (
+        name,
+        filename,
+        robot_type,
+        description,
+    ) in _SAMPLE_DEFINITIONS.items():
         raw = (directory / filename).read_bytes()
         _, digest, summary = validate_mjcf(raw)
         loaded[sample_id] = (
@@ -152,7 +162,9 @@ def request_code(req: AuthRequest) -> dict[str, str]:
     try:
         _auth.request_code(email)
     except RateLimited:
-        raise HTTPException(status_code=429, detail="too many code requests; try again later")
+        raise HTTPException(
+            status_code=429, detail="too many code requests; try again later"
+        )
     except EmailDeliveryError:
         raise HTTPException(
             status_code=503,
@@ -190,13 +202,17 @@ def me(session: Session = Depends(require_session)) -> dict[str, str]:
 
 
 @app.get("/robot-samples")
-def list_robot_samples(session: Session = Depends(require_session)) -> list[RobotSample]:
+def list_robot_samples(
+    session: Session = Depends(require_session),
+) -> list[RobotSample]:
     del session
     return [sample for sample, _ in _load_robot_samples().values()]
 
 
 @app.get("/robot-samples/{sample_id}")
-def download_robot_sample(sample_id: str, session: Session = Depends(require_session)) -> Response:
+def download_robot_sample(
+    sample_id: str, session: Session = Depends(require_session)
+) -> Response:
     del session
     entry = _load_robot_samples().get(sample_id)
     if entry is None:
@@ -225,7 +241,9 @@ async def upload_robot(
     if (
         not filename
         or Path(filename).name != filename
-        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._ -]{0,115}\.xml", filename, re.IGNORECASE)
+        or not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._ -]{0,115}\.xml", filename, re.IGNORECASE
+        )
     ):
         raise _field_error("file", "upload one .xml file with a safe filename")
     content = bytearray()
@@ -253,7 +271,9 @@ async def upload_robot(
     try:
         stored, _ = _robot_store.create_robot(robot, xml_content)
     except QuotaExceeded as exc:
-        raise _field_error(exc.field, f"tenant limit is {exc.limit} active robot versions") from exc
+        raise _field_error(
+            exc.field, f"tenant limit is {exc.limit} active robot versions"
+        ) from exc
     return stored
 
 
@@ -271,7 +291,9 @@ def get_robot(robot_id: str, session: Session = Depends(require_session)) -> Rob
 
 
 @app.get("/robots/{robot_id}/content")
-def get_robot_content(robot_id: str, session: Session = Depends(require_session)) -> Response:
+def get_robot_content(
+    robot_id: str, session: Session = Depends(require_session)
+) -> Response:
     entry = _robot_store.get_robot_content(session.email, robot_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="robot not found")
@@ -284,7 +306,9 @@ def get_robot_content(robot_id: str, session: Session = Depends(require_session)
 
 
 @app.delete("/robots/{robot_id}", status_code=204)
-def delete_robot(robot_id: str, session: Session = Depends(require_session)) -> Response:
+def delete_robot(
+    robot_id: str, session: Session = Depends(require_session)
+) -> Response:
     if not _robot_store.delete_robot(session.email, robot_id):
         raise HTTPException(status_code=404, detail="robot not found")
     return Response(status_code=204)
@@ -333,7 +357,9 @@ def create_robot_setup(
     try:
         stored, _ = _robot_store.create_setup(setup)
     except QuotaExceeded as exc:
-        raise _field_error(exc.field, f"tenant limit is {exc.limit} active environment setups") from exc
+        raise _field_error(
+            exc.field, f"tenant limit is {exc.limit} active environment setups"
+        ) from exc
     return stored
 
 
@@ -343,7 +369,9 @@ def list_robot_setups(session: Session = Depends(require_session)) -> list[Robot
 
 
 @app.get("/robot-setups/{setup_id}")
-def get_robot_setup(setup_id: str, session: Session = Depends(require_session)) -> RobotSetup:
+def get_robot_setup(
+    setup_id: str, session: Session = Depends(require_session)
+) -> RobotSetup:
     setup = _robot_store.get_setup(session.email, setup_id)
     if setup is None:
         raise HTTPException(status_code=404, detail="setup not found")
@@ -351,7 +379,9 @@ def get_robot_setup(setup_id: str, session: Session = Depends(require_session)) 
 
 
 @app.delete("/robot-setups/{setup_id}", status_code=204)
-def delete_robot_setup(setup_id: str, session: Session = Depends(require_session)) -> Response:
+def delete_robot_setup(
+    setup_id: str, session: Session = Depends(require_session)
+) -> Response:
     if not _robot_store.delete_setup(session.email, setup_id):
         raise HTTPException(status_code=404, detail="setup not found")
     return Response(status_code=204)
@@ -373,16 +403,22 @@ def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> 
             params = {**expansion["params"], **req.params}
             if req.seed is not None:
                 params.setdefault("seed", req.seed)
-            resolved = catalog.resolve_config(expansion["environment"], expansion["algorithm"], params)
+            resolved = catalog.resolve_config(
+                expansion["environment"], expansion["algorithm"], params
+            )
         else:
             if req.environment is None or req.algorithm is None:
-                raise catalog.ValidationError("environment", "provide a preset, or environment and algorithm")
+                raise catalog.ValidationError(
+                    "environment", "provide a preset, or environment and algorithm"
+                )
             params = dict(req.params)
             if req.seed is not None:
                 params.setdefault("seed", req.seed)
             resolved = catalog.resolve_config(req.environment, req.algorithm, params)
     except catalog.ValidationError as e:
-        raise HTTPException(status_code=422, detail={"field": e.field, "message": e.message})
+        raise HTTPException(
+            status_code=422, detail={"field": e.field, "message": e.message}
+        )
     job = Job(
         id=uuid.uuid4().hex,
         tenant_id=session.email,
@@ -429,16 +465,29 @@ def get_artifacts(job_id: str, session: Session = Depends(require_session)) -> d
     reader = getattr(_backend, "artifact_reader", None)
     for artifact, stored in zip(data["artifacts"], manifest.artifacts, strict=True):
         if reader is not None and hasattr(reader, "presigned_url"):
-            artifact["url"] = reader.presigned_url(stored.key, content_type=stored.content_type)
-            artifact["download_url"] = reader.presigned_url(stored.key, content_type=stored.content_type, download_name=stored.key.rsplit("/", 1)[-1])
+            artifact["url"] = reader.presigned_url(
+                stored.key, content_type=stored.content_type
+            )
+            artifact["download_url"] = reader.presigned_url(
+                stored.key,
+                content_type=stored.content_type,
+                download_name=stored.key.rsplit("/", 1)[-1],
+            )
         else:
             artifact["url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}"
-            artifact["download_url"] = f"/jobs/{job_id}/artifacts/{artifact['id']}?download=true"
+            artifact["download_url"] = (
+                f"/jobs/{job_id}/artifacts/{artifact['id']}?download=true"
+            )
     return data
 
 
 @app.get("/jobs/{job_id}/artifacts/{artifact_id}")
-def access_artifact(job_id: str, artifact_id: str, download: bool = False, session: Session = Depends(require_session)):
+def access_artifact(
+    job_id: str,
+    artifact_id: str,
+    download: bool = False,
+    session: Session = Depends(require_session),
+):
     job = _store.get(session.email, job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="artifact not found")
@@ -446,12 +495,19 @@ def access_artifact(job_id: str, artifact_id: str, download: bool = False, sessi
     if manifest is None:
         raise HTTPException(status_code=404, detail="artifact not found")
     manifest = _normalize_legacy_manifest(manifest)
-    artifact = next((item for item in manifest.artifacts if item.id == artifact_id), None)
+    artifact = next(
+        (item for item in manifest.artifacts if item.id == artifact_id), None
+    )
     reader = getattr(_backend, "artifact_reader", None)
     if artifact is None or reader is None or not hasattr(reader, "presigned_url"):
         raise HTTPException(status_code=404, detail="artifact not found")
     filename = artifact.key.rsplit("/", 1)[-1] if download else None
-    return RedirectResponse(reader.presigned_url(artifact.key, content_type=artifact.content_type, download_name=filename), status_code=307)
+    return RedirectResponse(
+        reader.presigned_url(
+            artifact.key, content_type=artifact.content_type, download_name=filename
+        ),
+        status_code=307,
+    )
 
 
 def _normalize_legacy_manifest(manifest: ArtifactManifest) -> ArtifactManifest:
@@ -463,7 +519,17 @@ def _normalize_legacy_manifest(manifest: ArtifactManifest) -> ArtifactManifest:
             continue
         filename = key.rsplit("/", 1)[-1]
         stem = filename.rsplit(".", 1)[0]
-        artifacts.append(Artifact(id=f"legacy-{index}-{stem}", name=stem.replace("_", " ").replace("-", " ").title(), kind="video" if filename.endswith(".mp4") else "file", content_type="video/mp4" if filename.endswith(".mp4") else "application/octet-stream", key=key))
+        artifacts.append(
+            Artifact(
+                id=f"legacy-{index}-{stem}",
+                name=stem.replace("_", " ").replace("-", " ").title(),
+                kind="video" if filename.endswith(".mp4") else "file",
+                content_type="video/mp4"
+                if filename.endswith(".mp4")
+                else "application/octet-stream",
+                key=key,
+            )
+        )
     normalized = manifest.model_copy(update={"artifacts": artifacts})
     _store.set_artifacts(normalized)
     return normalized
@@ -482,7 +548,9 @@ def _recover_artifacts(job: Job) -> ArtifactManifest | None:
     try:
         manifest = reader.read_manifest(job.id, job.id)
     except Exception:
-        log.warning("lazy artifact manifest read failed for job %s", job.id, exc_info=True)
+        log.warning(
+            "lazy artifact manifest read failed for job %s", job.id, exc_info=True
+        )
         return None
     if manifest is None:
         log.warning("lazy artifact manifest not found for job %s", job.id)
