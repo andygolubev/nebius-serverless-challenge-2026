@@ -4,8 +4,9 @@ import { Composer } from "./views/Composer";
 import { Dashboard } from "./views/Dashboard";
 import { JobDetail } from "./views/JobDetail";
 import { Login } from "./views/Login";
+import { MyRobots } from "./views/MyRobots";
 
-type Route = { view: "dashboard" } | { view: "composer" } | { view: "job"; id: string };
+type Route = { view: "dashboard" } | { view: "composer" } | { view: "robots" } | { view: "job"; id: string };
 
 export function App() {
   const [authed, setAuthed] = useState(() => session.token !== null);
@@ -45,7 +46,7 @@ export function App() {
         </span>
         <nav aria-label="Main">
           <button
-            className={`nav-btn ${route.view !== "composer" ? "active" : ""}`}
+            className={`nav-btn ${route.view === "dashboard" || route.view === "job" ? "active" : ""}`}
             onClick={() => setRoute({ view: "dashboard" })}
           >
             Jobs
@@ -55,6 +56,12 @@ export function App() {
             onClick={() => setRoute({ view: "composer" })}
           >
             New job
+          </button>
+          <button
+            className={`nav-btn ${route.view === "robots" ? "active" : ""}`}
+            onClick={() => setRoute({ view: "robots" })}
+          >
+            My Robots
           </button>
         </nav>
         <span className="topbar-spacer" />
@@ -74,6 +81,7 @@ export function App() {
           />
         )}
         {route.view === "composer" && <Composer onSubmitted={() => setRoute({ view: "dashboard" })} />}
+        {route.view === "robots" && <MyRobots />}
         {route.view === "job" && <JobDetail jobId={route.id} onBack={() => setRoute({ view: "dashboard" })} />}
       </main>
     </div>
