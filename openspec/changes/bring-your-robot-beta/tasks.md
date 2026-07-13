@@ -93,3 +93,15 @@
 - [ ] 6.4 Run deploy-manifest and GitOps assertions to confirm the existing SQLite PVC and Recreate
   strategy remain sufficient and that the change introduces no GPU job, runtime image, secret,
   bucket, VM, disk, IP, or other cloud resource requirement.
+- [ ] 6.5 After deployment, use an authenticated production browser session and begin acceptance
+  from the visible **Jobs** dashboard—not a copied detail URL or API-only check. Click each
+  available retained job row, use **Back to jobs** between records, and verify the redesigned detail
+  page for at least one completed job plus every failed/finalizing job currently present; record
+  only non-secret SaaS job IDs and observed results in `IMPLEMENTATION_LOG.MD`.
+- [ ] 6.6 Exercise the completed-job UI through real controls: play and seek the final rollout,
+  switch every available media item, expand Evaluation/Episodes/Compute/Run details, test
+  open/download actions, refresh and reopen the job from the dashboard, and capture desktop/tablet/
+  mobile screenshots. Preserve all SaaS job rows, cached manifests, and S3 run artifacts used for
+  acceptance—do not call a job-delete route, remove database records, or delete result objects—so
+  the user can validate the same results afterward; this does not relax mandatory cleanup of any
+  billable Nebius AI job, VM, disk, IP, or temporary rule created for separate work.
