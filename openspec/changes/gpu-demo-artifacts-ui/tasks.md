@@ -30,7 +30,7 @@
 ## 5. Local and deployment verification
 
 - [x] 5.1 Run backend unit/integration tests, frontend typecheck/tests/build, and deploy production assertions; record exact commands and observed results in `IMPLEMENTATION_LOG.MD`.
-- [ ] 5.2 Build and smoke-test the SaaS image locally, verifying historical jobs remain visible and legacy completed manifests normalize without modifying stored S3 objects.
+- [x] 5.2 Build and smoke-test the SaaS image locally, verifying historical jobs remain visible and legacy completed manifests normalize without modifying stored S3 objects.
 - [x] 5.3 Verify production configuration/readiness requires the immutable MJX image and artifact credentials but no longer requires an SB3 runtime for the GPU-only public catalog.
 - [x] 5.4 Update `saas/API_RUNBOOK.md`, architecture notes if boundaries changed, and operator troubleshooting guidance for lifecycle phases, sanitized errors, and artifact access without recording secrets.
 
