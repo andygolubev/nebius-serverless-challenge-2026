@@ -200,8 +200,25 @@ The completed custom Job publishes evaluation, task metrics, reward curve, rollo
 checkpoint, resolved configuration, exact inputs, and a checksummed policy bundle. The bundle is
 simulator-only and is not directly deployable to physical hardware. There is one runtime image for
 all robots—no API/runtime path builds Docker per upload. Custom setups never appear in
-`/training-options` and cannot be sent to generic `POST /jobs`; the public Go1 catalog remains
-unchanged.
+`/training-options` and cannot be sent to generic `POST /jobs`.
+
+## Verified examples gallery
+
+The default **New job** surface is a server-driven gallery with exactly seven stable examples:
+Go1 Walker, Ant Explorer, HalfCheetah Sprint, Hopper Balance, Walker2D Stride, G1 Rough Terrain,
+and Reacher Target. Each card explains the task, expected visible result, primary success metric,
+accepted runtime, server-selected hardware, and measured duration/cost bound for that exact
+acceptance revision. Go1 Quick is recommended; Standard and Quality are secondary sizes on the
+same card. The only general user override is a bounded reproducibility seed.
+
+`POST /jobs` accepts `gallery_example_id`, optional catalog-declared `gallery_profile_id`, and
+bounded `params`. It rejects caller-selected algorithms, compute, images, commands, code,
+environment variables, secrets, or storage paths. SB3 examples use the immutable generic SB3
+runtime on `cpu-d3`; Go1/G1 use the immutable MJX runtime on the accelerator profile frozen by
+acceptance. A gallery job is not completed until its final video, metrics, checkpoint, resolved
+configuration, runtime versions, and deterministic checksummed `policy-bundle.zip` are readable.
+The bundle is the normal post-training download, but it remains simulator-only rather than a
+physical-robot deployment artifact.
 
 Run the backend tests:
 

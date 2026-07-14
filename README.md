@@ -83,12 +83,14 @@ See [OpenTofu infrastructure](sim2policy/infra/nebius/README.md) and
 
 ## Two ways to use Sim2Policy
 
-**1. Hosted demo API.** A thin HTTP service lets demo users start a *predefined* training run
-and fetch its artifacts without cloning the repo or owning Nebius infrastructure. Users pick from
-an allowlisted set of presets (`halfcheetah-demo`, `ant-demo`, `ant-quality`, and a
-feature-flagged `go1-mjx-demo`) and may only override safe parameters such as `seed`. No custom
-code, environments, images, or reward functions are accepted. The API never trains; it validates
-input, creates a run, and triggers a Nebius Serverless AI Job (or a local mock).
+**1. Hosted demo API.** A thin HTTP service lets demo users start one of seven verified training
+stories and fetch its artifacts without cloning the repo or owning Nebius infrastructure. Go1 and
+G1 use MJX/JAX; Ant, HalfCheetah, Hopper, Walker2D, and Reacher use SB3. The server selects the
+runtime and hardware, and users may change only catalog-declared bounded fields such as `seed` (or
+a Go1 workload size). No custom code, images, commands, secrets, compute choice, or reward function
+is accepted. The API validates the request, creates a run, and triggers a Nebius Serverless AI Job
+(or a local mock). Each completed verified example exposes a rollout, metrics, checkpoint, resolved
+configuration, and deterministic simulator-only policy bundle.
 
 ```bash
 cd sim2policy

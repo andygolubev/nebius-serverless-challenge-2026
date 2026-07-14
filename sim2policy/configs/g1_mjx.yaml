@@ -1,0 +1,31 @@
+backend: mjx
+environment: G1JoystickRoughTerrain
+seed: 0
+training:
+  total_steps: 25000000
+  n_envs: 2048
+  device: gpu
+  hyperparameters:
+    impl: jax
+    num_eval_envs: 128
+    num_evals: 5
+    batch_size: 256
+    num_minibatches: 16
+    num_updates_per_batch: 8
+    unroll_length: 10
+    episode_length: 1000
+    learning_rate: 0.0003
+    entropy_cost: 0.01
+    discounting: 0.97
+    reward_scaling: 1.0
+    policy_hidden_layer_sizes: [512, 256, 128]
+    value_hidden_layer_sizes: [512, 256, 128]
+checkpoint: {every_steps: 5000000, keep: 5}
+evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
+success: {kind: locomotion, min_velocity: 0.4, require_not_fallen: true}
+rendering: {frames: 500, fps: 30, width: 640, height: 480, seed: 0}
+storage: {mode: local, prefix: sim2policy}
+reporting:
+  hourly_rate: 1.5484
+  currency: USD
+  rate_date: "2026-06-29"

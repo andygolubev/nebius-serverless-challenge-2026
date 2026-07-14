@@ -1,9 +1,4 @@
-"""End-to-end hosted MJX job: train, release the process, then finalize artifacts.
-
-The SaaS catalog invokes this fixed module with validated arguments. Training and
-finalization run in separate child processes so JAX/XLA allocations from training
-cannot leak into evaluation and rendering.
-"""
+"""End-to-end hosted SB3 job with a fixed train-then-finalize boundary."""
 
 from __future__ import annotations
 
@@ -14,21 +9,26 @@ from collections.abc import Callable, Sequence
 
 
 def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
-    parser = argparse.ArgumentParser(description="Run hosted MJX training and finalization")
+    parser = argparse.ArgumentParser(description="Run hosted SB3 training and finalization")
     parser.add_argument("--config", required=True)
     parser.add_argument("--run-id", required=True)
-    parser.add_argument("--gallery-example-id")
+    parser.add_argument("--gallery-example-id", required=True)
     parser.add_argument("--runs-root", default="runs")
     parser.add_argument("--set", action="append", default=[])
     args = parser.parse_args(argv)
 
     shared = ["--config", args.config, "--run-id", args.run_id, "--runs-root", args.runs_root]
     overrides = [value for item in args.set for value in ("--set", item)]
-    train = [sys.executable, "-m", "sim2policy.train_mjx", *shared, *overrides]
-    finalize = [sys.executable, "-m", "sim2policy.finalize", *shared]
-    if args.gallery_example_id:
-        finalize += ["--gallery-example-id", args.gallery_example_id]
-    finalize += overrides
+    train = [sys.executable, "-m", "sim2policy.train_sb3", *shared, *overrides]
+    finalize = [
+        sys.executable,
+        "-m",
+        "sim2policy.finalize",
+        *shared,
+        "--gallery-example-id",
+        args.gallery_example_id,
+        *overrides,
+    ]
     return train, finalize
 
 

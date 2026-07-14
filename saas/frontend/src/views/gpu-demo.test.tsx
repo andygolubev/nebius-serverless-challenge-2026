@@ -4,6 +4,8 @@ import { Composer } from "./Composer";
 import { JobDetail } from "./JobDetail";
 
 const catalog = {
+  gallery_enabled: false,
+  examples: [],
   environments: [{ id: "go1", label: "Go1", description: "GPU quadruped", algorithms: ["ppo-mjx"] }],
   algorithms: [{ id: "ppo-mjx", label: "PPO (MJX / JAX)", description: "GPU PPO", params: [
     { name: "total_timesteps", label: "Total timesteps", type: "int", default: 100_000_000, min: 10_000, max: 100_000_000 },
@@ -15,6 +17,36 @@ const catalog = {
     { id: "go1-mjx-standard", label: "Go1 Standard", description: "Balanced GPU run", default: true, environment: "go1", algorithm: "ppo-mjx", params: { total_timesteps: 25_000_000 } },
     { id: "go1-mjx-quality", label: "Go1 Quality", description: "Flagship GPU result", default: false, environment: "go1", algorithm: "ppo-mjx", params: { total_timesteps: 100_000_000 } },
   ],
+};
+
+const galleryIds = ["go1-walker", "ant-explorer", "halfcheetah-sprint", "hopper-balance", "walker2d-stride", "g1-rough-terrain", "reacher-target"];
+const galleryCatalog = {
+  ...catalog,
+  gallery_enabled: true,
+  examples: galleryIds.map((id) => {
+    const labels: Record<string, string> = {
+      "go1-walker": "Go1 Walker", "ant-explorer": "Ant Explorer", "halfcheetah-sprint": "HalfCheetah Sprint",
+      "hopper-balance": "Hopper Balance", "walker2d-stride": "Walker2D Stride", "g1-rough-terrain": "G1 Rough Terrain",
+      "reacher-target": "Reacher Target",
+    };
+    return {
+      id, label: labels[id], task: "Train a task", description: `Story for ${labels[id]}`,
+      avatar: `/avatars/${id}.svg`, expected_result: "A replayable trained policy", environment: id,
+      algorithm: id === "go1-walker" || id === "g1-rough-terrain" ? "ppo-mjx" : "ppo-sb3",
+      backend_label: id === "go1-walker" || id === "g1-rough-terrain" ? "MJX / JAX PPO" : "SB3 PPO",
+      hardware_label: id === "go1-walker" ? "NVIDIA H100" : "CPU D3 · 8 vCPU",
+      recommended_profile: id === "go1-walker" ? "go1-mjx-quick" : `${id}-v1`,
+      recommended_params: { total_timesteps: 1000, seed: 0 },
+      optional_params: [{ name: "seed", label: "Seed", type: "int", default: 0, min: 0, max: 2147483647 }],
+      observed_duration: "Measured 12 min", observed_cost: "Measured $0.12", success_criterion: "mean reward ≥ 1000",
+      primary_metric: "Mean reward", acceptance_revision: "gallery-v1",
+      workload_profiles: id === "go1-walker" ? [
+        { id: "go1-mjx-quick", label: "Go1 Quick", recommended: true, params: { total_timesteps: 5_000_000 } },
+        { id: "go1-mjx-standard", label: "Go1 Standard", recommended: false, params: { total_timesteps: 25_000_000 } },
+        { id: "go1-mjx-quality", label: "Go1 Quality", recommended: false, params: { total_timesteps: 100_000_000 } },
+      ] : [],
+    };
+  }),
 };
 
 function json(value: unknown, status = 200) {
@@ -49,6 +81,44 @@ describe("GPU composer", () => {
     const input = await screen.findByLabelText("Total timesteps");
     fireEvent.change(input, { target: { value: "100000001" } });
     expect(screen.getByRole("button", { name: "Start training" })).toBeDisabled();
+  });
+});
+
+describe("verified examples gallery", () => {
+  it("renders exactly seven local-avatar cards with no global backend or hardware selector", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json(galleryCatalog)));
+    render(<Composer onSubmitted={() => undefined} />);
+    const group = await screen.findByRole("radiogroup", { name: "Verified training examples" });
+    expect(screen.getAllByRole("radio")).toHaveLength(7);
+    for (const id of galleryIds) {
+      const image = group.querySelector(`img[src="/avatars/${id}.svg"]`);
+      expect(image).toBeInTheDocument();
+    }
+    expect(screen.queryByLabelText(/^Backend$/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Hardware$/)).not.toBeInTheDocument();
+  });
+
+  it("reviews and submits only the selected example, fixed profile, and seed", async () => {
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      init?.method === "POST"
+        ? json({ id: "job", status: "queued" }, 201)
+        : json(galleryCatalog),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const submitted = vi.fn();
+    render(<Composer onSubmitted={submitted} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /Hopper Balance/ }));
+    expect(screen.getAllByRole("heading", { name: /Hopper Balance/ })).toHaveLength(2);
+    expect(screen.getByText("Recommended and fixed")).toBeVisible();
+    fireEvent.change(screen.getByLabelText("Seed"), { target: { value: "17" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start training" }));
+    await waitFor(() => expect(submitted).toHaveBeenCalledOnce());
+    const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST")!;
+    expect(JSON.parse(String(request[1]?.body))).toEqual({
+      gallery_example_id: "hopper-balance",
+      gallery_profile_id: "hopper-balance-v1",
+      params: { seed: 17 },
+    });
   });
 });
 
@@ -156,7 +226,7 @@ describe("job results", () => {
     expect(screen.getByRole("heading", { name: /Buddy · walk forward/ })).toBeVisible();
     fireEvent.click(screen.getByText(/custom-ppo-quick · CPU/));
     expect(screen.getByText(/cpu-d3 · 8vcpu-32gb/)).toBeVisible();
-    const bundle = screen.getAllByRole("link", { name: "Download" }).find((link) => link.getAttribute("href")?.includes("bundle"))!;
+    const bundle = screen.getByRole("link", { name: "Download policy bundle" });
     fireEvent.click(bundle);
     expect(confirm).toHaveBeenCalledOnce();
     expect(screen.queryByText("GPU utilization")).not.toBeInTheDocument();

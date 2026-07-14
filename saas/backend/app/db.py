@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS jobs (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
+    gallery_example_id TEXT,
     data TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS jobs_tenant ON jobs (tenant_id);
@@ -87,6 +88,13 @@ CREATE INDEX IF NOT EXISTS custom_training_requests_tenant_created
 """
 
 
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Apply additive migrations to databases created by earlier releases."""
+    job_columns = {str(row[1]) for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "gallery_example_id" not in job_columns:
+        conn.execute("ALTER TABLE jobs ADD COLUMN gallery_example_id TEXT")
+
+
 def resolve_path(db_path: str | None = None) -> str:
     return db_path or os.environ.get("SAAS_DB_PATH") or DEFAULT_DB_PATH
 
@@ -106,6 +114,7 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")
             conn.executescript(_SCHEMA)
+            _migrate(conn)
         except Exception:
             conn.close()
             raise

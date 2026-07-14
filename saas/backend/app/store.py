@@ -41,8 +41,14 @@ class JobStore:
     def put(self, job: Job) -> None:
         with self._lock:
             self._conn.execute(
-                "INSERT OR REPLACE INTO jobs (id, tenant_id, data) VALUES (?, ?, ?)",
-                (job.id, job.tenant_id, job.model_dump_json()),
+                """INSERT OR REPLACE INTO jobs
+                   (id, tenant_id, gallery_example_id, data) VALUES (?, ?, ?, ?)""",
+                (
+                    job.id,
+                    job.tenant_id,
+                    job.gallery_example_id,
+                    job.model_dump_json(),
+                ),
             )
 
     def get(self, tenant_id: str, job_id: str) -> Job | None:
@@ -265,8 +271,9 @@ class CustomTrainingStore:
                 if daily >= max_daily_starts:
                     raise QuotaExceeded("daily_training_starts", max_daily_starts)
                 self._conn.execute(
-                    "INSERT INTO jobs (id, tenant_id, data) VALUES (?, ?, ?)",
-                    (job.id, job.tenant_id, job.model_dump_json()),
+                    """INSERT INTO jobs
+                       (id, tenant_id, gallery_example_id, data) VALUES (?, ?, ?, ?)""",
+                    (job.id, job.tenant_id, None, job.model_dump_json()),
                 )
                 self._conn.execute(
                     """INSERT INTO custom_training_requests

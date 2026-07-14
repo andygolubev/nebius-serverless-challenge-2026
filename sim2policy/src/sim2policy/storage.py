@@ -78,7 +78,12 @@ class ArtifactStore:
         key = self.key_for(relative)
         self._attempt(
             f"upload {relative}",
-            lambda: self.client.upload_file(str(local), self.config.bucket, key),
+            lambda: self.client.upload_file(
+                str(local),
+                self.config.bucket,
+                key,
+                ExtraArgs={"Metadata": {"sha256": sha256_file(local)}},
+            ),
         )
         return key
 

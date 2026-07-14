@@ -13,9 +13,13 @@ management SDK. A missing manifest is normal mid-run and maps to "not ready".
 from __future__ import annotations
 
 import json
+import hashlib
+import io
 import logging
 import mimetypes
 import re
+import stat
+import zipfile
 from typing import Any
 
 from .models import Artifact, ArtifactManifest
@@ -41,6 +45,24 @@ _REQUIRED_CUSTOM_ARTIFACTS = {
     "robot_xml",
     "normalized_setup",
 }
+_REQUIRED_GALLERY_ARTIFACTS = {
+    "final_policy",
+    "metrics_json",
+    "report_md",
+    "video_final",
+    "resolved_config",
+    "runtime_versions",
+    "policy_bundle",
+}
+_REQUIRED_GALLERY_BUNDLE_MEMBERS = {
+    "README.md",
+    "checkpoint/policy.zip",
+    "checkpoint/policy.zip.json",
+    "resolved-config.json",
+    "evaluation/metrics.json",
+    "runtime/versions.json",
+}
+_MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 
 
 def build_s3_client(settings: NebiusSettings):
@@ -96,19 +118,26 @@ class S3ArtifactReader:
         if not isinstance(artifact_map, dict):
             artifact_map = manifest
         checksums = manifest.get("checksums")
-        is_custom = "policy_bundle" in artifact_map
-        if is_custom and checksums is None:
-            raise ValueError("custom run artifact checksum manifest is missing")
+        is_custom = {"robot_xml", "normalized_setup"} <= set(artifact_map)
+        is_gallery = "policy_bundle" in artifact_map and not is_custom
+        if (is_custom or is_gallery) and checksums is None:
+            raise ValueError("policy bundle artifact checksum manifest is missing")
         if checksums is not None:
             if not isinstance(checksums, dict) or set(checksums) != set(artifact_map):
                 raise ValueError("artifact checksum manifest does not match artifacts")
             if is_custom and set(artifact_map) != _REQUIRED_CUSTOM_ARTIFACTS:
                 raise ValueError("custom run artifact manifest is incomplete")
+            if is_gallery and not _REQUIRED_GALLERY_ARTIFACTS <= set(artifact_map):
+                raise ValueError("gallery run artifact manifest is incomplete")
         status = self._read_json(self._key(run_id, "metadata/status.json")) or {}
         metrics = self._read_json(self._key(run_id, "report/metrics.json")) or {}
         artifacts = []
         for logical_name, rel in sorted(artifact_map.items()):
-            if not isinstance(rel, str) or not _SAFE_REL.fullmatch(rel) or ".." in rel.split("/"):
+            if (
+                not isinstance(rel, str)
+                or not _SAFE_REL.fullmatch(rel)
+                or ".." in rel.split("/")
+            ):
                 raise ValueError("artifact manifest contains an unsafe path")
             key = self._key(run_id, rel)
             size_bytes = None
@@ -134,6 +163,21 @@ class S3ArtifactReader:
                 remote_digest = (head.get("Metadata") or {}).get("sha256")
                 if head.get("ContentLength") != size_bytes or remote_digest != digest:
                     raise ValueError("artifact object does not match its checksum")
+                if is_gallery and logical_name == "policy_bundle":
+                    expected_example = (
+                        self._read_json(
+                            self._key(run_id, "report/resolved-config.json")
+                        )
+                        or {}
+                    )
+                    self._validate_gallery_bundle(
+                        key,
+                        digest=digest,
+                        size_bytes=size_bytes,
+                        expected_example_id=str(
+                            expected_example.get("gallery_example_id", "")
+                        ),
+                    )
             content_type = mimetypes.guess_type(rel)[0] or "application/octet-stream"
             artifacts.append(
                 Artifact(
@@ -161,13 +205,88 @@ class S3ArtifactReader:
             artifacts=artifacts,
         )
 
-    def presigned_url(self, key: str, *, content_type: str | None = None, download_name: str | None = None) -> str:
+    def _validate_gallery_bundle(
+        self,
+        key: str,
+        *,
+        digest: str,
+        size_bytes: int,
+        expected_example_id: str,
+    ) -> None:
+        if not expected_example_id or size_bytes > _MAX_BUNDLE_BYTES:
+            raise ValueError("gallery policy bundle provenance is invalid")
+        obj = self._client.get_object(Bucket=self._bucket, Key=key)
+        raw = obj["Body"].read(_MAX_BUNDLE_BYTES + 1)
+        if len(raw) != size_bytes or hashlib.sha256(raw).hexdigest() != digest:
+            raise ValueError("gallery policy bundle object is invalid")
+        with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+            infos = archive.infolist()
+            names = [item.filename for item in infos]
+            if len(names) != len(set(names)) or set(names) != {
+                *_REQUIRED_GALLERY_BUNDLE_MEMBERS,
+                "manifest.json",
+            }:
+                raise ValueError("gallery policy bundle layout is invalid")
+            total_size = 0
+            for info in infos:
+                name = info.filename
+                parts = name.split("/")
+                if name.startswith("/") or name.endswith("/") or ".." in parts:
+                    raise ValueError("gallery policy bundle path is invalid")
+                mode = (info.external_attr >> 16) & 0xFFFF
+                if mode and not stat.S_ISREG(mode):
+                    raise ValueError("gallery policy bundle member type is invalid")
+                if not 0 < info.file_size <= _MAX_BUNDLE_BYTES:
+                    raise ValueError("gallery policy bundle member size is invalid")
+                total_size += info.file_size
+            if total_size > _MAX_BUNDLE_BYTES:
+                raise ValueError("gallery policy bundle expanded size is invalid")
+            manifest = json.loads(archive.read("manifest.json"))
+            if (
+                not isinstance(manifest, dict)
+                or manifest.get("schema_version") != "gallery-policy-bundle-v1"
+                or manifest.get("kind") != "verified-example-policy-bundle"
+                or manifest.get("simulator_only") is not True
+                or manifest.get("example_id") != expected_example_id
+            ):
+                raise ValueError("gallery policy bundle provenance is invalid")
+            descriptors = {
+                item.get("path"): item
+                for item in manifest.get("members", [])
+                if isinstance(item, dict)
+            }
+            if set(descriptors) != _REQUIRED_GALLERY_BUNDLE_MEMBERS:
+                raise ValueError("gallery policy bundle manifest is incomplete")
+            for name in _REQUIRED_GALLERY_BUNDLE_MEMBERS:
+                value = archive.read(name)
+                descriptor = descriptors[name]
+                if (
+                    descriptor.get("size_bytes") != len(value)
+                    or descriptor.get("sha256") != hashlib.sha256(value).hexdigest()
+                ):
+                    raise ValueError("gallery policy bundle member digest is invalid")
+            if not zipfile.is_zipfile(
+                io.BytesIO(archive.read("checkpoint/policy.zip"))
+            ):
+                raise ValueError("gallery policy bundle checkpoint is invalid")
+
+    def presigned_url(
+        self,
+        key: str,
+        *,
+        content_type: str | None = None,
+        download_name: str | None = None,
+    ) -> str:
         params = {"Bucket": self._bucket, "Key": key}
         if content_type:
             params["ResponseContentType"] = content_type
         if download_name:
-            params["ResponseContentDisposition"] = f'attachment; filename="{download_name}"'
-        return self._client.generate_presigned_url("get_object", Params=params, ExpiresIn=300)
+            params["ResponseContentDisposition"] = (
+                f'attachment; filename="{download_name}"'
+            )
+        return self._client.generate_presigned_url(
+            "get_object", Params=params, ExpiresIn=300
+        )
 
 
 def _label(value: str) -> str:
@@ -176,5 +295,9 @@ def _label(value: str) -> str:
 
 def _is_missing_key_error(e: Exception) -> bool:
     """True for boto3 NoSuchKey/404 errors, without importing botocore in tests."""
-    code = getattr(e, "response", {}).get("Error", {}).get("Code", "") if hasattr(e, "response") else ""
+    code = (
+        getattr(e, "response", {}).get("Error", {}).get("Code", "")
+        if hasattr(e, "response")
+        else ""
+    )
     return code in {"NoSuchKey", "404", "NotFound"} or type(e).__name__ == "NoSuchKey"

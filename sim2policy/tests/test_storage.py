@@ -18,6 +18,7 @@ ROOT = Path(__file__).parents[1]
 class FakeS3:
     def __init__(self, failures: int = 0) -> None:
         self.objects: dict[tuple[str, str], bytes] = {}
+        self.metadata: dict[tuple[str, str], dict[str, str]] = {}
         self.events: list[tuple[str, str]] = []
         self.failures = failures
 
@@ -26,10 +27,18 @@ class FakeS3:
             self.failures -= 1
             raise ConnectionError("temporary")
 
-    def upload_file(self, filename: str, bucket: str, key: str) -> None:
+    def upload_file(
+        self,
+        filename: str,
+        bucket: str,
+        key: str,
+        *,
+        ExtraArgs: dict[str, Any] | None = None,
+    ) -> None:
         self._fail()
         self.events.append(("upload", key))
         self.objects[(bucket, key)] = Path(filename).read_bytes()
+        self.metadata[(bucket, key)] = dict((ExtraArgs or {}).get("Metadata", {}))
 
     def put_object(self, *, Bucket: str, Key: str, Body: bytes, **_: Any) -> None:
         self._fail()
@@ -44,9 +53,7 @@ class FakeS3:
 
     def list_objects_v2(self, *, Bucket: str, Prefix: str, **_: Any) -> dict[str, Any]:
         keys = sorted(
-            key
-            for bucket, key in self.objects
-            if bucket == Bucket and key.startswith(Prefix)
+            key for bucket, key in self.objects if bucket == Bucket and key.startswith(Prefix)
         )
         return {"Contents": [{"Key": key} for key in keys], "IsTruncated": False}
 

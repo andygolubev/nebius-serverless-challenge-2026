@@ -11,6 +11,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 RUN uv sync --frozen --no-dev --extra sb3
 COPY configs/ configs/
+COPY scripts/ scripts/
 
 FROM sb3-base AS sb3
 ARG SOURCE_REVISION=unknown
@@ -30,6 +31,7 @@ COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 RUN uv sync --frozen --no-dev --extra mjx
 COPY configs/ configs/
+COPY scripts/ scripts/
 
 FROM mjx-base AS mjx
 ARG SOURCE_REVISION=unknown

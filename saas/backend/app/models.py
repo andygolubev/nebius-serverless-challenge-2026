@@ -37,6 +37,13 @@ class JobRequest(BaseModel):
     Everything is validated against the server-side catalog; no free-form code or env.
     """
 
+    gallery_example_id: str | None = Field(
+        default=None, description="Stable server-owned gallery example ID."
+    )
+    gallery_profile_id: str | None = Field(
+        default=None,
+        description="Catalog-declared workload size for the selected example.",
+    )
     preset: str | None = Field(
         default=None, description="Named shortcut, e.g. ant-demo."
     )
@@ -83,6 +90,7 @@ class Job(BaseModel):
     preparation_id: str | None = None
     preparation_fingerprint: str | None = None
     input_manifest_sha256: str | None = None
+    gallery_example_id: str | None = None
 
 
 class Artifact(BaseModel):

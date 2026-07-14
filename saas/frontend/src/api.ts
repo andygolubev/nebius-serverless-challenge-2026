@@ -35,7 +35,39 @@ export type Preset = {
   params: Record<string, number>;
 };
 
+export type WorkloadProfile = {
+  id: string;
+  label?: string;
+  description?: string;
+  recommended: boolean;
+  params: Record<string, number>;
+};
+
+export type GalleryExample = {
+  id: string;
+  label: string;
+  task: string;
+  description: string;
+  avatar: string;
+  expected_result: string;
+  environment: string;
+  algorithm: string;
+  backend_label: string;
+  hardware_label: string;
+  recommended_profile: string;
+  recommended_params: Record<string, number>;
+  optional_params: ParamSpec[];
+  observed_duration: string;
+  observed_cost: string;
+  success_criterion: string;
+  primary_metric: string;
+  acceptance_revision: string;
+  workload_profiles: WorkloadProfile[];
+};
+
 export type Catalog = {
+  gallery_enabled: boolean;
+  examples: GalleryExample[];
   environments: Environment[];
   algorithms: Algorithm[];
   presets: Preset[];
@@ -48,6 +80,9 @@ export type ResolvedConfig = Record<string, unknown> & {
   robot?: { id: string; name: string; robot_type: RobotType; digest: string };
   setup?: { id: string; name: string; task_template_id: string; scene_preset_id: string };
   training?: { version?: string; platform?: string; preset?: string; total_timesteps?: number };
+  example?: { id: string; label: string; avatar: string; task: string };
+  profile?: string;
+  success?: { criterion?: string; primary_metric?: string };
 };
 
 export type Job = {
@@ -69,6 +104,7 @@ export type Job = {
   setup_id?: string | null;
   preparation_id?: string | null;
   preparation_fingerprint?: string | null;
+  gallery_example_id?: string | null;
 };
 
 export type Artifact = {
@@ -319,6 +355,8 @@ export const api = {
   logout: () => request<{ status: string }>("/auth/logout", { method: "POST" }),
   catalog: () => request<Catalog>("/training-options"),
   submitJob: (body: {
+    gallery_example_id?: string;
+    gallery_profile_id?: string;
     preset?: string;
     environment?: string;
     algorithm?: string;

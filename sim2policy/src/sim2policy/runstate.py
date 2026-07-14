@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from sim2policy.checkpoint import sha256_file
 from sim2policy.config import StorageConfig, validate_run_id
 from sim2policy.storage import ArtifactStore
 
@@ -66,6 +67,9 @@ ARTIFACT_KEYS: dict[str, str] = {
     "video_final": "videos/final.mp4",
     "progression_montage": "videos/progression_montage.mp4",
     "demo_recording": "videos/demo-recording.mp4",
+    "resolved_config": "report/resolved-config.json",
+    "runtime_versions": "report/runtime-versions.json",
+    "policy_bundle": "bundle/policy-bundle.zip",
 }
 
 
@@ -215,7 +219,14 @@ class RunStateStore:
 
     # -- artifacts ---------------------------------------------------------
     def write_manifest(self, artifacts: dict[str, str]) -> None:
-        self.write_json(MANIFEST_KEY, {"artifacts": artifacts})
+        checksums = {
+            name: {
+                "sha256": sha256_file(self._local_path(relative)),
+                "size_bytes": self._local_path(relative).stat().st_size,
+            }
+            for name, relative in artifacts.items()
+        }
+        self.write_json(MANIFEST_KEY, {"artifacts": artifacts, "checksums": checksums})
 
     def read_manifest(self) -> dict[str, str]:
         data = self.read_json(MANIFEST_KEY)

@@ -66,10 +66,17 @@ export function Dashboard({
       <div className="job-list">
         {jobs!.map((j) => (
           <button key={j.id} className="job-row" onClick={() => onOpenJob(j.id)}>
+            {j.resolved_config.example?.avatar ? (
+              <img className="job-row-avatar" src={j.resolved_config.example.avatar} alt="" />
+            ) : (
+              <span className="job-row-avatar fallback" aria-hidden>{j.job_kind === "custom-robot" ? "R" : "P"}</span>
+            )}
             <div className="job-row-main">
               <div className="job-row-title">
                 {j.job_kind === "custom-robot"
                   ? `${j.resolved_config.robot?.name ?? "Uploaded robot"} · ${j.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "Custom locomotion"}`
+                  : j.resolved_config.example
+                    ? `${j.resolved_config.example.label} · ${j.resolved_config.example.task}`
                   : `${j.environment} · ${j.algorithm}${j.preset ? ` · ${j.preset}` : ""}`}
               </div>
               <div className="job-row-sub">

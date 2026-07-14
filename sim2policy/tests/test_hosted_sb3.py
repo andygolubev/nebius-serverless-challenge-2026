@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import sys
+
+import pytest
+
+from sim2policy.hosted_sb3 import build_commands, run
+
+
+def test_hosted_sb3_builds_fixed_train_then_gallery_finalize_commands() -> None:
+    train, finalize = build_commands(
+        [
+            "--config",
+            "configs/hopper_sb3.yaml",
+            "--run-id",
+            "run-safe",
+            "--gallery-example-id",
+            "hopper-balance",
+            "--set",
+            "seed=7",
+        ]
+    )
+    assert train[:3] == [sys.executable, "-m", "sim2policy.train_sb3"]
+    assert finalize[:3] == [sys.executable, "-m", "sim2policy.finalize"]
+    assert "--gallery-example-id" not in train
+    assert finalize[finalize.index("--gallery-example-id") + 1] == "hopper-balance"
+    assert "seed=7" in train and "seed=7" in finalize
+
+
+def test_hosted_sb3_stops_before_finalization_when_training_fails() -> None:
+    calls: list[list[str]] = []
+
+    def runner(command, **_kwargs):
+        calls.append(command)
+        raise RuntimeError("training failed")
+
+    with pytest.raises(RuntimeError, match="training failed"):
+        run(
+            [
+                "--config",
+                "configs/hopper_sb3.yaml",
+                "--run-id",
+                "run-safe",
+                "--gallery-example-id",
+                "hopper-balance",
+            ],
+            runner=runner,
+        )
+    assert len(calls) == 1
+    assert "sim2policy.train_sb3" in calls[0]

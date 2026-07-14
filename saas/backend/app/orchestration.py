@@ -26,6 +26,7 @@ from .models import (
     STATUS_FINALIZING,
     STATUS_STARTING,
     STATUS_TRAINING,
+    Artifact,
     ArtifactManifest,
     Job,
     PreparationAttempt,
@@ -75,8 +76,6 @@ class MockBackend:
             job = job.model_copy(update={"status": status, "updated_at": _now()})
             store.put(job)
         if job.job_kind == "custom-robot":
-            from .models import Artifact
-
             artifacts = [
                 Artifact(
                     id="video_final",
@@ -120,6 +119,51 @@ class MockBackend:
                     job_id=job.id,
                     status=STATUS_COMPLETED,
                     metrics=metrics,
+                    media=[artifacts[0].key],
+                    artifacts=artifacts,
+                )
+            )
+        elif job.gallery_example_id is not None:
+            artifacts = [
+                Artifact(
+                    id="video_final",
+                    name="Final rollout",
+                    kind="video",
+                    content_type="video/mp4",
+                    key=f"sim2policy/{job.id}/videos/final.mp4",
+                ),
+                Artifact(
+                    id="final_policy",
+                    name="Final checkpoint",
+                    content_type="application/zip",
+                    key=f"sim2policy/{job.id}/checkpoints/final.zip",
+                ),
+                Artifact(
+                    id="policy_bundle",
+                    name="Policy bundle",
+                    content_type="application/zip",
+                    key=f"sim2policy/{job.id}/bundle/policy-bundle.zip",
+                ),
+            ]
+            store.set_artifacts(
+                ArtifactManifest(
+                    job_id=job.id,
+                    status=STATUS_COMPLETED,
+                    metrics={
+                        "aggregate": {"episodes": 20, "mean_reward": 1234.5},
+                        "success": {
+                            "met": True,
+                            "criterion": job.resolved_config.get("success", {}).get(
+                                "criterion", "accepted example threshold"
+                            ),
+                        },
+                        "benchmark": {
+                            "estimated_cost": 0.12,
+                            "currency": "USD",
+                        },
+                        "runtime_seconds": 613.2,
+                        "mock": True,
+                    },
                     media=[artifacts[0].key],
                     artifacts=artifacts,
                 )
@@ -331,7 +375,28 @@ class NebiusBackend:
             raise ValueError(
                 f"{job.environment}/{job.algorithm} is not available on the nebius backend"
             )
+        if job.gallery_example_id is not None:
+            example = catalog.GALLERY_EXAMPLES.get(job.gallery_example_id)
+            if example is None:
+                raise ValueError("gallery example identity is unknown")
+            expected = catalog.resolve_gallery(
+                job.gallery_example_id,
+                {"seed": job.resolved_config.get("params", {}).get("seed", 0)},
+                profile_id=str(job.resolved_config.get("profile", "")),
+            )
+            for field in ("environment", "algorithm", "profile", "acceptance_revision"):
+                if job.resolved_config.get(field) != expected.get(field):
+                    raise ValueError(
+                        "gallery resolved configuration does not match the catalog"
+                    )
+            if (
+                job.environment != example.environment
+                or job.algorithm != example.algorithm
+            ):
+                raise ValueError("gallery job identity does not match its example")
         params = job.resolved_config.get("params", {})
+        if not isinstance(params, dict):
+            raise ValueError("resolved job parameters are invalid")
         steps = params.get("total_timesteps")
         if isinstance(steps, int) and steps > spec.max_total_timesteps:
             raise ValueError(
@@ -339,6 +404,8 @@ class NebiusBackend:
             )
         s = self._settings
         args = ["-m", spec.module, "--config", spec.config, "--run-id", job.id]
+        if job.gallery_example_id is not None:
+            args += ["--gallery-example-id", job.gallery_example_id]
         for name in sorted(spec.param_paths):
             if name in params:
                 args += ["--set", f"{spec.param_paths[name]}={params[name]}"]
@@ -352,11 +419,20 @@ class NebiusBackend:
             "--set",
             f"storage.region={s.s3_region}",
         ]
-        if spec.image_key != "mjx" or spec.platform != "gpu-h100-sxm":
-            raise ValueError(
-                "production catalog permits only GPU-accelerated MJX/H100 jobs"
-            )
-        image = s.mjx_job_image
+        if spec.image_key == "mjx":
+            if spec.platform not in {"gpu-h100-sxm", "gpu-l40s-a"}:
+                raise ValueError(
+                    "MJX catalog job uses an unsupported accelerator platform"
+                )
+            image = s.mjx_job_image
+        elif spec.image_key == "sb3":
+            if spec.platform != "cpu-d3" or spec.preset != "8vcpu-32gb":
+                raise ValueError("SB3 catalog job uses an unsupported CPU profile")
+            if s.job_image is None:
+                raise ValueError("immutable SB3 catalog image is not configured")
+            image = s.job_image
+        else:
+            raise ValueError("catalog job has an unsupported runtime image family")
         return JobSubmission(
             name=f"sim2policy-{job.id}",
             image=image,
@@ -368,7 +444,11 @@ class NebiusBackend:
             subnet_id=s.subnet_id,
             parent_id=s.project_id,
             registry_secret=s.registry_secret,
-            env={"AWS_ACCESS_KEY_ID": s.aws_access_key_id},
+            disk_gib=spec.disk_gib,
+            env={
+                "AWS_ACCESS_KEY_ID": s.aws_access_key_id,
+                "SIM2POLICY_RUNTIME_IMAGE": image,
+            },
             # Secret access key is resolved by Nebius from MysteryBox inside the
             # job; the plaintext value never enters the submission.
             env_secrets={"AWS_SECRET_ACCESS_KEY": s.s3_secret_selector},

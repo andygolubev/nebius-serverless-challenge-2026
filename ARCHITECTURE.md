@@ -78,9 +78,12 @@ flowchart LR
   SQLite persistence, and pluggable mock or Nebius orchestration, plus a React + Vite + TypeScript
   frontend (`saas/frontend/`). Original primitive MJCF examples live under `saas/samples/robots/`.
   One multi-stage image serves API, samples, and UI.
-- The production catalog is derived from executable GPU job specifications and exposes three
-  increasing Go1 MJX/JAX PPO profiles on H100. Unsupported or primarily CPU-bound combinations are
-  neither listed nor accepted. Remote success enters durable finalization and `completed` is
+- The production catalog is derived from seven revision-gated executable job specifications:
+  Go1 and G1 use MJX/JAX PPO on server-selected accelerators, while Ant, HalfCheetah, Hopper,
+  Walker2D, and Reacher use CPU-vectorized SB3 PPO. Go1 Quick is the recommended card workload;
+  Standard and Quality remain bounded secondary sizes. Users select a stable example identity and
+  optional seed, never a backend, image, command, or hardware shape. Remote success enters durable
+  finalization and `completed` is
   artifact-gated; validated artifacts use tenant-authorized opaque routes and short-lived storage
   redirects for HTML5 MP4 playback without making the bucket public.
 - `deploy/` holds the GitOps state ArgoCD reconciles: `deploy/argocd/` (app-of-apps `Application`s)
@@ -121,9 +124,11 @@ survive restart; pending one-time codes and rate-limit windows stay in process m
 by design, safe to lose on restart). Training artifacts remain durable in S3. The active
 orchestration adapter submits
 bounded allowlisted jobs through the Nebius SDK using the VM-managed renewable identity token.
-The server-side catalog selects the runtime and compute shape per job spec: SB3 uses the isolated
-SB3 image on the right-sized L40S shape, while the default `go1-mjx-demo` expands to the verified
-100M-step MJX workload using the isolated MJX image on a single H100.
+The server-side catalog selects the runtime and compute shape per job spec: the five classic
+MuJoCo examples use the isolated SB3 image on an allowlisted `cpu-d3` shape, Go1 uses the isolated
+MJX image on a single H100, and G1 uses the smallest accelerator profile that passes the recorded
+L40S-versus-H100 acceptance gates. Every accepted gallery result includes metrics, rollout video,
+native checkpoint, resolved configuration, versions, and a deterministic checksummed policy bundle.
 
 ### Bring Your Robot validation boundary
 

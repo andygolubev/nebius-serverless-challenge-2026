@@ -10,7 +10,15 @@ import json
 import pytest
 
 from app.artifacts import S3ArtifactReader
-from app.models import STATUS_COMPLETED, STATUS_FAILED, STATUS_QUEUED, STATUS_STARTING, STATUS_TRAINING, ArtifactManifest, Job
+from app.models import (
+    STATUS_COMPLETED,
+    STATUS_FAILED,
+    STATUS_QUEUED,
+    STATUS_STARTING,
+    STATUS_TRAINING,
+    ArtifactManifest,
+    Job,
+)
 from app.orchestration import (
     MockBackend,
     NebiusBackend,
@@ -58,7 +66,9 @@ def _job(**overrides) -> Job:
 
 
 class FakeJobsClient:
-    def __init__(self, states=("PROVISIONING", "RUNNING", "COMPLETED"), fail_create=None):
+    def __init__(
+        self, states=("PROVISIONING", "RUNNING", "COMPLETED"), fail_create=None
+    ):
         self.states = list(states)
         self.fail_create = fail_create
         self.submissions = []
@@ -95,7 +105,12 @@ class SequenceArtifactReader:
 
 
 def _backend(client=None, reader=None) -> NebiusBackend:
-    return NebiusBackend(SETTINGS, client or FakeJobsClient(), reader or FakeArtifactReader(), poll_interval=0)
+    return NebiusBackend(
+        SETTINGS,
+        client or FakeJobsClient(),
+        reader or FakeArtifactReader(),
+        poll_interval=0,
+    )
 
 
 # -- backend selection --
@@ -186,7 +201,10 @@ def test_settings_require_mjx_job_image():
 
 def test_submission_never_contains_plaintext_secret():
     sub = _backend().build_submission(_job())
-    assert sub.env == {"AWS_ACCESS_KEY_ID": "AKIATEST"}
+    assert sub.env == {
+        "AWS_ACCESS_KEY_ID": "AKIATEST",
+        "SIM2POLICY_RUNTIME_IMAGE": SETTINGS.mjx_job_image,
+    }
     assert sub.env_secrets == {"AWS_SECRET_ACCESS_KEY": SETTINGS.s3_secret_selector}
     assert SETTINGS.aws_secret_access_key not in " ".join(sub.args)
 
@@ -224,8 +242,16 @@ def test_step_cap_enforced():
 
 
 def test_happy_path_records_id_and_completes():
-    manifest_reader = FakeArtifactReader(manifest=ArtifactManifest(job_id="a" * 32, status=STATUS_COMPLETED))
-    client = FakeJobsClient(states=("PROVISIONING", "RUNNING", "COMPLETED",))
+    manifest_reader = FakeArtifactReader(
+        manifest=ArtifactManifest(job_id="a" * 32, status=STATUS_COMPLETED)
+    )
+    client = FakeJobsClient(
+        states=(
+            "PROVISIONING",
+            "RUNNING",
+            "COMPLETED",
+        )
+    )
     backend, store = _backend(client, manifest_reader), JobStore()
     job = _job()
     store.put(job)
@@ -238,8 +264,16 @@ def test_happy_path_records_id_and_completes():
 
 def test_remote_success_waits_for_delayed_manifest():
     manifest = ArtifactManifest(job_id="a" * 32, status=STATUS_COMPLETED)
-    reader = SequenceArtifactReader([None, RuntimeError("temporary S3 failure"), manifest])
-    backend = NebiusBackend(SETTINGS, FakeJobsClient(states=("COMPLETED",)), reader, poll_interval=0, finalize_attempts=4)
+    reader = SequenceArtifactReader(
+        [None, RuntimeError("temporary S3 failure"), manifest]
+    )
+    backend = NebiusBackend(
+        SETTINGS,
+        FakeJobsClient(states=("COMPLETED",)),
+        reader,
+        poll_interval=0,
+        finalize_attempts=4,
+    )
     store, job = JobStore(), _job()
     store.put(job)
     backend._run(job, store)
@@ -250,7 +284,13 @@ def test_remote_success_waits_for_delayed_manifest():
 
 
 def test_finalization_timeout_is_terminal_and_sanitized():
-    backend = NebiusBackend(SETTINGS, FakeJobsClient(states=("COMPLETED",)), FakeArtifactReader(None), poll_interval=0, finalize_attempts=2)
+    backend = NebiusBackend(
+        SETTINGS,
+        FakeJobsClient(states=("COMPLETED",)),
+        FakeArtifactReader(None),
+        poll_interval=0,
+        finalize_attempts=2,
+    )
     store, job = JobStore(), _job()
     store.put(job)
     backend._run(job, store)
@@ -261,9 +301,12 @@ def test_finalization_timeout_is_terminal_and_sanitized():
 
 
 def test_active_job_guard_prevents_duplicate_reconciler():
-    backend = NebiusBackend(SETTINGS, FakeJobsClient(), FakeArtifactReader(None), poll_interval=0)
+    backend = NebiusBackend(
+        SETTINGS, FakeJobsClient(), FakeArtifactReader(None), poll_interval=0
+    )
     job = _job(nebius_job_id="aijob-existing", status=STATUS_STARTING)
     import threading
+
     release = threading.Event()
     assert backend._start(job, release.wait)
     assert not backend._start(job, release.wait)
@@ -313,7 +356,9 @@ def test_map_nebius_state(raw, expected):
     assert map_nebius_state(raw) == expected
 
 
-@pytest.mark.parametrize(("raw", "seconds"), [("1h", 3600), ("2h30m", 9000), ("45m", 2700), ("90s", 90)])
+@pytest.mark.parametrize(
+    ("raw", "seconds"), [("1h", 3600), ("2h30m", 9000), ("45m", 2700), ("90s", 90)]
+)
 def test_parse_duration(raw, seconds):
     assert parse_duration_seconds(raw) == seconds
 
@@ -379,7 +424,9 @@ def test_reader_builds_manifest_from_fixtures():
 
 
 def test_reader_tolerates_missing_metrics_and_status():
-    stub = StubS3({f"{PREFIX}/report/artifacts.json": {"final_policy": "checkpoints/final.zip"}})
+    stub = StubS3(
+        {f"{PREFIX}/report/artifacts.json": {"final_policy": "checkpoints/final.zip"}}
+    )
     manifest = S3ArtifactReader(stub, "sim2policy-artifacts").read_manifest("job1", RUN)
     assert manifest.status == "completed"
     assert manifest.metrics == {}

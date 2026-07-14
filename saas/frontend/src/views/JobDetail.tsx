@@ -64,13 +64,18 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
       <button className="btn-link back-link" onClick={onBack}>← Back to jobs</button>
       <header className="job-detail-header">
         <div className="job-title-row">
-          <div>
-            <p className="eyebrow">{job.job_kind === "custom-robot" ? "Uploaded robot training" : "Training job"}</p>
-            <h1>
-              {job.job_kind === "custom-robot"
-                ? `${job.resolved_config.robot?.name ?? "Uploaded robot"} · ${job.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "Custom locomotion"}`
-                : `${job.environment} · ${job.algorithm}`}
-            </h1>
+          <div className="job-title-identity">
+            {job.resolved_config.example?.avatar && <img src={job.resolved_config.example.avatar} alt="" />}
+            <div>
+              <p className="eyebrow">{job.job_kind === "custom-robot" ? "Uploaded robot training" : job.gallery_example_id ? "Verified example" : "Training job"}</p>
+              <h1>
+                {job.job_kind === "custom-robot"
+                  ? `${job.resolved_config.robot?.name ?? "Uploaded robot"} · ${job.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "Custom locomotion"}`
+                  : job.resolved_config.example
+                    ? `${job.resolved_config.example.label} · ${job.resolved_config.example.task}`
+                    : `${job.environment} · ${job.algorithm}`}
+              </h1>
+            </div>
           </div>
           <StatusBadge status={job.status} />
         </div>
@@ -127,6 +132,7 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
             </>
           ) : (
             <>
+              {job.resolved_config.example && <KeyValue label="Example" value={job.resolved_config.example.label} />}
               {job.preset && <KeyValue label="Preset" value={job.preset} />}
               <KeyValue label="Environment" value={job.resolved_config.environment ?? job.environment} />
               <KeyValue label="Algorithm" value={job.resolved_config.algorithm ?? job.algorithm} />
@@ -177,7 +183,8 @@ function CompletedResults({
 
   const videos = artifacts.artifacts.filter((artifact) => artifact.kind === "video");
   const selected = videos.find((artifact) => artifact.id === selectedVideo) ?? videos[0];
-  const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video");
+  const bundle = artifacts.artifacts.find((artifact) => artifact.id === "policy_bundle");
+  const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video" && artifact.id !== "policy_bundle");
   const kpis =
     job.job_kind === "custom-robot"
       ? view.kpis.filter((kpi) => !["GPU utilization", "Estimated cost"].includes(kpi.label))
@@ -202,13 +209,13 @@ function CompletedResults({
 
   return (
     <section className="results-shell" aria-labelledby="results-heading">
-      {job.job_kind === "custom-robot" && (
+      {(job.job_kind === "custom-robot" || job.gallery_example_id) && (
         <div className="alert alert-info simulator-disclosure" role="note">
-          <strong>Simulator-only policy.</strong> Preparation and simulation results do not make this controller safe or directly deployable to physical hardware.
+          <strong>Simulator-only policy.</strong> This bundle matches the recorded simulator and runtime. It is not directly deployable to physical hardware.
         </div>
       )}
       <div className="result-primary-grid">
-        <div className="result-summary-panel">
+          <div className="result-summary-panel">
           <div className="result-section-heading">
             <div>
               <p className="eyebrow">Completed run</p>
@@ -226,6 +233,22 @@ function CompletedResults({
               </div>
             ))}
           </div>
+          {bundle && (
+            <div className="bundle-callout">
+              <div><strong>Policy bundle ready</strong><span>Checkpoint, resolved configuration, evaluation, versions, and checksums.</span></div>
+              <a
+                className="btn"
+                href={bundle.download_url}
+                onClick={(event) => {
+                  if (!window.confirm("This policy bundle is simulator-only and is not directly deployable to a physical robot. Continue?")) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                Download policy bundle
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="media-panel">
@@ -298,7 +321,7 @@ function CompletedResults({
       </div>
 
       {otherFiles.length > 0 && (
-        <ArtifactFiles artifacts={otherFiles} simulatorOnly={job.job_kind === "custom-robot"} />
+        <ArtifactFiles artifacts={otherFiles} simulatorOnly={job.job_kind === "custom-robot" || !!job.gallery_example_id} />
       )}
 
       <details className="raw-diagnostics">

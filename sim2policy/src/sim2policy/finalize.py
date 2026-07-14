@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from collections.abc import Sequence
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,7 @@ import yaml
 from sim2policy.checkpoint import metadata_path, progression_checkpoints
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
+from sim2policy.policy_bundle import build_gallery_policy_bundle
 from sim2policy.render import montage_command, render_with_fallback
 from sim2policy.reporting import (
     calculate_cost,
@@ -64,6 +67,7 @@ def finalize_run(
     runs_root: Path,
     overrides: list[tuple[str, Any]],
     compare_run_id: str | None = None,
+    gallery_example_id: str | None = None,
 ) -> dict[str, str]:
     config = load_config(config_path, dict(overrides))
     paths = create_run_paths(run_id, runs_root)
@@ -116,9 +120,7 @@ def finalize_run(
         write_reward_curve(points, paths.report / "reward-curve.png")
     if compare_run_id is not None:
         comparison_root = runs_root / compare_run_id
-        ArtifactStore(config.storage, compare_run_id).download_tree(
-            comparison_root, ("report",)
-        )
+        ArtifactStore(config.storage, compare_run_id).download_tree(comparison_root, ("report",))
         comparison_metrics = comparison_root / "report/metrics.json"
         if not comparison_metrics.is_file():
             raise RuntimeError(f"comparison metrics unavailable for run {compare_run_id}")
@@ -126,7 +128,43 @@ def finalize_run(
         (paths.report / "backend-comparison.md").write_text(
             comparison_table([metrics, other]), encoding="utf-8"
         )
-    _write_final_alias(final)
+    final_alias = _write_final_alias(final)
+    if gallery_example_id is not None:
+        if not gallery_example_id or any(
+            character not in "abcdefghijklmnopqrstuvwxyz0123456789-"
+            for character in gallery_example_id
+        ):
+            raise ValueError("gallery example identity is invalid")
+        runtime_image = os.environ.get("SIM2POLICY_RUNTIME_IMAGE", "local-unpublished-runtime")
+        resolved = asdict(config)
+        resolved["gallery_example_id"] = gallery_example_id
+        resolved["runtime_image"] = runtime_image
+        resolved_path = paths.report / "resolved-config.json"
+        resolved_path.write_text(
+            json.dumps(resolved, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        raw_versions = metrics.get("versions")
+        versions: dict[str, Any] = (
+            {str(key): value for key, value in raw_versions.items()}
+            if isinstance(raw_versions, dict)
+            else {}
+        )
+        versions_path = paths.report / "runtime-versions.json"
+        versions_path.write_text(
+            json.dumps(versions, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        build_gallery_policy_bundle(
+            paths.root / "bundle/policy-bundle.zip",
+            run_id=run_id,
+            example_id=gallery_example_id,
+            backend=config.backend,
+            environment=config.environment,
+            checkpoint=final_alias,
+            resolved_config=resolved,
+            evaluation=metrics,
+            versions=versions,
+            runtime_image=runtime_image,
+        )
     store.sync_tree(paths.root, required=store.enabled)
     artifacts = state.discover_artifacts()
     state.write_manifest(artifacts)
@@ -143,6 +181,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--compare-run-id")
+    parser.add_argument("--gallery-example-id")
     parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     args = parser.parse_args(argv)
     artifacts = finalize_run(
@@ -151,6 +190,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         args.runs_root,
         args.overrides,
         compare_run_id=args.compare_run_id,
+        gallery_example_id=args.gallery_example_id,
     )
     print(json.dumps({"status": "complete", "artifacts": artifacts}, sort_keys=True))
 

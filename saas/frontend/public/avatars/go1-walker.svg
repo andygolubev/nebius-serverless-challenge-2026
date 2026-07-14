@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Go1 Walker quadruped</title>
+  <rect width="96" height="96" rx="22" fill="#e0e7ff"/>
+  <rect x="23" y="31" width="48" height="27" rx="9" fill="#4f46e5"/>
+  <rect x="63" y="36" width="15" height="16" rx="5" fill="#312e81"/>
+  <circle cx="73" cy="41" r="2" fill="#fff"/>
+  <path d="M30 56v19M42 56l-4 19M59 56l5 19M69 54l8 18" stroke="#312e81" stroke-width="7" stroke-linecap="round"/>
+  <path d="M25 33l-8-8M69 33l8-8" stroke="#818cf8" stroke-width="5" stroke-linecap="round"/>
+</svg>

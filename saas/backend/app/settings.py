@@ -36,6 +36,7 @@ _OPTIONAL = {
 
 _TRUE_VALUES = {"1", "true", "yes", "on"}
 _IMMUTABLE_SB3_IMAGE_RE = re.compile(r"(?:@sha256:[0-9a-f]{64}|:sb3-[0-9a-f]{7,64})$")
+_IMMUTABLE_MJX_IMAGE_RE = re.compile(r"(?:@sha256:[0-9a-f]{64}|:mjx-[0-9a-f]{7,64})$")
 
 
 @dataclass(frozen=True)
@@ -143,3 +144,34 @@ class CustomTrainingSettings:
             ).strip()
             or "custom-robot-v1",
         )
+
+
+@dataclass(frozen=True)
+class GallerySettings:
+    """Disabled-first rollout switch for the verified public gallery."""
+
+    enabled: bool
+
+    @classmethod
+    def from_env(
+        cls,
+        env: dict[str, str] | None = None,
+        *,
+        orchestration_backend: str = "mock",
+    ) -> GallerySettings:
+        env = os.environ if env is None else env
+        enabled = (
+            env.get("SAAS_GALLERY_ENABLED", "false").strip().lower() in _TRUE_VALUES
+        )
+        if enabled and orchestration_backend == "nebius":
+            sb3_image = env.get("SIM2POLICY_JOB_IMAGE", "").strip()
+            mjx_image = env.get("SIM2POLICY_MJX_JOB_IMAGE", "").strip()
+            if not _IMMUTABLE_SB3_IMAGE_RE.search(sb3_image):
+                raise SettingsError(
+                    "SAAS_GALLERY_ENABLED requires an immutable SIM2POLICY_JOB_IMAGE"
+                )
+            if not _IMMUTABLE_MJX_IMAGE_RE.search(mjx_image):
+                raise SettingsError(
+                    "SAAS_GALLERY_ENABLED requires an immutable SIM2POLICY_MJX_JOB_IMAGE"
+                )
+        return cls(enabled=enabled)

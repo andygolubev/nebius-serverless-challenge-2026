@@ -52,7 +52,7 @@ from .models import (
 )
 from .orchestration import build_backend
 from .robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate_mjcf
-from .settings import CustomTrainingSettings
+from .settings import CustomTrainingSettings, GallerySettings
 from .store import (
     AuthStore,
     CustomTrainingStore,
@@ -78,6 +78,7 @@ _custom_settings = getattr(
     "custom_settings",
     CustomTrainingSettings.from_env(orchestration_backend=_backend_name),
 )
+_gallery_settings = GallerySettings.from_env(orchestration_backend=_backend_name)
 _auth = AuthService(
     AuthStore(_db_path),
     build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")),
@@ -205,6 +206,7 @@ def health() -> dict[str, str]:
         "email_backend": _auth.sender.name,
         "email_ready": "true",
         "custom_robot_training": "enabled" if _custom_settings.enabled else "disabled",
+        "gallery": "enabled" if _gallery_settings.enabled else "disabled",
     }
 
 
@@ -669,13 +671,43 @@ def start_robot_setup_training(
 
 @app.get("/training-options")
 def training_options() -> dict:
-    return catalog.serialize()
+    return catalog.serialize(gallery_enabled=_gallery_settings.enabled)
 
 
 @app.post("/jobs", status_code=201)
 def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> Job:
     try:
-        if req.preset is not None:
+        if req.gallery_example_id is not None:
+            if not _gallery_settings.enabled:
+                raise catalog.ValidationError(
+                    "gallery_example_id", "the verified examples gallery is disabled"
+                )
+            if (
+                req.preset is not None
+                or req.environment is not None
+                or req.algorithm is not None
+            ):
+                raise catalog.ValidationError(
+                    "gallery_example_id",
+                    "gallery submissions cannot override preset, environment, or algorithm",
+                )
+            params = dict(req.params)
+            if req.seed is not None:
+                params.setdefault("seed", req.seed)
+            resolved = catalog.resolve_gallery(
+                req.gallery_example_id,
+                params,
+                profile_id=req.gallery_profile_id,
+            )
+        elif req.preset is not None:
+            if _gallery_settings.enabled:
+                raise catalog.ValidationError(
+                    "gallery_example_id", "select a verified gallery example"
+                )
+            if req.gallery_profile_id is not None:
+                raise catalog.ValidationError(
+                    "gallery_profile_id", "a gallery profile requires a gallery example"
+                )
             expansion = catalog.expand_preset(req.preset)
             params = {**expansion["params"], **req.params}
             if req.seed is not None:
@@ -684,6 +716,14 @@ def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> 
                 expansion["environment"], expansion["algorithm"], params
             )
         else:
+            if req.gallery_profile_id is not None:
+                raise catalog.ValidationError(
+                    "gallery_profile_id", "a gallery profile requires a gallery example"
+                )
+            if _gallery_settings.enabled:
+                raise catalog.ValidationError(
+                    "gallery_example_id", "select a verified gallery example"
+                )
             if req.environment is None or req.algorithm is None:
                 raise catalog.ValidationError(
                     "environment", "provide a preset, or environment and algorithm"
@@ -699,13 +739,18 @@ def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> 
     job = Job(
         id=uuid.uuid4().hex,
         tenant_id=session.email,
-        preset=req.preset,
+        preset=(
+            str(resolved.get("profile"))
+            if req.gallery_example_id is not None
+            else req.preset
+        ),
         environment=resolved["environment"],
         algorithm=resolved["algorithm"],
         resolved_config=resolved,
         status=STATUS_QUEUED,
         created_at=_now(),
         updated_at=_now(),
+        gallery_example_id=req.gallery_example_id,
     )
     _store.put(job)
     _backend.launch(job, _store)

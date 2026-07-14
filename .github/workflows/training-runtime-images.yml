@@ -102,9 +102,12 @@ jobs:
           docker run --rm --entrypoint python "sim2policy:${{ matrix.target }}-ci" -c \
             '${{ matrix.import_gate }}'
 
-      - name: Validate custom robot entrypoint and container matrix
+      - name: Validate SB3 gallery and custom robot container matrices
         if: matrix.target == 'sb3'
         run: |
+          docker run --rm -e MUJOCO_GL=osmesa --entrypoint python \
+            "sim2policy:${{ matrix.target }}-ci" \
+            /app/scripts/smoke_gallery_container.py --backend sb3
           docker run --rm --entrypoint python "sim2policy:${{ matrix.target }}-ci" \
             -m sim2policy.custom_robot_job --help
           docker run --rm \
@@ -112,6 +115,12 @@ jobs:
             -v "$PWD/sim2policy/scripts:/smoke:ro" \
             --entrypoint python "sim2policy:${{ matrix.target }}-ci" \
             /smoke/smoke_custom_robot_container.py
+
+      - name: Validate MJX gallery environment matrix
+        if: matrix.target == 'mjx'
+        run: |
+          docker run --rm --entrypoint python "sim2policy:${{ matrix.target }}-ci" \
+            /app/scripts/smoke_gallery_container.py --backend mjx
 
       - name: Log in to Nebius Registry
         if: github.event_name != 'pull_request'

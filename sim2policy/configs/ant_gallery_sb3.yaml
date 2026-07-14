@@ -1,0 +1,22 @@
+backend: sb3
+environment: Ant-v5
+seed: 0
+training:
+  total_steps: 1000000
+  n_envs: 8
+  device: cpu
+  hyperparameters:
+    batch_size: 256
+    n_steps: 512
+    n_epochs: 10
+    gamma: 0.98
+    gae_lambda: 0.95
+    learning_rate: 0.0003
+    ent_coef: 0.0
+    clip_range: 0.2
+checkpoint: {every_steps: 250000, keep: 3}
+evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
+success: {kind: mean_reward, threshold: 1000}
+rendering: {frames: 500, fps: 30, width: 640, height: 480, seed: 0}
+storage: {mode: local, prefix: sim2policy}
+reporting: {hourly_rate: null, currency: USD, rate_date: null}

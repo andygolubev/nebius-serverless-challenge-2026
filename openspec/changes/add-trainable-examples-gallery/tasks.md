@@ -1,39 +1,39 @@
 ## 1. Catalog and persistence contracts
 
-- [ ] 1.1 Add shared backend models for the exact seven stable gallery IDs, display metadata,
+- [x] 1.1 Add shared backend models for the exact seven stable gallery IDs, display metadata,
   recommended configuration, measured guidance, success criteria, acceptance revision, and
   production job-spec reference.
-- [ ] 1.2 Add an additive nullable `gallery_example_id` field and migration to persisted jobs, API
+- [x] 1.2 Add an additive nullable `gallery_example_id` field and migration to persisted jobs, API
   serialization, and historical-job fallback without rewriting existing rows.
-- [ ] 1.3 Populate the server-owned catalog with Go1 Walker, Ant Explorer, HalfCheetah Sprint,
+- [x] 1.3 Populate the server-owned catalog with Go1 Walker, Ant Explorer, HalfCheetah Sprint,
   Hopper Balance, Walker2D Stride, G1 Rough Terrain, and Reacher Target in the specified order; retain
   Go1 Standard and Quality only as secondary sizes beneath the Go1 card.
-- [ ] 1.4 Implement acceptance-revision gating so an incomplete or stale entry is omitted from
+- [x] 1.4 Implement acceptance-revision gating so an incomplete or stale entry is omitted from
   `/training-options` and rejected by `POST /jobs` before local or remote creation.
-- [ ] 1.5 Resolve submissions exclusively from `gallery_example_id` and catalog-declared bounded
+- [x] 1.5 Resolve submissions exclusively from `gallery_example_id` and catalog-declared bounded
   optional fields; reject arbitrary images, commands, code, environment variables, algorithms,
   compute choices, unknown fields, and out-of-range values with field-level 422 responses.
-- [ ] 1.6 Add backend tests asserting exact cardinality/order/metadata, one recommendation per card,
+- [x] 1.6 Add backend tests asserting exact cardinality/order/metadata, one recommendation per card,
   stale-entry hiding, unsafe submission rejection, resolved configuration persistence, legacy Go1
   profile compatibility, server-selected backend enforcement, historical null identity, and Bring
   Your Robot isolation.
 
 ## 2. Train, evaluate, and render every example
 
-- [ ] 2.1 Add bounded SB3 training configurations for `Hopper-v5`, `Walker2d-v5`, and `Reacher-v5`,
+- [x] 2.1 Add bounded SB3 training configurations for `Hopper-v5`, `Walker2d-v5`, and `Reacher-v5`,
   and review existing Ant and HalfCheetah configurations for the gallery's single recommended demo
   workload.
-- [ ] 2.2 Define task-specific evaluation metrics and explicit acceptance thresholds for all seven
+- [x] 2.2 Define task-specific evaluation metrics and explicit acceptance thresholds for all seven
   examples so the UI can report a meaningful primary KPI and pass/fail outcome.
-- [ ] 2.3 Extend the SB3 evaluation and rendering path to produce canonical metrics, a final rollout,
+- [x] 2.3 Extend the SB3 evaluation and rendering path to produce canonical metrics, a final rollout,
   checkpoint identity, resolved configuration, runtime versions, and safe artifact metadata for
   every new environment.
-- [ ] 2.4 Declare complete server-owned production job specs for all five SB3 examples, including
+- [x] 2.4 Declare complete server-owned production job specs for all five SB3 examples, including
   immutable image setting, right-sized CPU or L40S shape, command/config, timeout, bounded fields,
   artifact prefix, and required outputs; prohibit H100 for these specs.
-- [ ] 2.5 Keep Go1 on the accepted MJX/H100 path, mark Quick as the gallery recommendation, and
+- [x] 2.5 Keep Go1 on the accepted MJX/H100 path, mark Quick as the gallery recommendation, and
   confirm Quick, Standard, and Quality still resolve to complete immutable job specs.
-- [ ] 2.6 Add a bounded `G1JoystickRoughTerrain` MJX configuration, task-specific evaluation and
+- [x] 2.6 Add a bounded `G1JoystickRoughTerrain` MJX configuration, task-specific evaluation and
   rendering contract, artifact requirements, and production job-spec candidates that reuse the
   immutable MJX runtime without changing the Go1 task.
 - [ ] 2.7 Add configuration, command-construction, environment import, short train, evaluation,
@@ -41,19 +41,19 @@
 
 ## 3. Deterministic policy bundle
 
-- [ ] 3.1 Implement a bounded streaming bundle packager that writes canonical `README.md`,
+- [x] 3.1 Implement a bounded streaming bundle packager that writes canonical `README.md`,
   `manifest.json`, `resolved-config.json`, `evaluation/metrics.json`, `runtime/versions.json`, and
   the backend-native final checkpoint beneath `checkpoint/`.
-- [ ] 3.2 Normalize archive member paths, order, timestamps, permissions, and JSON serialization;
+- [x] 3.2 Normalize archive member paths, order, timestamps, permissions, and JSON serialization;
   reject traversal, absolute/duplicate names, excessive members/sizes, unsupported types, and
   missing required inputs before publication.
-- [ ] 3.3 Include schema/run/example identity, compatibility loader, immutable runtime identity,
+- [x] 3.3 Include schema/run/example identity, compatibility loader, immutable runtime identity,
   member sizes/types/SHA-256 digests, evaluation command, and clear simulator-only/physical-robot
   safety guidance in the manifest and README.
-- [ ] 3.4 Publish `policy-bundle.zip` and its outer digest through both SB3 and MJX finalizers, and
+- [x] 3.4 Publish `policy-bundle.zip` and its outer digest through both SB3 and MJX finalizers, and
   gate completion of new gallery jobs on readable, fully validated bundle contents while leaving
   historical non-gallery results compatible.
-- [ ] 3.5 Normalize the bundle as an opaque `application/zip` artifact and expose it only through
+- [x] 3.5 Normalize the bundle as an opaque `application/zip` artifact and expose it only through
   the existing owned-job stream or short-lived redirect route with a safe attachment filename.
 - [ ] 3.6 Add tests for byte-identical regeneration, every member digest, hostile archive inputs,
   missing/corrupt checkpoints, bounded size/count, no secret/log/video inclusion, finalization
@@ -61,15 +61,15 @@
 
 ## 4. Gallery and avatar UI
 
-- [ ] 4.1 Create seven lightweight original repository-owned SVG avatars with consistent geometry,
+- [x] 4.1 Create seven lightweight original repository-owned SVG avatars with consistent geometry,
   same-origin loading, accessible labels, and no third-party asset request.
-- [ ] 4.2 Replace the default New Job form with a responsive seven-card gallery driven only by
+- [x] 4.2 Replace the default New Job form with a responsive seven-card gallery driven only by
   `/training-options`, showing task story, expected outcome, backend/hardware, measured time/cost,
   and one clearly marked recommended configuration per card; show backend as a badge and provide
   no global SB3/MJX or hardware selector.
-- [ ] 4.3 Add a concise select-review-start flow with only catalog-declared bounded optional fields,
+- [x] 4.3 Add a concise select-review-start flow with only catalog-declared bounded optional fields,
   field-level validation, clear submitting/error states, and no stale control for hidden examples.
-- [ ] 4.4 Show gallery avatar/name and live lifecycle in Jobs rows and details, with a generic
+- [x] 4.4 Show gallery avatar/name and live lifecycle in Jobs rows and details, with a generic
   environment/profile fallback for historical jobs whose example identity is null.
 - [ ] 4.5 Add component/API tests for exact seven cards, catalog-only rendering, local avatars,
   recommendation review, successful submission, backend-override 422 errors, absence of a global
@@ -87,18 +87,18 @@
 
 ## 5. Compact result experience
 
-- [ ] 5.1 Redesign the completed job page with a compact top summary for example identity, outcome,
+- [x] 5.1 Redesign the completed job page with a compact top summary for example identity, outcome,
   primary KPI, runtime, cost, checkpoint, final rollout, and the policy-bundle action instead of
   equal-width raw JSON columns.
-- [ ] 5.2 Organize resolved configuration, evaluation details, runtime/device versions, raw nested
+- [x] 5.2 Organize resolved configuration, evaluation details, runtime/device versions, raw nested
   metrics, and individual artifacts into readable labeled sections or collapsed details with safe
   formatting for long numbers, identifiers, arrays, and objects.
-- [ ] 5.3 Make **Download policy bundle** the primary completed-gallery takeaway, label it for the
+- [x] 5.3 Make **Download policy bundle** the primary completed-gallery takeaway, label it for the
   matching simulator, and keep video/report/JSON/checkpoint actions as secondary files; omit the
   bundle action cleanly for historical results.
-- [ ] 5.4 Preserve accessible final-rollout playback, progression selection, fresh authorized URL
+- [x] 5.4 Preserve accessible final-rollout playback, progression selection, fresh authorized URL
   retry, byte-range seeking, and individual artifact download behavior.
-- [ ] 5.5 Add result-page tests covering completed/finalizing/failed/legacy jobs, KPI and cost
+- [x] 5.5 Add result-page tests covering completed/finalizing/failed/legacy jobs, KPI and cost
   summaries, nested metrics, long content, bundle presence/absence, compatibility warning,
   player failures, and tenant-authorized downloads.
 - [ ] 5.6 Visually verify result pages at 375 px, tablet, and desktop widths plus light/dark themes;
@@ -107,7 +107,7 @@
 
 ## 6. Local and integration gates
 
-- [ ] 6.1 Run the complete backend, frontend, and `sim2policy` test suites plus formatting, type,
+- [x] 6.1 Run the complete backend, frontend, and `sim2policy` test suites plus formatting, type,
   lint, migration, and production-build checks; record commands and observed results in
   `IMPLEMENTATION_LOG.MD` without secrets.
 - [ ] 6.2 Exercise all seven entries with local/mock API submission through completed finalization,
@@ -117,7 +117,7 @@
   job identity, results, bundles, and pre-change jobs survive process/container restart.
 - [ ] 6.4 Run dependency, secret, generated-artifact, and repository-size checks; confirm no
   credentials, checkpoints, run outputs, logs, runtime images, or acceptance media are tracked.
-- [ ] 6.5 Update operator and user documentation to explain each example, the browser-visible
+- [x] 6.5 Update operator and user documentation to explain each example, the browser-visible
   training result, when to download the policy bundle, its exact contents/loader compatibility,
   why it is not a direct physical-robot deployment artifact, and why custom model/setup validation
   is not custom training or a user-triggerable GPU-validation stage.

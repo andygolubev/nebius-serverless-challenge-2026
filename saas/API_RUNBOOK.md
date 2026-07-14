@@ -45,20 +45,23 @@ unset TOKEN
 Do not copy stale parameter bounds from old runs. The unauthenticated catalog endpoint is the source
 of truth for environments, compatible algorithms, presets, defaults, and validation ranges:
 
-Production exposes three GPU-accelerated Go1 MJX/JAX PPO profiles: Quick, Standard, and Quality.
-SB3 and combinations without an executable H100 job specification are intentionally absent and
-rejected by direct API submission.
+When `gallery_enabled` is true, production exposes exactly seven accepted examples: `go1-walker`,
+`ant-explorer`, `halfcheetah-sprint`, `hopper-balance`, `walker2d-stride`, `g1-rough-terrain`, and
+`reacher-target`. The response contains the server-selected backend/hardware, measured guidance,
+success rule, accepted revision, recommended profile, and bounded optional fields. Go1 Quick,
+Standard, and Quality are sizes beneath the one Go1 card. Entries with a stale acceptance revision
+are omitted and rejected.
 
 ```bash
 curl --fail-with-body --silent --show-error \
   "$BASE_URL/training-options" | jq .
 ```
 
-Current preset names can be listed with:
+Accepted gallery examples can be listed with:
 
 ```bash
 curl --fail-with-body --silent --show-error \
-  "$BASE_URL/training-options" | jq -r '.presets[] | [.id, .environment, .algorithm, (.params | tostring)] | @tsv'
+  "$BASE_URL/training-options" | jq -r '.examples[] | [.id, .backend_label, .hardware_label, .recommended_profile] | @tsv'
 ```
 
 For the deployed Nebius backend, only `total_timesteps` and `seed` are currently forwarded to the
@@ -69,7 +72,16 @@ parameter affects a cloud run.
 
 ## Submit a job
 
-Every request must use exactly one of these forms:
+With the gallery enabled, use this form:
+
+```bash
+curl --fail-with-body --silent --show-error \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"gallery_example_id":"hopper-balance","gallery_profile_id":"hopper-balance-v1","params":{"seed":7}}' \
+  "$BASE_URL/jobs"
+```
+
+The legacy disabled-gallery rollout accepts exactly one of these forms:
 
 1. A preset, optionally overridden with bounded `params`.
 2. An explicit compatible `environment` and `algorithm` with bounded `params`.
