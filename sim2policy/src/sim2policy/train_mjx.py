@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import functools
 import importlib
+import inspect
 import json
 import math
 import shutil
@@ -256,20 +257,47 @@ def fixed_forward_command_state(
     observe one stable local-frame command for the complete rollout.
     """
     info = dict(state.info)
-    if "command" not in info or "steps_until_next_cmd" not in info:
+    if "command" not in info:
         raise RuntimeError("MJX locomotion environment has no joystick command contract")
     command = jax.numpy.asarray(
         [target_velocity, 0.0, 0.0], dtype=info["command"].dtype
     )
     info["command"] = command
-    info["steps_until_next_cmd"] = jax.numpy.asarray(
-        horizon + 1, dtype=info["steps_until_next_cmd"].dtype
-    )
+    if "steps_until_next_cmd" in info:
+        info["steps_until_next_cmd"] = jax.numpy.asarray(
+            horizon + 1, dtype=info["steps_until_next_cmd"].dtype
+        )
+    elif "step" in info:
+        # Playground 0.2 G1 resamples after ``step > 500`` instead of using
+        # Go1's countdown. A negative rollout-sized offset preserves the fixed
+        # command without changing the pinned environment implementation.
+        info["step"] = jax.numpy.asarray(
+            -horizon, dtype=getattr(info["step"], "dtype", None)
+        )
+    else:
+        raise RuntimeError("MJX locomotion environment has no command cadence contract")
     state = state.replace(info=info)
     observation_builder = getattr(environment, "_get_obs", None)
     if not callable(observation_builder):
         raise RuntimeError("MJX locomotion environment cannot refresh command observation")
-    return state.replace(obs=observation_builder(state.data, state.info))
+    parameter_count = len(inspect.signature(observation_builder).parameters)
+    if parameter_count == 2:
+        observation = observation_builder(state.data, state.info)
+    elif parameter_count == 3:
+        sensor_ids = getattr(environment, "_feet_floor_found_sensor", None)
+        model = getattr(environment, "_mj_model", None)
+        if sensor_ids is None or model is None:
+            raise RuntimeError("MJX locomotion environment cannot rebuild contact observation")
+        contact = jax.numpy.asarray(
+            [
+                state.data.sensordata[model.sensor_adr[sensor_id]] > 0
+                for sensor_id in sensor_ids
+            ]
+        )
+        observation = observation_builder(state.data, state.info, contact)
+    else:
+        raise RuntimeError("MJX locomotion environment has an unsupported observation contract")
+    return state.replace(obs=observation)
 
 
 def local_forward_velocity(environment: Any, state: Any) -> float:
@@ -277,7 +305,12 @@ def local_forward_velocity(environment: Any, state: Any) -> float:
     velocity = getattr(environment, "get_local_linvel", None)
     if not callable(velocity):
         raise RuntimeError("MJX locomotion environment has no local velocity contract")
-    return float(velocity(state.data)[0])
+    if len(inspect.signature(velocity).parameters) == 1:
+        local_velocity = velocity(state.data)
+    else:
+        # G1 exposes the same robot-frame quantity with an explicit body name.
+        local_velocity = velocity(state.data, "pelvis")
+    return float(local_velocity[0])
 
 
 def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:

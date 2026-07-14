@@ -18,6 +18,8 @@ from sim2policy.train_mjx import (
     _repair_brax_checkpoint_config,
     build_playground_command,
     evaluate_mjx,
+    fixed_forward_command_state,
+    local_forward_velocity,
     train_mjx,
 )
 
@@ -306,6 +308,61 @@ def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
     assert all(episode["command_velocity"] == 1.0 for episode in episodes)
     assert all(episode["mean_velocity"] == 0.75 for episode in episodes)
     assert all(episode["success"] for episode in episodes)
+
+
+def test_g1_command_cadence_contact_observation_and_pelvis_velocity() -> None:
+    class FakeJax:
+        class numpy:
+            @staticmethod
+            def asarray(value: Any, dtype: str | None = None) -> Any:
+                del dtype
+                return value
+
+    class Data:
+        sensordata = [1.0, 0.0]
+
+    class State:
+        def __init__(self) -> None:
+            self.data = Data()
+            self.info = {
+                "command": type("Command", (list,), {"dtype": "float32"})([0.0] * 3),
+                "step": 0,
+            }
+            self.obs: Any = None
+
+        def replace(self, **updates: Any) -> State:
+            state = State()
+            state.__dict__.update(self.__dict__)
+            state.__dict__.update(updates)
+            return state
+
+    class Model:
+        sensor_adr = [0, 1]
+
+    class Environment:
+        _feet_floor_found_sensor = [0, 1]
+        _mj_model = Model()
+
+        def _get_obs(
+            self, data: Data, info: dict[str, Any], contact: list[bool]
+        ) -> dict[str, list[Any]]:
+            del data
+            assert contact == [True, False]
+            return {"state": [*info["command"], *contact]}
+
+        def get_local_linvel(self, data: Data, body: str) -> list[float]:
+            del data
+            assert body == "pelvis"
+            return [0.6, 0.0, 0.0]
+
+    environment = Environment()
+    state = fixed_forward_command_state(
+        State(), environment, FakeJax(), target_velocity=1.0, horizon=1000
+    )
+    assert state.info["command"] == [1.0, 0.0, 0.0]
+    assert state.info["step"] == -1000
+    assert state.obs == {"state": [1.0, 0.0, 0.0, True, False]}
+    assert local_forward_velocity(environment, state) == 0.6
 
 
 def test_mjx_backend_stays_optional_in_base_environment() -> None:

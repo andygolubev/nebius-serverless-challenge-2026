@@ -41,14 +41,35 @@ def smoke_sb3() -> None:
 
 
 def smoke_mjx() -> None:
-    from sim2policy.train_mjx import validate_mjx_environment
+    import jax
+    from mujoco_playground import registry
+
+    from sim2policy.train_mjx import (
+        fixed_forward_command_state,
+        local_forward_velocity,
+        validate_mjx_environment,
+    )
 
     for name in MJX_CONFIGS:
         config = load_config(ROOT / "configs" / name)
         probe = validate_mjx_environment(config)
         if not probe.get("observation_size") or not probe.get("action_size"):
             raise RuntimeError(f"MJX gallery environment smoke failed: {name}")
-        print(f"gallery environment ok: {name} {probe}")
+        environment = registry.load(
+            config.environment,
+            config_overrides={"impl": config.training.hyperparameters.get("impl", "jax")},
+        )
+        state = fixed_forward_command_state(
+            environment.reset(jax.random.PRNGKey(config.seed)),
+            environment,
+            jax,
+            target_velocity=config.success.target_velocity,
+            horizon=config.rendering.frames,
+        )
+        velocity = local_forward_velocity(environment, state)
+        if not math.isfinite(velocity):
+            raise RuntimeError(f"MJX gallery locomotion contract failed: {name}")
+        print(f"gallery environment ok: {name} {probe} local_velocity={velocity:.3f}")
 
 
 def main() -> None:
