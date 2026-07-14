@@ -196,6 +196,12 @@ gates, and smoke-test PPO save/reload. An accepted fingerprint enables **Start t
 creates a normal Job with the fixed `custom-ppo-quick` CPU profile. Preparation means technical
 compatibility, not that the policy will reach the task threshold.
 
+The frozen V1 preparation shape is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; all
+eight canonical combinations measured about 3m42s–3m57s end to end. `custom-ppo-quick` uses
+`cpu-d3` / `8vcpu-32gb`, 100 GiB, eight vector environments, 100k steps, and a one-hour cap; the
+same matrix measured about 3m31s–3m49s and roughly $0.01 per attempt at the 2026-07-14 list rate.
+These are observed bounds for the exact immutable profile, not a promise that 100k steps converges.
+
 The completed custom Job publishes evaluation, task metrics, reward curve, rollout MP4,
 checkpoint, resolved configuration, exact inputs, and a checksummed policy bundle. The bundle is
 simulator-only and is not directly deployable to physical hardware. There is one runtime image for

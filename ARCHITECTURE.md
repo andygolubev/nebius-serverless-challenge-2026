@@ -169,6 +169,13 @@ policy bundle. Source deletion blocks new starts while retained preparation/job 
 artifacts remain readable. Custom resources never enter the public `/training-options` gallery or
 generic `POST /jobs`, and V1 does not offer MJX/GPU selection.
 
+The frozen V1 preparation profile is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; the
+eight canonical combinations measured about 3m42s–3m57s create-to-finish. The fixed
+`custom-ppo-quick` profile is `cpu-d3` / `8vcpu-32gb`, 100 GiB, eight vector environments, 100k
+steps, and a one-hour cap; the same matrix measured about 3m31s–3m49s and roughly $0.01 each at the
+2026-07-14 list rate. This is a dependable train-to-artifact quick attempt, not a convergence
+promise: evaluation records task success or below-threshold completion honestly.
+
 ### Secrets in use
 
 All credentials originate in versioned **MysteryBox** payloads and reach workloads either as

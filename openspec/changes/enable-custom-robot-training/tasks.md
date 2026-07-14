@@ -92,9 +92,9 @@
 
 ## 9. Benchmark and freeze the production CPU profiles
 
-- [ ] 9.1 Run local gates first, then bounded Serverless AI preparation smokes on `cpu-d3` candidates beginning with `4vcpu-16gb`; measure compile, rollout, render, short-PPO, memory, disk, startup, and finalization for all eight canonical combinations.
-- [ ] 9.2 Run bounded `custom-ppo-quick` candidate trainings beginning with `cpu-d3` / `8vcpu-32gb`; measure throughput, wall time, memory, artifact sizes, evaluation behavior, and cost inputs without claiming unmeasured utilization or convergence.
-- [ ] 9.3 Select the smallest dependable allowlisted preparation/training shapes and freeze disk, timeout, vector count, PPO step budget, cadence, seeds, and observed duration/cost guidance in versioned config, tests, docs, and fingerprints.
+- [x] 9.1 Run local gates first, then bounded Serverless AI preparation smokes on `cpu-d3` candidates beginning with `4vcpu-16gb`; measure compile, rollout, render, short-PPO, memory, disk, startup, and finalization for all eight canonical combinations.
+- [x] 9.2 Run bounded `custom-ppo-quick` candidate trainings beginning with `cpu-d3` / `8vcpu-32gb`; measure throughput, wall time, memory, artifact sizes, evaluation behavior, and cost inputs without claiming unmeasured utilization or convergence.
+- [x] 9.3 Select the smallest dependable allowlisted preparation/training shapes and freeze disk, timeout, vector count, PPO step budget, cadence, seeds, and observed duration/cost guidance in versioned config, tests, docs, and fingerprints.
 - [ ] 9.4 Re-run the canonical preparation and training smoke gates using the frozen profiles and exact immutable image digest; do not enable production if any supported combination violates bounds or fails required artifact/bundle finalization.
 - [ ] 9.5 After each benchmark session, confirm no CPU/GPU VM is still running, remove unneeded temporary instances/IPs/rules/failed resources, keep only justified stopped builder cache, and record cleanup and next safe action in `IMPLEMENTATION_LOG.MD`.
 
