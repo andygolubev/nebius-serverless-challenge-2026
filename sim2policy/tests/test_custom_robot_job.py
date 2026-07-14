@@ -184,6 +184,10 @@ def test_reduced_training_publishes_complete_checksummed_simulator_bundle(
     )
 
     assert metrics["training"]["timesteps"] == 64
+    assert metrics["runtime_seconds"] > 0
+    assert metrics["benchmark"]["hourly_rate"] == 0.1984
+    assert metrics["benchmark"]["currency"] == "USD"
+    assert metrics["benchmark"]["estimated_cost"] > 0
     assert len(metrics["training"]["progress_evaluations"]) == 2
     assert isinstance(metrics["aggregate"]["task_threshold_achieved"], bool)
     assert metrics["simulator_only"] is True

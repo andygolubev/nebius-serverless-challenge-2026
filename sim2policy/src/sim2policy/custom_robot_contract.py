@@ -81,6 +81,9 @@ class TrainingProfile:
     ppo_gamma: float = 0.99
     ppo_gae_lambda: float = 0.95
     ppo_clip_range: float = 0.2
+    hourly_rate: float = 0.1984
+    currency: str = "USD"
+    rate_date: str = "2026-07-14"
 
 
 PREPARATION_PROFILE = PreparationProfile()

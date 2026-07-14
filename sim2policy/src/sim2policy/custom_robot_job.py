@@ -596,6 +596,7 @@ def run_training(
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import BaseCallback
 
+    started_at = time.monotonic()
     validate_safe_id(publisher.identity, "run identity")
     with tempfile.TemporaryDirectory(prefix="sim2policy-custom-train-") as raw_temporary:
         root = Path(raw_temporary)
@@ -738,8 +739,16 @@ def run_training(
         resolved["training"]["progress_evaluation_seeds"] = list(
             profile.progress_evaluation_seeds
         )
+        runtime_seconds = time.monotonic() - started_at
         metrics = {
             **evaluation,
+            "runtime_seconds": runtime_seconds,
+            "benchmark": {
+                "hourly_rate": profile.hourly_rate,
+                "currency": profile.currency,
+                "rate_date": profile.rate_date,
+                "estimated_cost": runtime_seconds / 3600 * profile.hourly_rate,
+            },
             "training": {
                 "timesteps": profile.total_timesteps,
                 "episode_rewards": episode_rewards[-5000:],
