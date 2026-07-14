@@ -161,5 +161,19 @@ def test_artifact_access_is_tenant_scoped(client, sender, login, backend_reader)
     backend_reader(StubReader(manifest))
     artifact = client.get(f"/jobs/{job.id}/artifacts", headers=owner_headers).json()["artifacts"][0]
     assert artifact["url"].startswith("https://objects.example/")
+    stream = client.get(
+        f"/jobs/{job.id}/artifacts/{artifact['id']}",
+        headers={**owner_headers, "Range": "bytes=0-99"},
+        follow_redirects=False,
+    )
+    assert stream.status_code == 307
+    assert stream.headers["location"].startswith("https://objects.example/")
+    download = client.get(
+        f"/jobs/{job.id}/artifacts/{artifact['id']}?download=true",
+        headers=owner_headers,
+        follow_redirects=False,
+    )
+    assert download.status_code == 307
+    assert "download=final.mp4" in download.headers["location"]
     assert client.get(f"/jobs/{job.id}/artifacts/{artifact['id']}", headers=other_headers).status_code == 404
     assert client.get(f"/jobs/{job.id}/artifacts/not-in-manifest", headers=owner_headers).status_code == 404

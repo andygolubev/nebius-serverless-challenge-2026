@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import uuid
 import json
 import sqlite3
+import time
+import uuid
 from dataclasses import replace
 from pathlib import Path
 
@@ -87,6 +88,52 @@ def test_gallery_submission_uses_only_server_owned_identity_profile_and_seed(
     }
     persisted = client.get(f"/jobs/{job['id']}", headers=headers).json()
     assert persisted["gallery_example_id"] == "go1-walker"
+
+
+def test_all_seven_gallery_examples_complete_with_owned_mock_artifacts(
+    client, login, enabled_gallery, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(main._backend, "step_delay", 0.001)
+    owner = login(_email())
+    stranger = login(_email())
+    jobs = []
+    for example_id in EXPECTED_IDS:
+        response = client.post(
+            "/jobs",
+            json={"gallery_example_id": example_id, "params": {"seed": 7}},
+            headers=owner,
+        )
+        assert response.status_code == 201
+        jobs.append(response.json())
+
+    job_ids = {job["id"] for job in jobs}
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline:
+        current = [
+            item
+            for item in client.get("/jobs", headers=owner).json()
+            if item["id"] in job_ids
+        ]
+        if len(current) == len(jobs) and all(
+            item["status"] == "completed" for item in current
+        ):
+            break
+        time.sleep(0.01)
+    else:
+        raise AssertionError("mock gallery jobs did not complete")
+
+    for job in jobs:
+        detail = client.get(f"/jobs/{job['id']}", headers=owner)
+        assert detail.status_code == 200
+        assert detail.json()["gallery_example_id"] == job["gallery_example_id"]
+        result = client.get(f"/jobs/{job['id']}/artifacts", headers=owner)
+        assert result.status_code == 200
+        artifacts = {item["id"] for item in result.json()["artifacts"]}
+        assert {"video_final", "final_policy", "policy_bundle"} <= artifacts
+        assert (
+            client.get(f"/jobs/{job['id']}/artifacts", headers=stranger).status_code
+            == 404
+        )
 
 
 @pytest.mark.parametrize(

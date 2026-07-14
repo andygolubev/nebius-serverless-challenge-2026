@@ -55,7 +55,7 @@
   historical non-gallery results compatible.
 - [x] 3.5 Normalize the bundle as an opaque `application/zip` artifact and expose it only through
   the existing owned-job stream or short-lived redirect route with a safe attachment filename.
-- [ ] 3.6 Add tests for byte-identical regeneration, every member digest, hostile archive inputs,
+- [x] 3.6 Add tests for byte-identical regeneration, every member digest, hostile archive inputs,
   missing/corrupt checkpoints, bounded size/count, no secret/log/video inclusion, finalization
   timeout/failure, historical jobs without bundles, range/redirect behavior, and cross-tenant 404.
 
@@ -71,7 +71,7 @@
   field-level validation, clear submitting/error states, and no stale control for hidden examples.
 - [x] 4.4 Show gallery avatar/name and live lifecycle in Jobs rows and details, with a generic
   environment/profile fallback for historical jobs whose example identity is null.
-- [ ] 4.5 Add component/API tests for exact seven cards, catalog-only rendering, local avatars,
+- [x] 4.5 Add component/API tests for exact seven cards, catalog-only rendering, local avatars,
   recommendation review, successful submission, backend-override 422 errors, absence of a global
   backend selector, hidden entries, historical fallback, and the absence of custom
   robot/environment training actions.
@@ -110,12 +110,12 @@
 - [x] 6.1 Run the complete backend, frontend, and `sim2policy` test suites plus formatting, type,
   lint, migration, and production-build checks; record commands and observed results in
   `IMPLEMENTATION_LOG.MD` without secrets.
-- [ ] 6.2 Exercise all seven entries with local/mock API submission through completed finalization,
+- [x] 6.2 Exercise all seven entries with local/mock API submission through completed finalization,
   then validate result rendering, bundle contents/digests, legacy-job behavior, and tenant
   isolation using generated test artifacts only.
-- [ ] 6.3 Build the SaaS container and restart the local stack with persisted data; verify catalog,
+- [x] 6.3 Build the SaaS container and restart the local stack with persisted data; verify catalog,
   job identity, results, bundles, and pre-change jobs survive process/container restart.
-- [ ] 6.4 Run dependency, secret, generated-artifact, and repository-size checks; confirm no
+- [x] 6.4 Run dependency, secret, generated-artifact, and repository-size checks; confirm no
   credentials, checkpoints, run outputs, logs, runtime images, or acceptance media are tracked.
 - [x] 6.5 Update operator and user documentation to explain each example, the browser-visible
   training result, when to download the policy bundle, its exact contents/loader compatibility,
