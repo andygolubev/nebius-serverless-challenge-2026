@@ -36,6 +36,12 @@ _BRAX_OPTIONAL_INITIALIZERS = (
     "q_network_kernel_init_fn",
     "mean_kernel_init_fn",
 )
+_NETWORK_FACTORY_HYPERPARAMETERS = {
+    "policy_hidden_layer_sizes",
+    "value_hidden_layer_sizes",
+    "policy_obs_key",
+    "value_obs_key",
+}
 _PLAYGROUND_FLAG_MAP = {
     "num_eval_envs",
     "num_evals",
@@ -334,11 +340,7 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     ppo_params = playground_train.get_rl_config(config.environment)
     hyperparameters = dict(config.training.hyperparameters)
     hyperparameters.pop("impl", None)
-    for key, value in hyperparameters.items():
-        if key in {"policy_hidden_layer_sizes", "value_hidden_layer_sizes"}:
-            setattr(ppo_params.network_factory, key, value)
-        elif key != "network_factory":
-            setattr(ppo_params, key, value)
+    _apply_initial_hyperparameters(ppo_params, hyperparameters)
     ppo_params.num_timesteps = 0
     # Policy initialization is independent of rollout parallelism. One environment keeps the
     # step-zero snapshot cheap while preserving the exact observation/action/network contract.
@@ -366,6 +368,15 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     )
     ppo_checkpoint.save(output_root, 0, jax.device_get(params), network_config)
     return output_root / "000000000000"
+
+
+def _apply_initial_hyperparameters(ppo_params: Any, hyperparameters: dict[str, Any]) -> None:
+    """Apply CLI-equivalent overrides to Playground's direct initial-policy config."""
+    for key, value in hyperparameters.items():
+        if key in _NETWORK_FACTORY_HYPERPARAMETERS:
+            setattr(ppo_params.network_factory, key, value)
+        elif key != "network_factory":
+            setattr(ppo_params, key, value)
 
 
 def _parse_initial_worker_flags(flag_values: Any, config: RunConfig) -> None:

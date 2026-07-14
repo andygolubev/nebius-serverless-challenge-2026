@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import math
 from pathlib import Path
 
@@ -45,6 +46,9 @@ def smoke_mjx() -> None:
     from mujoco_playground import registry
 
     from sim2policy.train_mjx import (
+        _NETWORK_FACTORY_HYPERPARAMETERS,
+        _apply_initial_hyperparameters,
+        _parse_initial_worker_flags,
         fixed_forward_command_state,
         local_forward_velocity,
         validate_mjx_environment,
@@ -52,6 +56,19 @@ def smoke_mjx() -> None:
 
     for name in MJX_CONFIGS:
         config = load_config(ROOT / "configs" / name)
+        _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
+        ppo_params = importlib.import_module("learning.train_jax_ppo").get_rl_config(
+            config.environment
+        )
+        hyperparameters = dict(config.training.hyperparameters)
+        hyperparameters.pop("impl", None)
+        _apply_initial_hyperparameters(ppo_params, hyperparameters)
+        for key in _NETWORK_FACTORY_HYPERPARAMETERS & hyperparameters.keys():
+            if (
+                key in ppo_params
+                or getattr(ppo_params.network_factory, key) != hyperparameters[key]
+            ):
+                raise RuntimeError(f"MJX initial-policy network contract failed: {name} {key}")
         probe = validate_mjx_environment(config)
         if not probe.get("observation_size") or not probe.get("action_size"):
             raise RuntimeError(f"MJX gallery environment smoke failed: {name}")

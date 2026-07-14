@@ -6,6 +6,7 @@ import subprocess
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
 from sim2policy.train_mjx import (
+    _apply_initial_hyperparameters,
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
     build_playground_command,
@@ -81,6 +83,37 @@ def test_initial_worker_parses_playground_impl_before_config_access() -> None:
 
     _parse_initial_worker_flags(flags, config)
     assert flags.argv == ["sim2policy-mjx-initial", "--impl=jax"]
+
+
+def test_initial_worker_routes_network_overrides_to_network_factory() -> None:
+    params = SimpleNamespace(
+        network_factory=SimpleNamespace(
+            policy_obs_key="old-policy",
+            value_obs_key="old-value",
+            policy_hidden_layer_sizes=(1,),
+            value_hidden_layer_sizes=(1,),
+        ),
+        entropy_cost=0.01,
+    )
+
+    _apply_initial_hyperparameters(
+        params,
+        {
+            "policy_obs_key": "state",
+            "value_obs_key": "privileged_state",
+            "policy_hidden_layer_sizes": [512, 256, 128],
+            "value_hidden_layer_sizes": [512, 256, 128],
+            "entropy_cost": 0.005,
+        },
+    )
+
+    assert params.network_factory.policy_obs_key == "state"
+    assert params.network_factory.value_obs_key == "privileged_state"
+    assert params.network_factory.policy_hidden_layer_sizes == [512, 256, 128]
+    assert params.network_factory.value_hidden_layer_sizes == [512, 256, 128]
+    assert params.entropy_cost == 0.005
+    assert not hasattr(params, "policy_obs_key")
+    assert not hasattr(params, "value_obs_key")
 
 
 def test_repair_brax_checkpoint_config_removes_null_initializers(tmp_path: Path) -> None:
