@@ -61,6 +61,12 @@ def test_catalog_has_exact_order_metadata_and_one_recommendation(
     )
     assert walker["recommended_params"]["total_timesteps"] == 2_000_000
     assert catalog.JOB_SPECS[("walker2d", "ppo-sb3")].max_total_timesteps == 2_000_000
+    go1 = next(item for item in result["examples"] if item["id"] == "go1-walker")
+    assert go1["recommended_profile"] == "go1-mjx-quality"
+    assert go1["recommended_params"]["total_timesteps"] == 100_000_000
+    assert next(
+        profile for profile in go1["workload_profiles"] if profile["recommended"]
+    )["id"] == "go1-mjx-quality"
 
 
 def test_gallery_submission_uses_only_server_owned_identity_profile_and_seed(

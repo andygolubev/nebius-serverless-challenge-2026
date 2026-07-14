@@ -35,15 +35,15 @@ const galleryCatalog = {
       algorithm: id === "go1-walker" || id === "g1-rough-terrain" ? "ppo-mjx" : "ppo-sb3",
       backend_label: id === "go1-walker" || id === "g1-rough-terrain" ? "MJX / JAX PPO" : "SB3 PPO",
       hardware_label: id === "go1-walker" ? "NVIDIA H100" : "CPU D3 · 8 vCPU",
-      recommended_profile: id === "go1-walker" ? "go1-mjx-quick" : `${id}-v1`,
+      recommended_profile: id === "go1-walker" ? "go1-mjx-quality" : `${id}-v1`,
       recommended_params: { total_timesteps: 1000, seed: 0 },
       optional_params: [{ name: "seed", label: "Seed", type: "int", default: 0, min: 0, max: 2147483647 }],
       observed_duration: "Measured 12 min", observed_cost: "Measured $0.12", success_criterion: "mean reward ≥ 1000",
       primary_metric: "Mean reward", acceptance_revision: "gallery-v1",
       workload_profiles: id === "go1-walker" ? [
-        { id: "go1-mjx-quick", label: "Go1 Quick", recommended: true, params: { total_timesteps: 5_000_000 } },
+        { id: "go1-mjx-quick", label: "Go1 Quick", recommended: false, params: { total_timesteps: 5_000_000 } },
         { id: "go1-mjx-standard", label: "Go1 Standard", recommended: false, params: { total_timesteps: 25_000_000 } },
-        { id: "go1-mjx-quality", label: "Go1 Quality", recommended: false, params: { total_timesteps: 100_000_000 } },
+        { id: "go1-mjx-quality", label: "Go1 Quality", recommended: true, params: { total_timesteps: 100_000_000 } },
       ] : [],
     };
   }),
@@ -96,6 +96,14 @@ describe("verified examples gallery", () => {
     }
     expect(screen.queryByLabelText(/^Backend$/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Hardware$/)).not.toBeInTheDocument();
+  });
+
+  it("selects the measured passing Go1 Quality workload as the recommendation", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json(galleryCatalog)));
+    render(<Composer onSubmitted={() => undefined} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /Go1 Walker/ }));
+    expect(screen.getByLabelText("Workload size")).toHaveValue("go1-mjx-quality");
+    expect(screen.getByRole("option", { name: /Go1 Quality · recommended/ })).toBeVisible();
   });
 
   it("reviews and submits only the selected example, fixed profile, and seed", async () => {

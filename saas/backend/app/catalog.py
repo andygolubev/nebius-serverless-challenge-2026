@@ -321,12 +321,12 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "go1",
             "ppo-mjx",
             "NVIDIA H100",
-            5_000_000,
-            "Observed 18–22 min",
-            "Observed $1.16–$1.41 at the current H100 rate",
+            100_000_000,
+            "Observed about 25 min end to end",
+            "Measured $0.69 training runtime · about $1.67 end to end",
             "velocity ≥ 0.5 m/s without falling",
             "Forward velocity",
-            "go1-mjx-quick",
+            "go1-mjx-quality",
         ),
         _example(
             "ant-explorer",
@@ -556,7 +556,11 @@ def _serialized_example(example: GalleryExample) -> dict[str, Any]:
     value["optional_params"] = [asdict(item) for item in example.optional_params]
     value["workload_profiles"] = (
         [
-            {"id": name, "recommended": name == "go1-mjx-quick", **preset}
+            {
+                "id": name,
+                "recommended": name == example.recommended_profile,
+                **preset,
+            }
             for name, preset in PRESETS.items()
         ]
         if example.id == "go1-walker"
