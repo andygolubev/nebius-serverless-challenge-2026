@@ -6,7 +6,7 @@
 - [ ] 1.2 Add an additive nullable `gallery_example_id` field and migration to persisted jobs, API
   serialization, and historical-job fallback without rewriting existing rows.
 - [ ] 1.3 Populate the server-owned catalog with Go1 Walker, Ant Explorer, HalfCheetah Sprint,
-  Hopper Balance, Walker2D Stride, Humanoid Walk, and Reacher Target in the specified order; retain
+  Hopper Balance, Walker2D Stride, G1 Rough Terrain, and Reacher Target in the specified order; retain
   Go1 Standard and Quality only as secondary sizes beneath the Go1 card.
 - [ ] 1.4 Implement acceptance-revision gating so an incomplete or stale entry is omitted from
   `/training-options` and rejected by `POST /jobs` before local or remote creation.
@@ -15,24 +15,28 @@
   compute choices, unknown fields, and out-of-range values with field-level 422 responses.
 - [ ] 1.6 Add backend tests asserting exact cardinality/order/metadata, one recommendation per card,
   stale-entry hiding, unsafe submission rejection, resolved configuration persistence, legacy Go1
-  profile compatibility, historical null identity, and Bring Your Robot isolation.
+  profile compatibility, server-selected backend enforcement, historical null identity, and Bring
+  Your Robot isolation.
 
 ## 2. Train, evaluate, and render every example
 
-- [ ] 2.1 Add bounded SB3 training configurations for `Hopper-v5`, `Walker2d-v5`, `Humanoid-v5`,
-  and `Reacher-v5`, and review existing Ant and HalfCheetah configurations for the gallery's single
-  recommended demo workload.
+- [ ] 2.1 Add bounded SB3 training configurations for `Hopper-v5`, `Walker2d-v5`, and `Reacher-v5`,
+  and review existing Ant and HalfCheetah configurations for the gallery's single recommended demo
+  workload.
 - [ ] 2.2 Define task-specific evaluation metrics and explicit acceptance thresholds for all seven
   examples so the UI can report a meaningful primary KPI and pass/fail outcome.
 - [ ] 2.3 Extend the SB3 evaluation and rendering path to produce canonical metrics, a final rollout,
   checkpoint identity, resolved configuration, runtime versions, and safe artifact metadata for
   every new environment.
-- [ ] 2.4 Declare complete server-owned production job specs for all six SB3 examples, including
+- [ ] 2.4 Declare complete server-owned production job specs for all five SB3 examples, including
   immutable image setting, right-sized CPU or L40S shape, command/config, timeout, bounded fields,
   artifact prefix, and required outputs; prohibit H100 for these specs.
 - [ ] 2.5 Keep Go1 on the accepted MJX/H100 path, mark Quick as the gallery recommendation, and
   confirm Quick, Standard, and Quality still resolve to complete immutable job specs.
-- [ ] 2.6 Add configuration, command-construction, environment import, short train, evaluation,
+- [ ] 2.6 Add a bounded `G1JoystickRoughTerrain` MJX configuration, task-specific evaluation and
+  rendering contract, artifact requirements, and production job-spec candidates that reuse the
+  immutable MJX runtime without changing the Go1 task.
+- [ ] 2.7 Add configuration, command-construction, environment import, short train, evaluation,
   headless-render, artifact-contract, and unsafe-run-ID tests for all seven entries.
 
 ## 3. Deterministic policy bundle
@@ -61,14 +65,16 @@
   same-origin loading, accessible labels, and no third-party asset request.
 - [ ] 4.2 Replace the default New Job form with a responsive seven-card gallery driven only by
   `/training-options`, showing task story, expected outcome, backend/hardware, measured time/cost,
-  and one clearly marked recommended configuration per card.
+  and one clearly marked recommended configuration per card; show backend as a badge and provide
+  no global SB3/MJX or hardware selector.
 - [ ] 4.3 Add a concise select-review-start flow with only catalog-declared bounded optional fields,
   field-level validation, clear submitting/error states, and no stale control for hidden examples.
 - [ ] 4.4 Show gallery avatar/name and live lifecycle in Jobs rows and details, with a generic
   environment/profile fallback for historical jobs whose example identity is null.
 - [ ] 4.5 Add component/API tests for exact seven cards, catalog-only rendering, local avatars,
-  recommendation review, successful submission, 422 errors, hidden entries, historical fallback,
-  and the absence of custom robot/environment training actions.
+  recommendation review, successful submission, backend-override 422 errors, absence of a global
+  backend selector, hidden entries, historical fallback, and the absence of custom
+  robot/environment training actions.
 - [ ] 4.6 Verify the gallery and review flow at 375 px, tablet, and desktop widths, light/dark themes,
   keyboard-only navigation, screen reader labels, loading/error/empty states, and no horizontal
   scrolling or broken asset request.
@@ -121,16 +127,20 @@
 - [ ] 7.1 Start or reuse the approved `cpu-d3` builder, build the SB3 and MJX images with BuildKit,
   run image import/health/render checks, tag and push immutable commit-SHA revisions, record
   non-secret digests/results, and stop the builder immediately after image work.
-- [ ] 7.2 In increasing cost order, run bounded acceptance for each of the six SB3 examples on CPU
+- [ ] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
   or the cheapest validated L40S path with explicit timeouts; verify convergence threshold,
   evaluation, final video, checkpoint, policy bundle, manifest, S3 durability, runtime, and cost.
 - [ ] 7.3 Run one bounded Go1 Quick acceptance on the single-H100 shape only after local/image gates;
   verify CUDA/JAX discovery, training threshold, finalization, video, checkpoint, policy bundle,
   durable upload, runtime, and cost, then stop/delete the H100 immediately.
-- [ ] 7.4 Bind observed duration/cost and passing evidence to each exact config/image/compute
+- [ ] 7.4 Run the exact bounded G1 Rough Terrain profile on the smallest L40S candidate and the
+  single-H100 candidate with identical image/config/seed gates; compare memory, convergence,
+  end-to-end wall time, utilization, artifact completion, and cost-to-result, then select the
+  cheapest passing shape and claim H100-required only if L40S fails a declared gate.
+- [ ] 7.5 Bind observed duration/cost and passing evidence to each exact config/image/compute
   revision, enable only current accepted entries, and fail release readiness unless all seven cards
   pass the complete train-to-artifact path.
-- [ ] 7.5 After every cloud run, delete temporary Serverless AI validation resources and unused
+- [ ] 7.6 After every cloud run, delete temporary Serverless AI validation resources and unused
   instances, stop the reusable CPU builder, and audit instances, disks, public IPs, temporary
   security rules, and failed jobs; record cleanup in `IMPLEMENTATION_LOG.MD`.
 
@@ -141,7 +151,8 @@
   interactive validation.
 - [ ] 8.2 In the signed-in production browser, open New Job and click each of the seven gallery cards;
   verify avatar, copy, measured guidance, recommended configuration, backend/hardware, review
-  state, and Start training behavior at desktop and 375 px widths.
+  state, absence of a global backend/hardware selector, and Start training behavior at desktop and
+  375 px widths.
 - [ ] 8.3 Submit one bounded accepted job from each gallery card through the UI, observe each row
   progress through training and finalization, and click the job from the Jobs UI into its result
   page rather than validating only through direct API URLs.

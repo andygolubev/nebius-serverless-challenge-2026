@@ -9,13 +9,19 @@ a result they can understand, replay, and optionally take away.
 
 - Replace the New Job form's catalog-first presentation with a gallery of exactly seven
   server-owned, production-executable examples: Go1 Walker, Ant Explorer, HalfCheetah Sprint,
-  Hopper Balance, Walker2D Stride, Humanoid Walk, and Reacher Target.
+  Hopper Balance, Walker2D Stride, G1 Rough Terrain, and Reacher Target.
 - Give each example an original local avatar, concise task/environment story, measured runtime and
   cost guidance, backend/hardware badge, expected result, and one recommended bounded training
   configuration. Keep advanced customization intentionally small.
-- Add the missing SB3 configurations, evaluation criteria, rendering support, immutable runtime
-  contract, and right-sized Nebius job specifications required for every published card. A card is
-  hidden rather than accepted unless its full train/finalize/artifact path is verified.
+- Use MJX/JAX PPO for Go1 Walker and the complex Unitree G1 rough-terrain flagship, and SB3 PPO for
+  the five classic-control examples. The server selects one accepted backend per card; the UI shows
+  it as metadata and does not offer a global SB3/MJX selector.
+- Add the missing SB3 and G1 MJX configurations, evaluation criteria, rendering support, immutable
+  runtime contracts, and right-sized Nebius job specifications required for every published card.
+  A card is hidden rather than accepted unless its full train/finalize/artifact path is verified.
+- Compare the exact G1 workload on L40S and H100 before selecting its production shape. Label the
+  profile H100-required only when recorded evidence shows L40S cannot meet the declared memory,
+  convergence, wall-time, or cost-to-result gate and the H100 run passes it.
 - Preserve Bring Your Robot as a separate validation-only beta. Uploaded robots and setup drafts do
   not enter this trainable catalog and still cannot be submitted to `/jobs`.
 - Replace the misleading disabled “Training coming after GPU validation” state in My Robots with an
@@ -57,11 +63,12 @@ a result they can understand, replay, and optionally take away.
 
 - Changes the SaaS catalog/API models, job records, composer, Jobs cards, results UI, artifact
   manifest normalization, and tenant artifact routes under `saas/`.
-- Adds bounded SB3 configurations/evaluation/rendering coverage under `sim2policy/` and publishes a
-  new immutable runtime only after CPU/import/render gates pass.
+- Adds bounded SB3 configurations plus G1 MJX evaluation/rendering coverage under `sim2policy/` and
+  publishes immutable runtime revisions only after CPU/import/render gates pass.
 - Extends existing Nebius orchestration specifications but creates no persistent GPU VM or new
-  always-on service. H100 remains reserved for MJX Go1; SB3 examples use CPU or the cheapest
-  validated L40S path and every temporary job/instance is deleted after acceptance.
+  always-on service. Go1 remains on its accepted H100 shape; G1 uses the cheapest evidence-backed
+  L40S or H100 shape that meets its declared profile, while SB3 examples use CPU or the cheapest
+  validated L40S path. Every temporary job/instance is deleted after acceptance.
 - Adds original lightweight avatar assets, My Robots-to-gallery guidance, and documentation; no
   external image hotlinks, uploaded environment code, user reward code, meshes, or arbitrary
   containers are introduced.

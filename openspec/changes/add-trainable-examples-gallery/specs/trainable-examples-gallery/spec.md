@@ -3,7 +3,7 @@
 ### Requirement: Exact trainable examples gallery
 The system SHALL expose exactly seven public gallery examples with stable IDs:
 `go1-walker`, `ant-explorer`, `halfcheetah-sprint`, `hopper-balance`, `walker2d-stride`,
-`humanoid-walk`, and `reacher-target`. Each entry SHALL include a label, concise task and
+`g1-rough-terrain`, and `reacher-target`. Each entry SHALL include a label, concise task and
 environment description, local avatar, expected result, backend and hardware labels, one
 recommended bounded configuration, observed duration/cost guidance, success criteria, and a
 server-owned production job-spec reference.
@@ -35,6 +35,12 @@ resource is created.
   missing or stale
 - **THEN** the entry is omitted from the catalog and direct submission returns 422 without creating
   a SaaS or Nebius job
+
+#### Scenario: G1 hardware claim is evidence-backed
+- **WHEN** the current G1 workload revision is evaluated for publication
+- **THEN** its production shape is the cheapest accepted L40S or H100 candidate that meets every
+  declared memory, convergence, wall-time, and cost-to-result gate, and it says H100 required only
+  when L40S fails a declared gate and H100 passes
 
 ### Requirement: Server-resolved gallery submission
 Submitting a gallery example SHALL send its stable example ID and only optional fields explicitly
@@ -84,6 +90,20 @@ request.
 #### Scenario: Assistive technology reads a card
 - **WHEN** a screen-reader user focuses an example card
 - **THEN** the example name and task are available without relying on the avatar's appearance
+
+### Requirement: Server-selected training backend
+Every gallery entry SHALL resolve to exactly one accepted SB3 or MJX backend. The UI SHALL display
+that backend as informational metadata and SHALL NOT provide a global backend/algorithm selector.
+Client attempts to override the selected entry's algorithm or backend SHALL be rejected before job
+creation.
+
+#### Scenario: User reviews a card
+- **WHEN** a tenant selects G1 Rough Terrain
+- **THEN** the review identifies MJX/JAX PPO and the accepted hardware but offers no SB3 toggle
+
+#### Scenario: Client attempts backend override
+- **WHEN** a client submits a gallery ID with a different algorithm or backend
+- **THEN** the server returns 422 and creates neither a SaaS job nor a remote resource
 
 ### Requirement: Bring Your Robot remains isolated
 Validated custom robots and environment drafts SHALL remain in the Bring Your Robot beta and SHALL

@@ -4,19 +4,26 @@
 The web app SHALL make the production-executable `/training-options` catalog a gallery of exactly
 seven trainable example cards. Each card SHALL show its original avatar, task/environment story,
 expected result, backend/hardware, one recommended bounded configuration, and observed duration and
-cost. The default path SHALL require only selecting a card, reviewing the recommendation, and
-starting training. Unsupported or incomplete work SHALL be absent, and validation errors SHALL be
-shown next to the offending field without creating an apparent job.
+cost. Backend and hardware SHALL be informational metadata selected by the server-owned card; the
+composer SHALL NOT expose a global SB3/MJX or compute selector. The default path SHALL require only
+selecting a card, reviewing the recommendation, and starting training. Unsupported or incomplete
+work SHALL be absent, and validation errors SHALL be shown next to the offending field without
+creating an apparent job.
 
 #### Scenario: Browse seven realistic examples
 - **WHEN** an authenticated user opens New Job
 - **THEN** the UI presents Go1 Walker, Ant Explorer, HalfCheetah Sprint, Hopper Balance, Walker2D
-  Stride, Humanoid Walk, and Reacher Target as seven responsive cards
+  Stride, G1 Rough Terrain, and Reacher Target as seven responsive cards
 
 #### Scenario: Review a recommended configuration
 - **WHEN** the user selects a card
 - **THEN** a concise review shows the expected result, observed duration/cost, backend/hardware, and
   recommended bounded configuration before the Start training action
+
+#### Scenario: Backend is not a user choice
+- **WHEN** a user reviews any gallery example
+- **THEN** its accepted SB3 or MJX backend and hardware are visible as badges with no control to
+  change either value
 
 #### Scenario: Unsupported work is absent
 - **WHEN** the production catalog omits an incomplete or unaccepted example

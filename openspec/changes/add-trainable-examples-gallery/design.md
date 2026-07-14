@@ -22,6 +22,7 @@ platform.
 - Carry the selected example identity through the Jobs list and compact result detail.
 - Make the boundary between validated custom setup and trainable server-owned example explicit and
   give the custom-robot user a useful next action.
+- Include one complex humanoid MJX flagship without making unverified H100 necessity claims.
 
 **Non-Goals:**
 
@@ -30,6 +31,7 @@ platform.
 - Deploying a learned policy to a physical robot or claiming simulator-to-real compatibility.
 - Providing a universal ONNX/ROS export or converting backend-specific checkpoints.
 - Creating a community marketplace or an open-ended hyperparameter laboratory.
+- Letting users select SB3 or MJX independently of the chosen example.
 - Keeping any GPU or CPU VM running after its validation work is complete.
 
 ## Decisions
@@ -45,7 +47,7 @@ The catalog will use stable example IDs and the following fixed task/runtime fam
 | `halfcheetah-sprint` | HalfCheetah Sprint | `HalfCheetah-v5` | SB3 PPO | CPU or cheapest accepted L40S shape |
 | `hopper-balance` | Hopper Balance | `Hopper-v5` | SB3 PPO | CPU or cheapest accepted L40S shape |
 | `walker2d-stride` | Walker2D Stride | `Walker2d-v5` | SB3 PPO | CPU or cheapest accepted L40S shape |
-| `humanoid-walk` | Humanoid Walk | `Humanoid-v5` | SB3 PPO | CPU or cheapest accepted L40S shape |
+| `g1-rough-terrain` | G1 Rough Terrain | `G1JoystickRoughTerrain` | MJX/JAX PPO | Evidence-selected L40S or H100 shape |
 | `reacher-target` | Reacher Target | `Reacher-v5` | SB3 PPO | CPU or cheapest accepted L40S shape |
 
 Each entry owns its label, short story, original avatar path, expected outcome, backend badge,
@@ -80,12 +82,24 @@ This gives a realistic training choice without multiplying the validation matrix
 environment editor or arbitrary hyperparameter form would make the demo less reliable and is out
 of scope.
 
-### 4. Reserve H100 for MJX Go1 and right-size SB3
+### 4. Use MJX for Go1 and a complex G1 flagship, then select hardware from evidence
 
-Go1 continues on its accepted MJX/JAX H100 path. SB3 examples use CPU or the cheapest validated
-L40S configuration after import, render, bounded-training, and cost checks; they never consume H100
-for routine training. Images are built on the reusable CPU builder, tagged immutably, and promoted
-only after increasing-cost gates pass.
+Go1 continues on its accepted MJX/JAX H100 path. The generic Gymnasium `Humanoid-v5` card is
+replaced by `G1JoystickRoughTerrain`, a complex Unitree G1 humanoid task already shaped for the
+MuJoCo Playground/MJX training interface. It reuses the MJX image, hosted trainer, checkpoint,
+evaluation, rendering, and finalization families while receiving its own bounded configuration and
+success criteria.
+
+No robot intrinsically makes H100 mandatory. G1 acceptance will first define the exact workload,
+convergence threshold, maximum wall time, and cost-to-result gate, then run that immutable revision
+on the smallest L40S candidate and the single-H100 candidate. The production job spec selects the
+cheapest shape that passes every gate. The card may say `H100 required` only when L40S fails a
+declared memory, convergence, wall-time, or cost-to-result gate and H100 passes; otherwise it names
+the accepted cheaper shape without an inflated hardware claim.
+
+The five SB3 examples use CPU or the cheapest validated L40S configuration after import, render,
+bounded-training, and cost checks; they never consume H100 for routine training. Images are built
+on the reusable CPU builder, tagged immutably, and promoted only after increasing-cost gates pass.
 
 ### 5. Store original avatars locally
 
@@ -155,6 +169,23 @@ server-owned runtime contract, defining safe observations/actions/rewards/termin
 rollout stability, producing a production job spec, and expanding the cloud acceptance matrix. It
 is therefore a separate future change rather than a fix hidden inside this reliable gallery scope.
 
+### 11. Keep backend selection server-owned
+
+Every gallery entry has exactly one accepted backend and production job spec. The card displays an
+SB3 or MJX badge so the execution model is transparent, but users select the task—not the training
+framework. Requests that attempt to override the backend or algorithm are rejected.
+
+The catalog and API already model environment/algorithm compatibility, so adding a selector would
+be mechanically small. Making it a reliable product would be large: every dual-backend entry needs
+equivalent observation/action/reward/termination semantics, a second runtime and job spec,
+backend-specific checkpoints/rendering, comparable evaluation, measured guidance, and independent
+cloud acceptance. Offering both backends for all seven cards would double the primary acceptance
+matrix from seven to fourteen paths without giving most users a clearer task choice.
+
+A future **Compare engines** experience may expose two backends for exactly one environment only
+after both adapters implement the same task contract and pass equivalent acceptance. It is not
+part of this gallery release.
+
 ## Risks / Trade-offs
 
 - **Seven acceptance paths increase release work.** Run local/import/render tests first, then one
@@ -163,6 +194,10 @@ is therefore a separate future change rather than a fix hidden inside this relia
 - **Some SB3 tasks may not converge in a demo-sized budget.** Give each entry an explicit,
   task-appropriate success threshold and calibrate one bounded recommendation. Hide an entry if its
   accepted revision cannot meet the gate rather than publishing optimistic copy.
+- **G1 may not justify H100.** Benchmark the exact accepted workload on L40S and H100 and make the
+  hardware label follow the declared gate instead of the desired marketing tier.
+- **A backend selector would double validation work.** Keep backend selection in the server-owned
+  card spec; consider one controlled comparison experience only as a separate future change.
 - **Users may mistake weights for a robot-ready controller.** Put the matching simulator/runtime
   in both the UI and README and explicitly state that physical deployment needs separate adaptation
   and safety validation.
@@ -182,8 +217,9 @@ is therefore a separate future change rather than a fix hidden inside this relia
 2. Implement and test all seven server-owned configurations and original avatars behind a disabled
    gallery release flag, and add the honest My Robots-to-gallery handoff without altering saved
    custom assets.
-3. Build immutable runtime images on the CPU builder and run increasing-cost acceptance gates for
-   every exact job specification.
+3. Build immutable runtime images on the CPU builder, run increasing-cost acceptance gates for
+   every exact job specification, and compare the exact G1 workload on L40S and H100 before fixing
+   its production hardware label.
 4. Record measured duration/cost and enable only entries with complete evidence; release requires
    all seven to be accepted.
 5. Deploy through the existing GitOps path, validate card submission, lifecycle, compact results,

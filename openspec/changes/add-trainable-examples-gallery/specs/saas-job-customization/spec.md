@@ -22,13 +22,13 @@ MJX/JAX and SB3 PPO workloads only through these server-owned entries.
 
 #### Scenario: Accepted SB3 examples are publicly offered
 - **WHEN** the seven-entry catalog is enabled
-- **THEN** its six server-owned SB3 examples are returned with their accepted right-sized compute
+- **THEN** its five server-owned SB3 examples are returned with their accepted right-sized compute
   contracts and no arbitrary SB3 environment or preset is exposed
 
 #### Scenario: Catalog lists exact examples and policies
 - **WHEN** a client requests `/training-options`
 - **THEN** the response enumerates Go1 Walker, Ant Explorer, HalfCheetah Sprint, Hopper Balance,
-  Walker2D Stride, Humanoid Walk, and Reacher Target with one recommended bounded configuration
+  Walker2D Stride, G1 Rough Terrain, and Reacher Target with one recommended bounded configuration
   apiece
 
 ### Requirement: Custom job submission
@@ -91,4 +91,3 @@ observed end-to-end execution rather than timestep ratios alone.
 - **WHEN** an authenticated tenant opens the job composer
 - **THEN** the seven examples are presented first and the Go1 card identifies Quick as its
   recommended bounded configuration
-
