@@ -418,6 +418,12 @@ class NebiusBackend:
             f"storage.endpoint_url={s.s3_endpoint_url}",
             "--set",
             f"storage.region={s.s3_region}",
+            "--set",
+            f"reporting.hourly_rate={spec.hourly_rate}",
+            "--set",
+            "reporting.currency=USD",
+            "--set",
+            f'reporting.rate_date="{spec.rate_date}"',
         ]
         if spec.image_key == "mjx":
             if spec.platform not in {"gpu-h100-sxm", "gpu-l40s-a"}:

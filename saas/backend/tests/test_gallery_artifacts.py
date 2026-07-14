@@ -66,8 +66,11 @@ def _bundle(*, tamper: bool = False) -> bytes:
 
 
 class MemoryS3:
-    def __init__(self, *, tamper_bundle: bool = False) -> None:
+    def __init__(
+        self, *, tamper_bundle: bool = False, omit_checksum_metadata: bool = False
+    ) -> None:
         self.objects: dict[str, bytes] = {}
+        self.omit_checksum_metadata = omit_checksum_metadata
         run = "sim2policy/gallery-run"
         artifacts = {
             "final_policy": "checkpoints/final.zip",
@@ -109,7 +112,11 @@ class MemoryS3:
         value = self.objects[Key]
         return {
             "ContentLength": len(value),
-            "Metadata": {"sha256": hashlib.sha256(value).hexdigest()},
+            "Metadata": (
+                {}
+                if self.omit_checksum_metadata
+                else {"sha256": hashlib.sha256(value).hexdigest()}
+            ),
         }
 
 
@@ -130,3 +137,15 @@ def test_gallery_completion_rejects_tampered_bundle_even_with_matching_outer_dig
         S3ArtifactReader(MemoryS3(tamper_bundle=True), "bucket").read_manifest(
             "job", "gallery-run"
         )
+
+
+def test_gallery_completion_streams_digest_when_object_store_omits_metadata() -> None:
+    manifest = S3ArtifactReader(
+        MemoryS3(omit_checksum_metadata=True), "bucket"
+    ).read_manifest("job", "gallery-run")
+    assert manifest is not None
+    assert {item.id for item in manifest.artifacts} >= {
+        "final_policy",
+        "policy_bundle",
+        "video_final",
+    }

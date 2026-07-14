@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import datetime
 import functools
 import importlib
 import json
@@ -538,7 +539,12 @@ def _override(value: str) -> tuple[str, Any]:
     key, separator, raw = value.partition("=")
     if not separator:
         raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    return key, yaml.safe_load(raw)
+    parsed = yaml.safe_load(raw)
+    # The jobs API transports args as a joined command string and may strip the
+    # quotes around an ISO date. Normalize YAML's date type before JSON metadata.
+    if isinstance(parsed, (datetime.date, datetime.datetime)):
+        parsed = parsed.isoformat()
+    return key, parsed
 
 
 def build_parser() -> argparse.ArgumentParser:

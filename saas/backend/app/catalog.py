@@ -50,6 +50,8 @@ class JobSpec:
     max_total_timesteps: int
     param_paths: dict[str, str]
     acceptance_revision: str
+    hourly_rate: float
+    rate_date: str
 
 
 @dataclass(frozen=True)
@@ -179,6 +181,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         100_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        3.85,
+        "2026-07-14",
     ),
     ("ant", "ppo-sb3"): JobSpec(
         "sim2policy.hosted_sb3",
@@ -191,6 +195,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         1_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        0.1984,
+        "2026-07-14",
     ),
     ("halfcheetah", "ppo-sb3"): JobSpec(
         "sim2policy.hosted_sb3",
@@ -203,6 +209,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         1_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        0.1984,
+        "2026-07-14",
     ),
     ("hopper", "ppo-sb3"): JobSpec(
         "sim2policy.hosted_sb3",
@@ -212,9 +220,11 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         "8vcpu-32gb",
         100,
         "2h",
-        1_000_000,
+        2_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        0.1984,
+        "2026-07-14",
     ),
     ("walker2d", "ppo-sb3"): JobSpec(
         "sim2policy.hosted_sb3",
@@ -224,9 +234,11 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         "8vcpu-32gb",
         100,
         "3h",
-        1_000_000,
+        2_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        0.1984,
+        "2026-07-14",
     ),
     ("g1", "ppo-mjx"): JobSpec(
         "sim2policy.hosted_mjx",
@@ -239,6 +251,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         25_000_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        1.5484,
+        "2026-07-14",
     ),
     ("reacher", "ppo-sb3"): JobSpec(
         "sim2policy.hosted_sb3",
@@ -251,6 +265,8 @@ JOB_SPECS: dict[tuple[str, str], JobSpec] = {
         300_000,
         _SB3_PARAM_PATHS,
         _GALLERY_REVISION,
+        0.1984,
+        "2026-07-14",
     ),
 }
 
@@ -307,7 +323,7 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "NVIDIA H100",
             5_000_000,
             "Observed 18–22 min",
-            "Observed $0.89–$1.08",
+            "Observed $1.16–$1.41 at the current H100 rate",
             "velocity ≥ 0.5 m/s without falling",
             "Forward velocity",
             "go1-mjx-quick",
@@ -322,8 +338,8 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "ppo-sb3",
             "CPU D3 · 8 vCPU",
             1_000_000,
-            "Observed 35–55 min",
-            "Observed $0.32–$0.51",
+            "Observed about 12 min",
+            "Observed about $0.04",
             "mean reward ≥ 1000",
             "Mean reward",
             "ant-gallery-v1",
@@ -338,8 +354,8 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "ppo-sb3",
             "CPU D3 · 8 vCPU",
             1_000_000,
-            "Observed 25–40 min",
-            "Observed $0.23–$0.37",
+            "Observed about 8 min",
+            "Observed about $0.03",
             "mean reward ≥ 1500",
             "Mean reward",
             "halfcheetah-gallery-v1",
@@ -353,9 +369,9 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "hopper",
             "ppo-sb3",
             "CPU D3 · 8 vCPU",
-            1_000_000,
-            "Observed 25–40 min",
-            "Observed $0.23–$0.37",
+            2_000_000,
+            "Observed about 13 min",
+            "Observed about $0.04",
             "mean reward ≥ 1000",
             "Mean reward",
             "hopper-gallery-v1",
@@ -369,9 +385,9 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "walker2d",
             "ppo-sb3",
             "CPU D3 · 8 vCPU",
-            1_000_000,
-            "Observed 30–50 min",
-            "Observed $0.28–$0.46",
+            2_000_000,
+            "Observed about 14 min",
+            "Observed about $0.05",
             "mean reward ≥ 1800",
             "Mean reward",
             "walker2d-gallery-v1",
@@ -402,8 +418,8 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "ppo-sb3",
             "CPU D3 · 8 vCPU",
             300_000,
-            "Observed 8–15 min",
-            "Observed $0.07–$0.14",
+            "Observed about 5 min",
+            "Observed about $0.02",
             "mean reward ≥ -10",
             "Mean reward",
             "reacher-gallery-v1",

@@ -52,6 +52,14 @@ def test_catalog_has_exact_order_metadata_and_one_recommendation(
                 sum(bool(item["recommended"]) for item in example["workload_profiles"])
                 == 1
             )
+    hopper = next(item for item in result["examples"] if item["id"] == "hopper-balance")
+    assert hopper["recommended_params"]["total_timesteps"] == 2_000_000
+    assert catalog.JOB_SPECS[("hopper", "ppo-sb3")].max_total_timesteps == 2_000_000
+    walker = next(
+        item for item in result["examples"] if item["id"] == "walker2d-stride"
+    )
+    assert walker["recommended_params"]["total_timesteps"] == 2_000_000
+    assert catalog.JOB_SPECS[("walker2d", "ppo-sb3")].max_total_timesteps == 2_000_000
 
 
 def test_gallery_submission_uses_only_server_owned_identity_profile_and_seed(
@@ -225,7 +233,10 @@ def test_sb3_and_mjx_gallery_submissions_select_distinct_server_runtimes() -> No
     assert (sb3.platform, sb3.preset) == ("cpu-d3", "8vcpu-32gb")
     assert sb3.args[:2] == ["-m", "sim2policy.hosted_sb3"]
     assert "--gallery-example-id" in sb3.args
+    assert "reporting.hourly_rate=0.1984" in sb3.args
+    assert 'reporting.rate_date="2026-07-14"' in sb3.args
     mjx = backend.build_submission(job("go1-walker"))
     assert mjx.image == settings.mjx_job_image
     assert (mjx.platform, mjx.preset) == ("gpu-h100-sxm", "1gpu-16vcpu-200gb")
     assert mjx.args[:2] == ["-m", "sim2policy.hosted_mjx"]
+    assert "reporting.hourly_rate=3.85" in mjx.args

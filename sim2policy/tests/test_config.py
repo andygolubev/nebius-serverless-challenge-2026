@@ -10,6 +10,8 @@ from sim2policy.config import (
     validate_run_id,
 )
 from sim2policy.run import create_run_paths, write_metadata
+from sim2policy.train_mjx import _override as mjx_override
+from sim2policy.train_sb3 import _override as sb3_override
 
 ROOT = Path(__file__).parents[1]
 
@@ -19,6 +21,14 @@ def test_load_and_override_config() -> None:
     assert config.training.total_steps == 512
     assert config.seed == 7
     assert config.backend == "sb3"
+
+
+@pytest.mark.parametrize("parser", [sb3_override, mjx_override])
+def test_serverless_iso_date_override_remains_json_safe(parser) -> None:
+    assert parser("reporting.rate_date=2026-07-14") == (
+        "reporting.rate_date",
+        "2026-07-14",
+    )
 
 
 @pytest.mark.parametrize("run_id", ["../escape", "/absolute", "bad/run", "", ".", ".."])

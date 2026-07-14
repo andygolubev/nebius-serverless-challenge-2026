@@ -50,7 +50,23 @@ class CustomRobotStorage:
             raise CustomStorageError(
                 "custom robot input publication verification failed"
             )
-        if (result.get("Metadata") or {}).get("sha256") != _sha(value):
+        expected_digest = _sha(value)
+        remote_digest = (result.get("Metadata") or {}).get("sha256")
+        if remote_digest is None:
+            # Nebius Object Storage may omit user metadata even for put_object.
+            # Re-read this already bounded input and verify its content instead.
+            try:
+                response = self._client.get_object(Bucket=self._bucket, Key=key)
+                uploaded = response["Body"].read(maximum + 1)
+            except Exception as exc:
+                raise CustomStorageError(
+                    "custom robot input publication verification failed"
+                ) from exc
+            if len(uploaded) != len(value) or _sha(uploaded) != expected_digest:
+                raise CustomStorageError(
+                    "custom robot input publication verification failed"
+                )
+        elif remote_digest != expected_digest:
             raise CustomStorageError(
                 "custom robot input publication digest verification failed"
             )
@@ -174,7 +190,9 @@ class CustomRobotStorage:
         ):
             raise CustomStorageError("preparation report contract is invalid")
         fingerprint = report["fingerprint"]
-        if not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{64}", fingerprint):
+        if not isinstance(fingerprint, str) or not re.fullmatch(
+            r"[0-9a-f]{64}", fingerprint
+        ):
             raise CustomStorageError("preparation report fingerprint is invalid")
         reported_hash = report.get("report_sha256")
         unsigned = dict(report)

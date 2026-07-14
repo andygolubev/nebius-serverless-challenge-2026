@@ -63,6 +63,7 @@ _REQUIRED_GALLERY_BUNDLE_MEMBERS = {
     "runtime/versions.json",
 }
 _MAX_BUNDLE_BYTES = 512 * 1024 * 1024
+_MAX_CHECKSUM_ARTIFACT_BYTES = 512 * 1024 * 1024
 
 
 def build_s3_client(settings: NebiusSettings):
@@ -157,11 +158,30 @@ class S3ArtifactReader:
                     or isinstance(size_bytes, bool)
                     or not isinstance(size_bytes, int)
                     or size_bytes < 1
+                    or size_bytes > _MAX_CHECKSUM_ARTIFACT_BYTES
                 ):
                     raise ValueError("artifact checksum descriptor is invalid")
                 head = self._client.head_object(Bucket=self._bucket, Key=key)
                 remote_digest = (head.get("Metadata") or {}).get("sha256")
-                if head.get("ContentLength") != size_bytes or remote_digest != digest:
+                if head.get("ContentLength") != size_bytes:
+                    raise ValueError("artifact object does not match its checksum")
+                if remote_digest is None:
+                    # Nebius Object Storage currently preserves object length but may omit
+                    # user-defined metadata written through boto3's managed upload. Stream the
+                    # bounded object and verify the manifest digest instead of weakening the gate.
+                    obj = self._client.get_object(Bucket=self._bucket, Key=key)
+                    actual_digest = hashlib.sha256()
+                    actual_size = 0
+                    while chunk := obj["Body"].read(1024 * 1024):
+                        actual_size += len(chunk)
+                        if actual_size > size_bytes:
+                            raise ValueError(
+                                "artifact object does not match its checksum"
+                            )
+                        actual_digest.update(chunk)
+                    if actual_size != size_bytes or actual_digest.hexdigest() != digest:
+                        raise ValueError("artifact object does not match its checksum")
+                elif remote_digest != digest:
                     raise ValueError("artifact object does not match its checksum")
                 if is_gallery and logical_name == "policy_bundle":
                     expected_example = (

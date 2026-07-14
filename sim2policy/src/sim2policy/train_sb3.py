@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import importlib
 import json
 import sys
@@ -231,7 +232,13 @@ def _override(value: str) -> tuple[str, Any]:
     key, separator, raw = value.partition("=")
     if not separator:
         raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    return key, yaml.safe_load(raw)
+    parsed = yaml.safe_load(raw)
+    # YAML treats an unquoted ISO date as datetime.date. Serverless AI receives
+    # one joined argument string, so transport parsing can remove the quotes
+    # that the control plane supplied. Keep the public reporting contract JSON-safe.
+    if isinstance(parsed, (datetime.date, datetime.datetime)):
+        parsed = parsed.isoformat()
+    return key, parsed
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -46,9 +46,10 @@ CUSTOM = CustomTrainingSettings(
 
 
 class S3:
-    def __init__(self) -> None:
+    def __init__(self, *, omit_metadata: bool = False) -> None:
         self.objects: dict[str, tuple[bytes, dict[str, str]]] = {}
         self.fail_head: str | None = None
+        self.omit_metadata = omit_metadata
 
     def put_object(self, *, Bucket, Key, Body, Metadata, **_kwargs):
         assert Bucket == "artifacts"
@@ -59,7 +60,10 @@ class S3:
         if Key == self.fail_head:
             raise RuntimeError("head failure with tenant data")
         body, metadata = self.objects[Key]
-        return {"ContentLength": len(body), "Metadata": metadata}
+        return {
+            "ContentLength": len(body),
+            "Metadata": {} if self.omit_metadata else metadata,
+        }
 
     def delete_object(self, *, Bucket, Key):
         assert Bucket == "artifacts"
@@ -206,6 +210,15 @@ def test_storage_uses_fixed_prefixes_verifies_size_and_cleans_partial_objects() 
     assert failed_client.objects == {}
 
 
+def test_storage_streams_bounded_inputs_when_object_metadata_is_omitted() -> None:
+    client = S3(omit_metadata=True)
+    storage = CustomRobotStorage(client, "artifacts")
+    storage.publish_preparation_inputs(
+        "prepare-no-metadata", robot=b"<mujoco/>", setup=b"{}", manifest=b"{}"
+    )
+    assert len(client.objects) == 3
+
+
 def test_preparation_report_requires_content_hash() -> None:
     client = S3()
     storage = CustomRobotStorage(client, "artifacts")
@@ -272,7 +285,10 @@ def test_custom_artifact_manifest_requires_every_matching_object_checksum() -> N
     assert manifest is not None
     assert {artifact.id for artifact in manifest.artifacts} == set(paths)
 
-    client.objects["sim2policy/run-one/videos/final.mp4"] = (b"tampered", {"sha256": "0" * 64})
+    client.objects["sim2policy/run-one/videos/final.mp4"] = (
+        b"tampered",
+        {"sha256": "0" * 64},
+    )
     with pytest.raises(ValueError, match="checksum"):
         S3ArtifactReader(client, "artifacts").read_manifest("job-one", "run-one")
 
@@ -312,7 +328,9 @@ def test_preparation_submission_poll_and_report_gate_are_restart_safe(tmp_path) 
         custom_storage=ReportStorage(accepted_report),
     )
     backend._run_preparation(attempt, store)
-    finished = CustomTrainingStore(db_path).get_preparation(attempt.tenant_id, attempt.id)
+    finished = CustomTrainingStore(db_path).get_preparation(
+        attempt.tenant_id, attempt.id
+    )
     assert finished is not None
     assert finished.state == "accepted"
     assert finished.nebius_job_id == "aijob-prepare-test"
@@ -323,7 +341,10 @@ def test_preparation_submission_poll_and_report_gate_are_restart_safe(tmp_path) 
     "report,reason",
     [
         (None, "preparation-report-not-ready"),
-        ({"fingerprint": "0" * 64, "status": "accepted"}, "report-fingerprint-mismatch"),
+        (
+            {"fingerprint": "0" * 64, "status": "accepted"},
+            "report-fingerprint-mismatch",
+        ),
         (RuntimeError("unsafe provider detail"), "preparation-report-not-ready"),
     ],
 )
