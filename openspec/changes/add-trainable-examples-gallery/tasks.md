@@ -127,7 +127,7 @@
 - [ ] 7.1 Start or reuse the approved `cpu-d3` builder, build the SB3 and MJX images with BuildKit,
   run image import/health/render checks, tag and push immutable commit-SHA revisions, record
   non-secret digests/results, and stop the builder immediately after image work.
-- [ ] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
+- [x] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
   or the cheapest validated L40S path with explicit timeouts; verify convergence threshold,
   evaluation, final video, checkpoint, policy bundle, manifest, S3 durability, runtime, and cost.
 - [ ] 7.3 Run one bounded Go1 Quick acceptance on the single-H100 shape only after local/image gates;
