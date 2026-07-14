@@ -168,6 +168,15 @@ publish the immutable image (CI), rerun `saas-nebius-sync` so the
 secret gains `SIM2POLICY_MJX_JOB_IMAGE`, then deploy the app — a pod started before the secret has
 the key fails readiness by design while the old ReplicaSet keeps serving.
 
+Custom uploaded-robot execution is additive and disabled by default. The reconciled contract keeps
+`CUSTOM_ROBOT_TRAINING_ENABLED=false`, a placeholder `CUSTOM_ROBOT_SB3_IMAGE`, one active
+preparation/training job per tenant, eight daily starts, and bounded report finalization. Before
+enabling, build the generic SB3 target once on the CPU builder, publish an immutable
+`sim2policy:sb3-<git-sha>` tag or digest, replace only `CUSTOM_ROBOT_SB3_IMAGE`, benchmark and freeze
+the `cpu-d3` profiles, then set the flag true. Missing or mutable image identity fails startup while
+enabled. Disabling the flag blocks new Prepare/Start requests but does not stop reconciliation or
+authorized access to existing preparation/job history and artifacts.
+
 The last command lists key names only. Do not decode values or use `kubectl describe`. For rollback,
 set the backend to `mock` or delete `saas-nebius`, restart the deployment, and only then detach or
 destroy the orchestrator identity. The legacy service account remains a registry viewer because the

@@ -121,10 +121,11 @@ JOB_ID="$(printf '%s' "$response" | jq -er '.id')"
 Always inspect `resolved_config` in the response. It is the server-validated configuration after
 preset expansion and default merging.
 
-## Validate a custom robot and setup
+## Validate, prepare, and train a custom robot setup
 
-Custom models are validation-only in this release. They cannot be inserted into `/jobs`; keep the
-production Go1 catalog workflow above separate from the onboarding workflow below.
+Custom models never enter the public catalog or generic `POST /jobs`. Eligible owned setups use
+their setup-bound Prepare and Start endpoints; every image, command, CPU shape, timeout,
+hyperparameter, secret selector, and S3 prefix remains server-owned.
 
 List and download the canonical examples without printing the bearer token or model content:
 
@@ -142,16 +143,19 @@ curl --fail-with-body --silent --show-error \
 Upload one bounded XML file with a declared type:
 
 ```bash
-curl --fail-with-body --silent --show-error \
+robot_response="$(curl --fail-with-body --silent --show-error \
   -X POST "$BASE_URL/robots" \
   -H "Authorization: Bearer $TOKEN" \
   -F 'name=Quadruped API check' \
   -F 'robot_type=quadruped' \
-  -F 'file=@/tmp/sample-quadruped.xml;type=application/xml' | jq .
+  -F 'file=@/tmp/sample-quadruped.xml;type=application/xml')"
+printf '%s\n' "$robot_response" | jq .
+ROBOT_ID="$(printf '%s' "$robot_response" | jq -er '.id')"
 ```
 
-The response must say `readiness: validated`, `trainable: false`, and
-`reason: custom-training-not-enabled`. Capture the opaque `.id` only if continuing the setup test;
+The upload response says `readiness: validated`, `trainable: false`, and
+`reason: custom-training-not-enabled`; training readiness belongs to a saved setup, not the XML.
+Capture the opaque `.id` only if continuing the setup test;
 do not log private XML or bearer values. Discover the server-owned task/scene/object choices and
 bounds before composing a draft:
 
@@ -166,6 +170,62 @@ curl --fail-with-body --silent --show-error \
 accept file, URL, mesh, environment code, or task code fields. Robot and setup list/detail/content/
 delete routes are tenant scoped and return 404 for another tenant. Deletion is soft; do not use it
 during retained production acceptance when the user wants to inspect the same rows afterward.
+
+Only biped/quadruped × Stand Balance/Walk Forward × Flat Arena/Ramp Course with no optional objects
+is trainable in V1. Save the returned setup ID without printing tenant XML:
+
+```bash
+setup_response="$(curl --fail-with-body --silent --show-error \
+  -X POST "$BASE_URL/robot-setups" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data "{\"name\":\"Quadruped walk\",\"robot_id\":\"$ROBOT_ID\",\"task_template_id\":\"walk-forward\",\"scene_preset_id\":\"flat-arena\",\"objects\":[]}")"
+SETUP_ID="$(printf '%s' "$setup_response" | jq -er '.id')"
+prepare_response="$(curl --fail-with-body --silent --show-error \
+  -X POST "$BASE_URL/robot-setups/$SETUP_ID/preparations" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{}')"
+printf '%s\n' "$prepare_response" | jq '{id,state,phase,fingerprint}'
+```
+
+Poll the owner-scoped latest endpoint until `accepted` or `failed`; only bounded phase/reason data
+is public:
+
+```bash
+while true; do
+  preparation="$(curl --fail-with-body --silent --show-error \
+    "$BASE_URL/robot-setups/$SETUP_ID/preparations/latest" \
+    -H "Authorization: Bearer $TOKEN")"
+  state="$(printf '%s' "$preparation" | jq -r '.state')"
+  printf 'state=%s phase=%s reason=%s\n' "$state" \
+    "$(printf '%s' "$preparation" | jq -r '.phase')" \
+    "$(printf '%s' "$preparation" | jq -r '.failure_reason // "-"')"
+  case "$state" in accepted|failed) break ;; esac
+  sleep 10
+done
+```
+
+A failed preparation is retried as a new attempt with `{"retry":true}`. For an accepted current
+fingerprint, start one fixed job with a locally generated opaque idempotency key; do not put a token
+or storage key in it:
+
+```bash
+IDEMPOTENCY_KEY="start-$(date -u +%Y%m%dT%H%M%SZ)-$(openssl rand -hex 8)"
+job_response="$(curl --fail-with-body --silent --show-error \
+  -X POST "$BASE_URL/robot-setups/$SETUP_ID/training-jobs" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data "{\"idempotency_key\":\"$IDEMPOTENCY_KEY\"}")"
+JOB_ID="$(printf '%s' "$job_response" | jq -er '.id')"
+printf '%s\n' "$job_response" | jq '{id,job_kind,status,preparation_fingerprint,resolved_config}'
+unset IDEMPOTENCY_KEY
+```
+
+The result lifecycle and artifact endpoints below are identical to normal Jobs. A custom policy
+bundle contains the exact simulator contract and is explicitly not directly deployable to a
+physical robot. Keep the SaaS Job row and S3 artifacts during acceptance; delete neither the setup
+nor job evidence the user needs to inspect.
 
 ## Follow lifecycle and remote job identity
 

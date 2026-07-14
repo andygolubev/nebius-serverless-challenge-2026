@@ -77,6 +77,12 @@ class Job(BaseModel):
     phase: str | None = None
     failure_phase: str | None = None
     artifacts_status: str = "pending"
+    job_kind: Literal["catalog", "custom-robot"] = "catalog"
+    robot_id: str | None = None
+    setup_id: str | None = None
+    preparation_id: str | None = None
+    preparation_fingerprint: str | None = None
+    input_manifest_sha256: str | None = None
 
 
 class Artifact(BaseModel):
@@ -85,6 +91,7 @@ class Artifact(BaseModel):
     kind: str = "file"
     content_type: str = "application/octet-stream"
     size_bytes: int | None = None
+    sha256: str | None = None
     key: str
 
 
@@ -99,6 +106,14 @@ class ArtifactManifest(BaseModel):
 # -- Bring Your Robot beta ---------------------------------------------------------------
 
 RobotType = Literal["quadruped", "biped"]
+TrainingReadiness = Literal[
+    "ineligible",
+    "not_prepared",
+    "preparing",
+    "ready",
+    "preparation_failed",
+]
+PreparationState = Literal["queued", "preparing", "accepted", "failed"]
 
 
 class FieldError(BaseModel):
@@ -217,6 +232,63 @@ class RobotSetupRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class PreparationRequest(BaseModel):
+    retry: bool = False
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CustomTrainingRequest(BaseModel):
+    idempotency_key: str = Field(
+        min_length=8,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PreparationAttempt(BaseModel):
+    id: str
+    tenant_id: str = Field(default="", exclude=True)
+    setup_id: str
+    robot_id: str
+    fingerprint: str
+    state: PreparationState
+    phase: str
+    created_at: str
+    updated_at: str
+    runtime_image_digest: str
+    adapter_version: str
+    reward_version: str
+    profile_version: str
+    retry_of: str | None = None
+    failure_phase: str | None = None
+    failure_reason: str | None = None
+    report_sha256: str | None = None
+    report_ready: bool = False
+    can_retry: bool = False
+    # Internal authorities are persisted but never serialized to tenant APIs.
+    input_manifest_key: str | None = Field(default=None, exclude=True)
+    input_manifest_sha256: str | None = Field(default=None, exclude=True)
+    report_key: str | None = Field(default=None, exclude=True)
+    nebius_job_id: str | None = Field(default=None, exclude=True)
+
+
+class PreparationSummary(BaseModel):
+    id: str
+    fingerprint: str
+    state: PreparationState
+    phase: str
+    created_at: str
+    updated_at: str
+    failure_phase: str | None = None
+    failure_reason: str | None = None
+    report_sha256: str | None = None
+    report_ready: bool = False
+    can_retry: bool = False
+
+
 class RobotSetup(BaseModel):
     id: str
     tenant_id: str = Field(default="", exclude=True)
@@ -230,5 +302,9 @@ class RobotSetup(BaseModel):
     digest: str
     created_at: str
     readiness: Literal["validated"] = "validated"
-    trainable: Literal[False] = False
-    reason: Literal["custom-training-not-enabled"] = "custom-training-not-enabled"
+    trainable: bool = False
+    reason: str = "custom-training-not-enabled"
+    training_readiness: TrainingReadiness = "ineligible"
+    can_prepare: bool = False
+    can_start_training: bool = False
+    current_preparation: PreparationSummary | None = None

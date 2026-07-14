@@ -80,7 +80,9 @@ def test_gpu_sampler_stops_and_aggregates() -> None:
         ]
     )
     sampler = telemetry.GpuSampler(0.01, snapshot_fn=lambda: next(snapshots)).start()
-    time.sleep(0.012)
+    deadline = time.monotonic() + 1
+    while len(sampler.samples) < 2 and time.monotonic() < deadline:
+        time.sleep(0.001)
     summary = sampler.stop()
     assert summary["sample_count"] == 3
     assert summary["utilization_percent_max"] == 75

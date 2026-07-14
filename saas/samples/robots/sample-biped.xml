@@ -2,6 +2,9 @@
 <mujoco model="sim2policy_sample_biped">
   <compiler angle="degree"/>
   <option gravity="0 0 -9.81" timestep="0.004"/>
+  <default>
+    <motor ctrllimited="true" ctrlrange="-1 1"/>
+  </default>
   <worldbody>
     <body name="pelvis" pos="0 0 0.92">
       <freejoint name="root_free"/>

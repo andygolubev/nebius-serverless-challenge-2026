@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sim2policy/custom-robot/preparation-report/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "preparation_id", "fingerprint", "status", "phases", "compiled", "schemas", "versions", "report_sha256"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "preparation_id": {"type": "string"},
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["accepted", "failed"]},
+    "failure_phase": {"type": ["string", "null"]},
+    "failure_reason": {"type": ["string", "null"], "maxLength": 200},
+    "phases": {"type": "array", "maxItems": 16},
+    "compiled": {"type": "object"},
+    "schemas": {"type": "object"},
+    "versions": {"type": "object"},
+    "report_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}

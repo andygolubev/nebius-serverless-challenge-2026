@@ -38,7 +38,8 @@ spec:
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
           # (explicit env would override envFrom): the whole nebius orchestration
           # contract — SAAS_ORCHESTRATION_BACKEND=nebius, NEBIUS_*, AWS_*,
-          # SIM2POLICY_* — comes from the `saas-nebius` Secret, created
+          # SIM2POLICY_*, and disabled-by-default CUSTOM_ROBOT_* controls — comes
+          # from the `saas-nebius` Secret, created
           # out-of-band from MysteryBox values (see sim2policy/infra/nebius/
           # README.md). Without the secret the app falls back to its built-in
           # default backend (mock), so this manifest syncs safely in any order

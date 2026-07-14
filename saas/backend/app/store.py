@@ -7,12 +7,20 @@ windows stay in process memory: they live minutes by design and are safe to lose
 
 from __future__ import annotations
 
+import json
 import threading
 import time
 from dataclasses import dataclass
 
 from . import db
-from .models import ArtifactManifest, Job, RobotAsset, RobotSetup
+from .models import (
+    TERMINAL_STATES,
+    ArtifactManifest,
+    Job,
+    PreparationAttempt,
+    RobotAsset,
+    RobotSetup,
+)
 
 ROBOT_QUOTA = 20
 SETUP_QUOTA = 50
@@ -75,6 +83,202 @@ class JobStore:
         if row is None:
             return None
         return ArtifactManifest.model_validate_json(row[0])
+
+
+class CustomTrainingStore:
+    """Atomic preparation and setup-bound custom start reservations."""
+
+    def __init__(self, db_path: str | None = None) -> None:
+        self._lock = threading.Lock()
+        self._conn = db.connect(db_path)
+
+    @staticmethod
+    def _attempt(row: tuple[str, str]) -> PreparationAttempt:
+        return PreparationAttempt.model_validate_json(row[1]).model_copy(
+            update={"tenant_id": row[0]}
+        )
+
+    @staticmethod
+    def _attempt_json(attempt: PreparationAttempt) -> str:
+        """Persist private authorities even though API serialization excludes them."""
+        payload = attempt.model_dump(mode="json")
+        for field in (
+            "input_manifest_key",
+            "input_manifest_sha256",
+            "report_key",
+            "nebius_job_id",
+        ):
+            payload[field] = getattr(attempt, field)
+        return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+    def latest_preparation(
+        self, tenant_id: str, setup_id: str
+    ) -> PreparationAttempt | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM preparation_attempts
+                   WHERE tenant_id = ? AND setup_id = ?
+                   ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+                (tenant_id, setup_id),
+            ).fetchone()
+        return None if row is None else self._attempt(row)
+
+    def get_preparation(
+        self, tenant_id: str, preparation_id: str
+    ) -> PreparationAttempt | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM preparation_attempts
+                   WHERE tenant_id = ? AND id = ?""",
+                (tenant_id, preparation_id),
+            ).fetchone()
+        return None if row is None else self._attempt(row)
+
+    def list_active_preparations(self) -> list[PreparationAttempt]:
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT tenant_id, data FROM preparation_attempts
+                   WHERE state IN ('queued', 'preparing')"""
+            ).fetchall()
+        return [self._attempt(row) for row in rows]
+
+    def reserve_preparation(
+        self,
+        attempt: PreparationAttempt,
+        *,
+        max_active_per_tenant: int,
+        retry: bool,
+    ) -> tuple[PreparationAttempt, bool]:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                rows = self._conn.execute(
+                    """SELECT tenant_id, data FROM preparation_attempts
+                       WHERE tenant_id = ? AND setup_id = ? AND fingerprint = ?
+                       ORDER BY created_at DESC, rowid DESC""",
+                    (attempt.tenant_id, attempt.setup_id, attempt.fingerprint),
+                ).fetchall()
+                existing = [self._attempt(row) for row in rows]
+                reusable = next(
+                    (
+                        item
+                        for item in existing
+                        if item.state in {"queued", "preparing", "accepted"}
+                    ),
+                    None,
+                )
+                if reusable is not None:
+                    self._conn.execute("COMMIT")
+                    return reusable, False
+                if existing and not retry:
+                    self._conn.execute("COMMIT")
+                    return existing[0], False
+                active = self._conn.execute(
+                    """SELECT COUNT(*) FROM preparation_attempts
+                       WHERE tenant_id = ? AND state IN ('queued', 'preparing')""",
+                    (attempt.tenant_id,),
+                ).fetchone()[0]
+                if active >= max_active_per_tenant:
+                    raise QuotaExceeded("active_preparations", max_active_per_tenant)
+                self._conn.execute(
+                    """INSERT INTO preparation_attempts
+                       (id, tenant_id, setup_id, robot_id, fingerprint, state, data, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        attempt.id,
+                        attempt.tenant_id,
+                        attempt.setup_id,
+                        attempt.robot_id,
+                        attempt.fingerprint,
+                        attempt.state,
+                        self._attempt_json(attempt),
+                        time.time(),
+                    ),
+                )
+                self._conn.execute("COMMIT")
+                return attempt, True
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+
+    def put_preparation(self, attempt: PreparationAttempt) -> None:
+        with self._lock:
+            cursor = self._conn.execute(
+                """UPDATE preparation_attempts SET state = ?, data = ?
+                   WHERE id = ? AND tenant_id = ?""",
+                (
+                    attempt.state,
+                    self._attempt_json(attempt),
+                    attempt.id,
+                    attempt.tenant_id,
+                ),
+            )
+        if cursor.rowcount != 1:
+            raise KeyError("preparation attempt does not exist")
+
+    def reserve_training_job(
+        self,
+        job: Job,
+        *,
+        setup_id: str,
+        idempotency_key: str,
+        max_active_per_tenant: int,
+        max_daily_starts: int,
+    ) -> tuple[Job, bool]:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                existing = self._conn.execute(
+                    """SELECT job_id FROM custom_training_requests
+                       WHERE tenant_id = ? AND setup_id = ? AND idempotency_key = ?""",
+                    (job.tenant_id, setup_id, idempotency_key),
+                ).fetchone()
+                if existing is not None:
+                    row = self._conn.execute(
+                        "SELECT data FROM jobs WHERE id = ? AND tenant_id = ?",
+                        (existing[0], job.tenant_id),
+                    ).fetchone()
+                    if row is None:
+                        raise RuntimeError("idempotency reservation has no job")
+                    self._conn.execute("COMMIT")
+                    return Job.model_validate_json(row[0]), False
+                active_jobs = [
+                    Job.model_validate_json(row[0])
+                    for row in self._conn.execute(
+                        "SELECT data FROM jobs WHERE tenant_id = ?",
+                        (job.tenant_id,),
+                    ).fetchall()
+                ]
+                active = sum(
+                    item.job_kind == "custom-robot"
+                    and item.status not in TERMINAL_STATES
+                    for item in active_jobs
+                )
+                if active >= max_active_per_tenant:
+                    raise QuotaExceeded("active_training_jobs", max_active_per_tenant)
+                since = time.time() - 24 * 60 * 60
+                daily = self._conn.execute(
+                    """SELECT COUNT(*) FROM custom_training_requests
+                       WHERE tenant_id = ? AND created_at >= ?""",
+                    (job.tenant_id, since),
+                ).fetchone()[0]
+                if daily >= max_daily_starts:
+                    raise QuotaExceeded("daily_training_starts", max_daily_starts)
+                self._conn.execute(
+                    "INSERT INTO jobs (id, tenant_id, data) VALUES (?, ?, ?)",
+                    (job.id, job.tenant_id, job.model_dump_json()),
+                )
+                self._conn.execute(
+                    """INSERT INTO custom_training_requests
+                       (tenant_id, setup_id, idempotency_key, job_id, created_at)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (job.tenant_id, setup_id, idempotency_key, job.id, time.time()),
+                )
+                self._conn.execute("COMMIT")
+                return job, True
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
 
 
 class RobotStore:
@@ -156,14 +360,14 @@ class RobotStore:
         return None if row is None else self._robot(row)
 
     def get_robot_content(
-        self, tenant_id: str, robot_id: str
+        self, tenant_id: str, robot_id: str, *, include_deleted: bool = False
     ) -> tuple[RobotAsset, str] | None:
         with self._lock:
-            row = self._conn.execute(
-                """SELECT tenant_id, data, xml_content FROM robot_assets
-                   WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
-                (robot_id, tenant_id),
-            ).fetchone()
+            query = """SELECT tenant_id, data, xml_content FROM robot_assets
+                       WHERE id = ? AND tenant_id = ?"""
+            if not include_deleted:
+                query += " AND deleted_at IS NULL"
+            row = self._conn.execute(query, (robot_id, tenant_id)).fetchone()
         if row is None:
             return None
         return self._robot((row[0], row[1])), row[2]
@@ -227,6 +431,15 @@ class RobotStore:
             row = self._conn.execute(
                 """SELECT tenant_id, data FROM robot_setups
                    WHERE id = ? AND tenant_id = ? AND deleted_at IS NULL""",
+                (setup_id, tenant_id),
+            ).fetchone()
+        return None if row is None else self._setup(row)
+
+    def get_setup_history(self, tenant_id: str, setup_id: str) -> RobotSetup | None:
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_setups
+                   WHERE id = ? AND tenant_id = ?""",
                 (setup_id, tenant_id),
             ).fetchone()
         return None if row is None else self._setup(row)

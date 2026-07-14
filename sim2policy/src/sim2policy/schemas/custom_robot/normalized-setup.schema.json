@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sim2policy/custom-robot/normalized-setup/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "robot_type", "task_template_id", "scene_preset_id", "objects"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "robot_type": {"enum": ["biped", "quadruped"]},
+    "task_template_id": {"enum": ["stand-balance", "walk-forward"]},
+    "scene_preset_id": {"enum": ["flat-arena", "ramp-course"]},
+    "objects": {"type": "array", "maxItems": 0}
+  }
+}

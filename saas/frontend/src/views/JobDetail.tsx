@@ -65,8 +65,12 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
       <header className="job-detail-header">
         <div className="job-title-row">
           <div>
-            <p className="eyebrow">Training job</p>
-            <h1>{job.environment} · {job.algorithm}</h1>
+            <p className="eyebrow">{job.job_kind === "custom-robot" ? "Uploaded robot training" : "Training job"}</p>
+            <h1>
+              {job.job_kind === "custom-robot"
+                ? `${job.resolved_config.robot?.name ?? "Uploaded robot"} · ${job.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "Custom locomotion"}`
+                : `${job.environment} · ${job.algorithm}`}
+            </h1>
           </div>
           <StatusBadge status={job.status} />
         </div>
@@ -106,14 +110,31 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
       )}
 
       <details className="configuration-details" open={job.status !== "completed"}>
-        <summary>Configuration <span>{job.preset ?? "Custom catalog settings"}</span></summary>
+        <summary>
+          Configuration
+          <span>{job.job_kind === "custom-robot" ? "custom-ppo-quick · CPU" : job.preset ?? "Custom catalog settings"}</span>
+        </summary>
         <dl className="compact-kv">
-          {job.preset && <KeyValue label="Preset" value={job.preset} />}
-          <KeyValue label="Environment" value={job.resolved_config.environment} />
-          <KeyValue label="Algorithm" value={job.resolved_config.algorithm} />
-          {Object.entries(job.resolved_config.params).map(([key, value]) => (
-            <KeyValue key={key} label={key.replace(/_/g, " ")} value={String(value)} />
-          ))}
+          {job.job_kind === "custom-robot" ? (
+            <>
+              <KeyValue label="Robot" value={job.resolved_config.robot?.name ?? job.environment} />
+              <KeyValue label="Robot type" value={job.resolved_config.robot?.robot_type ?? "—"} />
+              <KeyValue label="Task" value={job.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "—"} />
+              <KeyValue label="Scene" value={job.resolved_config.setup?.scene_preset_id?.replace(/-/g, " ") ?? "—"} />
+              <KeyValue label="Profile" value="custom-ppo-quick" />
+              <KeyValue label="Compute" value={`${job.resolved_config.training?.platform ?? "cpu-d3"} · ${job.resolved_config.training?.preset ?? "8vcpu-32gb"}`} />
+              <KeyValue label="Preparation fingerprint" value={job.preparation_fingerprint ?? "—"} />
+            </>
+          ) : (
+            <>
+              {job.preset && <KeyValue label="Preset" value={job.preset} />}
+              <KeyValue label="Environment" value={job.resolved_config.environment ?? job.environment} />
+              <KeyValue label="Algorithm" value={job.resolved_config.algorithm ?? job.algorithm} />
+              {Object.entries(job.resolved_config.params ?? {}).map(([key, value]) => (
+                <KeyValue key={key} label={key.replace(/_/g, " ")} value={String(value)} />
+              ))}
+            </>
+          )}
         </dl>
       </details>
     </div>
@@ -157,6 +178,13 @@ function CompletedResults({
   const videos = artifacts.artifacts.filter((artifact) => artifact.kind === "video");
   const selected = videos.find((artifact) => artifact.id === selectedVideo) ?? videos[0];
   const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video");
+  const kpis =
+    job.job_kind === "custom-robot"
+      ? view.kpis.filter((kpi) => !["GPU utilization", "Estimated cost"].includes(kpi.label))
+      : view.kpis;
+  const threshold = artifacts.metrics.aggregate as
+    | { task_threshold_achieved?: boolean }
+    | undefined;
 
   async function togglePlayback() {
     const player = videoRef.current;
@@ -174,6 +202,11 @@ function CompletedResults({
 
   return (
     <section className="results-shell" aria-labelledby="results-heading">
+      {job.job_kind === "custom-robot" && (
+        <div className="alert alert-info simulator-disclosure" role="note">
+          <strong>Simulator-only policy.</strong> Preparation and simulation results do not make this controller safe or directly deployable to physical hardware.
+        </div>
+      )}
       <div className="result-primary-grid">
         <div className="result-summary-panel">
           <div className="result-section-heading">
@@ -181,10 +214,12 @@ function CompletedResults({
               <p className="eyebrow">Completed run</p>
               <h2 id="results-heading">Training result</h2>
             </div>
-            <span className="badge completed">Artifacts ready</span>
+            <span className={`badge ${threshold?.task_threshold_achieved === false ? "warning" : "completed"}`}>
+              {threshold?.task_threshold_achieved === false ? "Below task threshold" : "Artifacts ready"}
+            </span>
           </div>
           <div className="kpi-grid">
-            {view.kpis.map((kpi) => (
+            {kpis.map((kpi) => (
               <div className={`kpi ${kpi.emphasis ? "primary" : ""}`} key={kpi.label}>
                 <span>{kpi.label}</span>
                 <strong title={kpi.title}>{kpi.value}</strong>
@@ -262,7 +297,9 @@ function CompletedResults({
         <MetricDetails title="Run" subtitle={`${view.run.length} identifiers`} entries={view.run} />
       </div>
 
-      {otherFiles.length > 0 && <ArtifactFiles artifacts={otherFiles} />}
+      {otherFiles.length > 0 && (
+        <ArtifactFiles artifacts={otherFiles} simulatorOnly={job.job_kind === "custom-robot"} />
+      )}
 
       <details className="raw-diagnostics">
         <summary>Raw diagnostics <span>Structured JSON for debugging</span></summary>
@@ -311,7 +348,7 @@ function EpisodeCell({ label, value }: { label: string; value: string }) {
   return <span><small>{label}</small><strong>{value}</strong></span>;
 }
 
-function ArtifactFiles({ artifacts }: { artifacts: Artifact[] }) {
+function ArtifactFiles({ artifacts, simulatorOnly }: { artifacts: Artifact[]; simulatorOnly: boolean }) {
   return (
     <details className="result-detail artifact-files">
       <summary><strong>Result files</strong><span>{artifacts.length} downloadable</span></summary>
@@ -319,7 +356,23 @@ function ArtifactFiles({ artifacts }: { artifacts: Artifact[] }) {
         {artifacts.map((artifact) => (
           <li key={artifact.id}>
             <span><strong>{artifact.name}</strong><small>{formatBytes(artifact.size_bytes)}</small></span>
-            <span><a href={artifact.url} target="_blank" rel="noreferrer">Open</a><a href={artifact.download_url}>Download</a></span>
+            <span>
+              <a href={artifact.url} target="_blank" rel="noreferrer">Open</a>
+              <a
+                href={artifact.download_url}
+                onClick={(event) => {
+                  if (
+                    simulatorOnly &&
+                    artifact.id === "policy_bundle" &&
+                    !window.confirm("This policy bundle is simulator-only and is not directly deployable to a physical robot. Continue?")
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                Download
+              </a>
+            </span>
           </li>
         ))}
       </ul>

@@ -33,6 +33,33 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: saas/backend/requirements*.txt
+
+      - name: Test backend and mock custom-robot flow
+        working-directory: saas/backend
+        run: |
+          python -m pip install -r requirements-dev.txt
+          PYTHONPATH=. python -m pytest tests -q
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: saas/frontend/package-lock.json
+
+      - name: Test and build frontend
+        working-directory: saas/frontend
+        run: |
+          npm ci
+          npm test -- --run
+          npm run build
+
       - name: Assert production email configuration
         run: |
           bash deploy/tests/assert-saas-production-email.sh
@@ -44,6 +71,8 @@ jobs:
       - name: Build and test the image
         run: |
           docker build -t sim2policy-saas:ci ./saas
+          docker run --rm --entrypoint python sim2policy-saas:ci -c \
+            'from app.main import app; assert app.title == "Sim2Policy SaaS"'
 
       - name: Log in to Nebius Registry
         env:

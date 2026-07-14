@@ -129,6 +129,39 @@ describe("job results", () => {
     expect(document.querySelector(".metrics-grid")).not.toBeInTheDocument();
   });
 
+  it("shows compact custom provenance, honest threshold, and bundle disclosure", async () => {
+    const job = {
+      id: "custom-job", preset: null, environment: "uploaded-biped", algorithm: "ppo-sb3",
+      resolved_config: {
+        robot: { id: "robot-1", name: "Buddy", robot_type: "biped", digest: "a".repeat(64) },
+        setup: { id: "setup-1", name: "Buddy walk", task_template_id: "walk-forward", scene_preset_id: "ramp-course" },
+        training: { platform: "cpu-d3", preset: "8vcpu-32gb", version: "custom-ppo-quick-v1" },
+      },
+      status: "completed", created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      artifacts_status: "ready", job_kind: "custom-robot", preparation_fingerprint: "f".repeat(64),
+    };
+    const artifacts = {
+      job_id: job.id, status: "completed", media: [],
+      metrics: { aggregate: { mean_reward: 18.2, success_rate: 0.6, task_threshold_achieved: false }, simulator_only: true },
+      artifacts: [
+        { id: "video_final", name: "Final rollout", kind: "video", content_type: "video/mp4", size_bytes: 123, url: "/video", download_url: "/video?download=1" },
+        { id: "policy_bundle", name: "Simulator policy bundle", kind: "file", content_type: "application/zip", size_bytes: 456, url: "/bundle", download_url: "/bundle?download=1" },
+      ],
+    };
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input).endsWith("/artifacts") ? json(artifacts) : json(job)));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<JobDetail jobId={job.id} onBack={() => undefined} />);
+    expect(await screen.findByText(/Simulator-only policy/)).toBeVisible();
+    expect(screen.getByText("Below task threshold")).toBeVisible();
+    expect(screen.getByRole("heading", { name: /Buddy · walk forward/ })).toBeVisible();
+    fireEvent.click(screen.getByText(/custom-ppo-quick · CPU/));
+    expect(screen.getByText(/cpu-d3 · 8vcpu-32gb/)).toBeVisible();
+    const bundle = screen.getAllByRole("link", { name: "Download" }).find((link) => link.getAttribute("href")?.includes("bundle"))!;
+    fireEvent.click(bundle);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(screen.queryByText("GPU utilization")).not.toBeInTheDocument();
+  });
+
   it("keeps dark-mode tokens and all result breakpoints in the shipped stylesheet", async () => {
     // The application tsconfig intentionally omits Node types; Vitest itself runs in Node.
     // @ts-expect-error -- test-only runtime import, never bundled into the application.

@@ -26,6 +26,21 @@ log = logging.getLogger(__name__)
 RUN_PREFIX = "sim2policy"
 _MEDIA_SUFFIXES = (".mp4", ".png", ".gif")
 _SAFE_REL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
+_MAX_JSON_BYTES = 2 * 1024 * 1024
+_REQUIRED_CUSTOM_ARTIFACTS = {
+    "final_policy",
+    "metrics_json",
+    "report_md",
+    "reward_curve",
+    "video_final",
+    "resolved_config",
+    "runtime_versions",
+    "policy_bundle",
+    "bundle_manifest",
+    "robot_xml",
+    "normalized_setup",
+}
 
 
 def build_s3_client(settings: NebiusSettings):
@@ -61,7 +76,13 @@ class S3ArtifactReader:
             if _is_missing_key_error(e):
                 return None
             raise
-        return json.loads(obj["Body"].read())
+        raw = obj["Body"].read(_MAX_JSON_BYTES + 1)
+        if len(raw) > _MAX_JSON_BYTES:
+            raise ValueError("artifact JSON exceeds the fixed bound")
+        value = json.loads(raw)
+        if not isinstance(value, dict):
+            raise ValueError("artifact JSON must be an object")
+        return value
 
     def read_manifest(self, job_id: str, run_id: str) -> ArtifactManifest | None:
         """Return the manifest for a completed run, or None if not yet written."""
@@ -74,6 +95,15 @@ class S3ArtifactReader:
         artifact_map = manifest.get("artifacts")
         if not isinstance(artifact_map, dict):
             artifact_map = manifest
+        checksums = manifest.get("checksums")
+        is_custom = "policy_bundle" in artifact_map
+        if is_custom and checksums is None:
+            raise ValueError("custom run artifact checksum manifest is missing")
+        if checksums is not None:
+            if not isinstance(checksums, dict) or set(checksums) != set(artifact_map):
+                raise ValueError("artifact checksum manifest does not match artifacts")
+            if is_custom and set(artifact_map) != _REQUIRED_CUSTOM_ARTIFACTS:
+                raise ValueError("custom run artifact manifest is incomplete")
         status = self._read_json(self._key(run_id, "metadata/status.json")) or {}
         metrics = self._read_json(self._key(run_id, "report/metrics.json")) or {}
         artifacts = []
@@ -81,8 +111,47 @@ class S3ArtifactReader:
             if not isinstance(rel, str) or not _SAFE_REL.fullmatch(rel) or ".." in rel.split("/"):
                 raise ValueError("artifact manifest contains an unsafe path")
             key = self._key(run_id, rel)
+            size_bytes = None
+            digest = None
+            if isinstance(checksums, dict):
+                descriptor = checksums.get(logical_name)
+                if not isinstance(descriptor, dict) or set(descriptor) != {
+                    "sha256",
+                    "size_bytes",
+                }:
+                    raise ValueError("artifact checksum descriptor is invalid")
+                digest = descriptor["sha256"]
+                size_bytes = descriptor["size_bytes"]
+                if (
+                    not isinstance(digest, str)
+                    or not _SHA256.fullmatch(digest)
+                    or isinstance(size_bytes, bool)
+                    or not isinstance(size_bytes, int)
+                    or size_bytes < 1
+                ):
+                    raise ValueError("artifact checksum descriptor is invalid")
+                head = self._client.head_object(Bucket=self._bucket, Key=key)
+                remote_digest = (head.get("Metadata") or {}).get("sha256")
+                if head.get("ContentLength") != size_bytes or remote_digest != digest:
+                    raise ValueError("artifact object does not match its checksum")
             content_type = mimetypes.guess_type(rel)[0] or "application/octet-stream"
-            artifacts.append(Artifact(id=str(logical_name), name=_label(str(logical_name)), kind="video" if rel.endswith(".mp4") else "image" if rel.endswith((".png", ".gif")) else "file", content_type=content_type, key=key))
+            artifacts.append(
+                Artifact(
+                    id=str(logical_name),
+                    name=_label(str(logical_name)),
+                    kind=(
+                        "video"
+                        if rel.endswith(".mp4")
+                        else "image"
+                        if rel.endswith((".png", ".gif"))
+                        else "file"
+                    ),
+                    content_type=content_type,
+                    size_bytes=size_bytes,
+                    sha256=digest,
+                    key=key,
+                )
+            )
         media = sorted(a.key for a in artifacts if a.key.endswith(_MEDIA_SUFFIXES))
         return ArtifactManifest(
             job_id=job_id,

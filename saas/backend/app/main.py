@@ -20,6 +20,18 @@ from fastapi.staticfiles import StaticFiles
 
 from . import catalog, environment_catalog
 from .auth import AuthService, RateLimited, is_valid_email, normalize_email
+from .custom_training import (
+    ADAPTER_VERSION,
+    PREPARATION_PROFILE_VERSION,
+    REWARD_VERSION,
+    build_input_documents,
+    canonical_json,
+    eligibility,
+    preparation_fingerprint,
+    project_setup_readiness,
+    resolved_custom_job,
+    sha256_bytes,
+)
 from .email_sender import EmailDeliveryError, build_email_sender
 from .models import (
     STATUS_COMPLETED,
@@ -29,6 +41,9 @@ from .models import (
     AuthRequest,
     Job,
     JobRequest,
+    CustomTrainingRequest,
+    PreparationAttempt,
+    PreparationRequest,
     RobotAsset,
     RobotSample,
     RobotSetup,
@@ -37,7 +52,15 @@ from .models import (
 )
 from .orchestration import build_backend
 from .robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate_mjcf
-from .store import AuthStore, JobStore, QuotaExceeded, RobotStore, Session
+from .settings import CustomTrainingSettings
+from .store import (
+    AuthStore,
+    CustomTrainingStore,
+    JobStore,
+    QuotaExceeded,
+    RobotStore,
+    Session,
+)
 from .db import resolve_path
 
 app = FastAPI(title="Sim2Policy SaaS", version="0.2.0")
@@ -47,7 +70,14 @@ log = logging.getLogger(__name__)
 _db_path = resolve_path()
 _store = JobStore(_db_path)
 _robot_store = RobotStore(_db_path)
-_backend = build_backend(os.environ.get("SAAS_ORCHESTRATION_BACKEND", "mock"))
+_custom_store = CustomTrainingStore(_db_path)
+_backend_name = os.environ.get("SAAS_ORCHESTRATION_BACKEND", "mock")
+_backend = build_backend(_backend_name)
+_custom_settings = getattr(
+    _backend,
+    "custom_settings",
+    CustomTrainingSettings.from_env(orchestration_backend=_backend_name),
+)
 _auth = AuthService(
     AuthStore(_db_path),
     build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")),
@@ -62,6 +92,9 @@ def resume_jobs() -> None:
     resume = getattr(_backend, "resume", None)
     if resume is not None:
         resume(_store)
+    resume_preparations = getattr(_backend, "resume_preparations", None)
+    if resume_preparations is not None:
+        resume_preparations(_custom_store)
 
 
 def _now() -> str:
@@ -71,6 +104,29 @@ def _now() -> str:
 def _field_error(field: str, message: str, *, status_code: int = 422) -> HTTPException:
     return HTTPException(
         status_code=status_code, detail={"field": field, "message": message}
+    )
+
+
+def _project_setup(setup: RobotSetup) -> RobotSetup:
+    robot = _robot_store.get_robot(setup.tenant_id, setup.robot_id)
+    if robot is None:
+        return setup.model_copy(
+            update={
+                "trainable": False,
+                "reason": "source-robot-unavailable",
+                "training_readiness": "ineligible",
+                "can_prepare": False,
+                "can_start_training": False,
+                "current_preparation": None,
+            }
+        )
+    latest = _custom_store.latest_preparation(setup.tenant_id, setup.id)
+    return project_setup_readiness(
+        setup,
+        robot,
+        latest,
+        enabled=_custom_settings.enabled,
+        runtime_image_digest=_custom_settings.runtime_image,
     )
 
 
@@ -148,6 +204,7 @@ def health() -> dict[str, str]:
         "backend": _backend.name,
         "email_backend": _auth.sender.name,
         "email_ready": "true",
+        "custom_robot_training": "enabled" if _custom_settings.enabled else "disabled",
     }
 
 
@@ -360,12 +417,12 @@ def create_robot_setup(
         raise _field_error(
             exc.field, f"tenant limit is {exc.limit} active environment setups"
         ) from exc
-    return stored
+    return _project_setup(stored)
 
 
 @app.get("/robot-setups")
 def list_robot_setups(session: Session = Depends(require_session)) -> list[RobotSetup]:
-    return _robot_store.list_setups(session.email)
+    return [_project_setup(setup) for setup in _robot_store.list_setups(session.email)]
 
 
 @app.get("/robot-setups/{setup_id}")
@@ -375,7 +432,7 @@ def get_robot_setup(
     setup = _robot_store.get_setup(session.email, setup_id)
     if setup is None:
         raise HTTPException(status_code=404, detail="setup not found")
-    return setup
+    return _project_setup(setup)
 
 
 @app.delete("/robot-setups/{setup_id}", status_code=204)
@@ -385,6 +442,226 @@ def delete_robot_setup(
     if not _robot_store.delete_setup(session.email, setup_id):
         raise HTTPException(status_code=404, detail="setup not found")
     return Response(status_code=204)
+
+
+@app.post("/robot-setups/{setup_id}/preparations", status_code=201)
+def prepare_robot_setup(
+    setup_id: str,
+    request: PreparationRequest,
+    session: Session = Depends(require_session),
+) -> PreparationAttempt:
+    setup = _robot_store.get_setup(session.email, setup_id)
+    if setup is None:
+        raise HTTPException(status_code=404, detail="setup not found")
+    robot_entry = _robot_store.get_robot_content(session.email, setup.robot_id)
+    if robot_entry is None:
+        raise HTTPException(status_code=409, detail="source robot is unavailable")
+    robot, robot_xml = robot_entry
+    allowed = eligibility(setup, enabled=_custom_settings.enabled)
+    if not allowed.eligible:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": allowed.reason,
+                "message": "setup is not eligible for preparation",
+            },
+        )
+    fingerprint = preparation_fingerprint(robot, setup, _custom_settings.runtime_image)
+    previous = _custom_store.latest_preparation(session.email, setup.id)
+    now = _now()
+    attempt = PreparationAttempt(
+        id=uuid.uuid4().hex,
+        tenant_id=session.email,
+        setup_id=setup.id,
+        robot_id=robot.id,
+        fingerprint=fingerprint,
+        state="queued",
+        phase="queued",
+        created_at=now,
+        updated_at=now,
+        runtime_image_digest=_custom_settings.runtime_image,
+        adapter_version=ADAPTER_VERSION,
+        reward_version=REWARD_VERSION,
+        profile_version=PREPARATION_PROFILE_VERSION,
+        retry_of=(previous.id if request.retry and previous is not None else None),
+    )
+    try:
+        attempt, created = _custom_store.reserve_preparation(
+            attempt,
+            max_active_per_tenant=_custom_settings.max_active_preparations_per_tenant,
+            retry=request.retry,
+        )
+    except QuotaExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "reason": exc.field,
+                "message": "preparation capacity is currently in use",
+            },
+            headers={"Retry-After": "30"},
+        ) from exc
+    if not created:
+        return attempt
+    robot_bytes, setup_bytes, manifest = build_input_documents(
+        preparation_id=attempt.id,
+        robot=robot,
+        robot_xml=robot_xml,
+        setup=setup,
+        runtime_image_digest=_custom_settings.runtime_image,
+    )
+    manifest_bytes = canonical_json(manifest)
+    attempt = attempt.model_copy(
+        update={
+            "input_manifest_key": (
+                f"sim2policy/preparations/{attempt.id}/inputs/input-manifest.json"
+            ),
+            "input_manifest_sha256": sha256_bytes(manifest_bytes),
+            "report_key": (
+                f"sim2policy/preparations/{attempt.id}/report/preparation.json"
+            ),
+        }
+    )
+    _custom_store.put_preparation(attempt)
+    storage = getattr(_backend, "custom_storage", None)
+    if storage is not None:
+        try:
+            storage.publish_preparation_inputs(
+                attempt.id,
+                robot=robot_bytes,
+                setup=setup_bytes,
+                manifest=manifest_bytes,
+            )
+        except Exception:
+            failed = attempt.model_copy(
+                update={
+                    "state": "failed",
+                    "phase": "input-publication",
+                    "failure_phase": "input-publication",
+                    "failure_reason": "input-publication-failed",
+                    "can_retry": True,
+                    "updated_at": _now(),
+                }
+            )
+            _custom_store.put_preparation(failed)
+            raise HTTPException(
+                status_code=503, detail="preparation input publication failed"
+            )
+    _backend.launch_preparation(attempt, _custom_store)
+    return attempt
+
+
+@app.get("/robot-setups/{setup_id}/preparations/latest")
+def latest_robot_setup_preparation(
+    setup_id: str,
+    session: Session = Depends(require_session),
+) -> PreparationAttempt:
+    setup = _robot_store.get_setup_history(session.email, setup_id)
+    if setup is None:
+        raise HTTPException(status_code=404, detail="setup not found")
+    attempt = _custom_store.latest_preparation(session.email, setup.id)
+    if attempt is None:
+        raise HTTPException(status_code=404, detail="preparation not found")
+    return attempt
+
+
+@app.post("/robot-setups/{setup_id}/training-jobs", status_code=201)
+def start_robot_setup_training(
+    setup_id: str,
+    request: CustomTrainingRequest,
+    session: Session = Depends(require_session),
+) -> Job:
+    setup = _robot_store.get_setup(session.email, setup_id)
+    if setup is None:
+        raise HTTPException(status_code=404, detail="setup not found")
+    robot_entry = _robot_store.get_robot_content(session.email, setup.robot_id)
+    if robot_entry is None:
+        raise HTTPException(status_code=409, detail="source robot is unavailable")
+    robot, robot_xml = robot_entry
+    attempt = _custom_store.latest_preparation(session.email, setup.id)
+    current_fingerprint = preparation_fingerprint(
+        robot, setup, _custom_settings.runtime_image
+    )
+    if (
+        not _custom_settings.enabled
+        or attempt is None
+        or attempt.state != "accepted"
+        or attempt.fingerprint != current_fingerprint
+        or not attempt.report_ready
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "reason": "accepted-preparation-required",
+                "message": "prepare the current setup before starting training",
+            },
+        )
+    robot_bytes, setup_bytes, manifest = build_input_documents(
+        preparation_id=attempt.id,
+        robot=robot,
+        robot_xml=robot_xml,
+        setup=setup,
+        runtime_image_digest=_custom_settings.runtime_image,
+    )
+    manifest_bytes = canonical_json(manifest)
+    now = _now()
+    job = Job(
+        id=uuid.uuid4().hex,
+        tenant_id=session.email,
+        preset=None,
+        environment=f"uploaded-{robot.robot_type}",
+        algorithm="ppo-sb3",
+        resolved_config=resolved_custom_job(robot, setup, attempt),
+        status=STATUS_QUEUED,
+        created_at=now,
+        updated_at=now,
+        job_kind="custom-robot",
+        robot_id=robot.id,
+        setup_id=setup.id,
+        preparation_id=attempt.id,
+        preparation_fingerprint=attempt.fingerprint,
+        input_manifest_sha256=sha256_bytes(manifest_bytes),
+    )
+    try:
+        job, created = _custom_store.reserve_training_job(
+            job,
+            setup_id=setup.id,
+            idempotency_key=request.idempotency_key,
+            max_active_per_tenant=_custom_settings.max_active_training_jobs_per_tenant,
+            max_daily_starts=_custom_settings.max_daily_starts_per_tenant,
+        )
+    except QuotaExceeded as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={"reason": exc.field, "message": "custom training quota reached"},
+            headers={"Retry-After": "60"},
+        ) from exc
+    if not created:
+        return job
+    storage = getattr(_backend, "custom_storage", None)
+    if storage is not None:
+        try:
+            storage.snapshot_training_inputs(
+                job.id,
+                robot=robot_bytes,
+                setup=setup_bytes,
+                manifest=manifest_bytes,
+            )
+        except Exception:
+            failed = job.model_copy(
+                update={
+                    "status": "failed",
+                    "phase": "input-publication",
+                    "failure_phase": "input-publication",
+                    "error": "training input snapshot failed",
+                    "updated_at": _now(),
+                }
+            )
+            _store.put(failed)
+            raise HTTPException(
+                status_code=503, detail="training input snapshot failed"
+            )
+    _backend.launch(job, _store)
+    return job
 
 
 # -- jobs --

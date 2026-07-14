@@ -1,0 +1,20 @@
+{
+  "training_readiness": "ready",
+  "trainable": true,
+  "reason": "ready",
+  "can_prepare": false,
+  "can_start_training": true,
+  "current_preparation": {
+    "id": "preparation-fixture",
+    "fingerprint": "029df643fa0c9f7bf6abf8908704543d1051c558f3bece3310329582a8e8600e",
+    "state": "accepted",
+    "phase": "accepted",
+    "created_at": "2026-07-14T00:00:00Z",
+    "updated_at": "2026-07-14T00:01:00Z",
+    "failure_phase": null,
+    "failure_reason": null,
+    "report_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+    "report_ready": true,
+    "can_retry": false
+  }
+}

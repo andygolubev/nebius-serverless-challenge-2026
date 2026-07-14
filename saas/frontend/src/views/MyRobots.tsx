@@ -34,7 +34,11 @@ function fieldError(error: unknown): { field?: string; message: string } {
   return { message: "Something went wrong. Please try again." };
 }
 
-export function MyRobots() {
+export function MyRobots({
+  onJobStarted = () => undefined,
+}: {
+  onJobStarted?: (id: string) => void;
+}) {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [selectedRobot, setSelectedRobot] = useState<Robot | null>(null);
@@ -45,6 +49,9 @@ export function MyRobots() {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
+  const [setupBusy, setSetupBusy] = useState<string | null>(null);
+  const [setupError, setSetupError] = useState<Record<string, string>>({});
+  const idempotencyKeys = useRef<Record<string, string>>({});
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -65,6 +72,64 @@ export function MyRobots() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!data?.setups.some((setup) => setup.training_readiness === "preparing")) return;
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const setups = await api.listRobotSetups();
+        if (alive) setData((current) => (current ? { ...current, setups } : current));
+      } catch {
+        if (alive) setLoadError(true);
+      }
+    };
+    const timer = window.setInterval(refresh, 1000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [data?.setups.some((setup) => setup.training_readiness === "preparing")]);
+
+  async function refreshSetup(setupId: string) {
+    const setup = await api.getRobotSetup(setupId);
+    setData((current) =>
+      current
+        ? { ...current, setups: current.setups.map((item) => (item.id === setup.id ? setup : item)) }
+        : current,
+    );
+    return setup;
+  }
+
+  async function prepareSetup(setup: RobotSetup, retry = false) {
+    setSetupBusy(setup.id);
+    setSetupError((current) => ({ ...current, [setup.id]: "" }));
+    try {
+      await api.prepareRobotSetup(setup.id, retry);
+      await refreshSetup(setup.id);
+    } catch (error) {
+      setSetupError((current) => ({ ...current, [setup.id]: fieldError(error).message }));
+    } finally {
+      setSetupBusy(null);
+    }
+  }
+
+  async function startTraining(setup: RobotSetup) {
+    setSetupBusy(setup.id);
+    setSetupError((current) => ({ ...current, [setup.id]: "" }));
+    try {
+      const key =
+        idempotencyKeys.current[setup.id] ??
+        `start-${setup.id}-${Date.now().toString(36)}`;
+      idempotencyKeys.current[setup.id] = key;
+      const job = await api.startRobotTraining(setup.id, key);
+      onJobStarted(job.id);
+    } catch (error) {
+      setSetupError((current) => ({ ...current, [setup.id]: fieldError(error).message }));
+    } finally {
+      setSetupBusy(null);
+    }
+  }
 
   async function upload(event: FormEvent) {
     event.preventDefault();
@@ -160,7 +225,7 @@ export function MyRobots() {
             Validate a small self-contained MJCF model, then compose a bounded locomotion setup.
           </p>
         </div>
-        <span className="beta-chip">Validation only</span>
+        <span className="beta-chip">CPU training beta</span>
       </div>
 
       {loadError && <div className="alert alert-error" role="alert">A request failed. Your last loaded data is still shown.</div>}
@@ -278,7 +343,9 @@ export function MyRobots() {
                   <span>SHA-256</span>
                   <code title={robot.digest}>{robot.digest}</code>
                 </div>
-                <p className="readiness-note">Structure validated. Custom GPU training is not enabled yet.</p>
+                <p className="readiness-note">
+                  Structure validated. Build an eligible setup to run bounded CPU preparation and training.
+                </p>
                 <div className="card-actions">
                   <button className="btn" onClick={() => setSelectedRobot(robot)}>Build environment</button>
                   <button className="btn btn-ghost" onClick={() => downloadRobot(robot)}>Download XML</button>
@@ -303,6 +370,7 @@ export function MyRobots() {
           key={selectedRobot.id}
           robot={selectedRobot}
           catalog={data.catalog}
+          setups={data.setups}
           onClose={() => setSelectedRobot(null)}
           onSaved={(setup) =>
             setData((current) =>
@@ -311,6 +379,10 @@ export function MyRobots() {
                 : current,
             )
           }
+          onPrepare={prepareSetup}
+          onStart={startTraining}
+          busySetupId={setupBusy}
+          setupError={setupError}
         />
       )}
 
@@ -336,7 +408,13 @@ export function MyRobots() {
                   <span>{setup.objects.length} scene objects</span>
                   <code title={setup.digest}>{setup.digest.slice(0, 12)}…</code>
                 </div>
-                <button className="btn" disabled>Training coming after GPU validation</button>
+                <SetupTrainingActions
+                  setup={setup}
+                  busy={setupBusy === setup.id}
+                  error={setupError[setup.id]}
+                  onPrepare={prepareSetup}
+                  onStart={startTraining}
+                />
                 {deleteSetupId === setup.id ? (
                   <span className="confirm-actions">
                     <span>Delete this setup?</span>
@@ -363,16 +441,78 @@ function humanize(value: string): string {
   return value.replace(/-/g, " ").replace(/\b\w/g, (character: string) => character.toUpperCase());
 }
 
+function readinessCopy(setup: RobotSetup): string {
+  if (setup.training_readiness === "preparing") {
+    return `Preparing · ${humanize(setup.current_preparation?.phase ?? "starting")}`;
+  }
+  if (setup.training_readiness === "ready") return "Prepared for fixed CPU training";
+  if (setup.training_readiness === "preparation_failed") {
+    return `Preparation failed · ${humanize(setup.current_preparation?.failure_reason ?? "retry available")}`;
+  }
+  if (setup.training_readiness === "ineligible") return humanize(setup.reason);
+  return setup.reason === "custom-training-not-enabled"
+    ? "Custom training is not enabled on this deployment"
+    : "Preparation required before training";
+}
+
+function SetupTrainingActions({
+  setup,
+  busy,
+  error,
+  onPrepare,
+  onStart,
+}: {
+  setup: RobotSetup;
+  busy: boolean;
+  error?: string;
+  onPrepare: (setup: RobotSetup, retry?: boolean) => void;
+  onStart: (setup: RobotSetup) => void;
+}) {
+  const preparing = setup.training_readiness === "preparing";
+  const failed = setup.training_readiness === "preparation_failed";
+  return (
+    <div className="setup-training-actions">
+      <span className={`readiness-state ${setup.training_readiness}`} role="status">
+        {readinessCopy(setup)}
+      </span>
+      {setup.can_start_training ? (
+        <button className="btn" disabled={busy} onClick={() => onStart(setup)}>
+          {busy ? "Starting…" : "Start training"}
+        </button>
+      ) : (
+        <button
+          className="btn"
+          disabled={busy || preparing || !setup.can_prepare}
+          onClick={() => onPrepare(setup, failed)}
+        >
+          {busy ? "Submitting…" : preparing ? "Preparing…" : failed ? "Retry preparation" : "Prepare for training"}
+        </button>
+      )}
+      {error && <span className="field-error" role="alert">{error}</span>}
+    </div>
+  );
+}
+
 function EnvironmentBuilder({
   robot,
   catalog,
+  setups,
   onSaved,
   onClose,
+  onPrepare,
+  onStart,
+  busySetupId,
+  setupError,
 }: {
   robot: Robot;
   catalog: EnvironmentCatalog;
+  setups: RobotSetup[];
   onSaved: (setup: RobotSetup) => void;
   onClose: () => void;
+  onPrepare: (setup: RobotSetup, retry?: boolean) => void;
+  onStart: (setup: RobotSetup) => void;
+  busySetupId: string | null;
+  setupError: Record<string, string>;
 }) {
   const compatibleTasks = useMemo(
     () => catalog.task_templates.filter((task) => task.compatible_robot_types.includes(robot.robot_type)),
@@ -386,6 +526,9 @@ function EnvironmentBuilder({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<RobotSetup | null>(null);
+  const currentSaved = saved
+    ? setups.find((setup) => setup.id === saved.id) ?? saved
+    : null;
   const scene = catalog.scene_presets.find((item) => item.id === sceneId)!;
   const totalObjects = (scene?.objects.length ?? 0) + objects.length;
   const objectSpecs = new Map(catalog.object_types.map((item) => [item.id, item]));
@@ -477,6 +620,9 @@ function EnvironmentBuilder({
       <fieldset className="builder-step">
         <legend><span>3</span> Optional catalog objects</legend>
         <p className="builder-hint">Add up to {catalog.max_objects} total objects, including the {scene?.objects.length ?? 0} in this preset.</p>
+        <p className="builder-hint">
+          Custom training V1 supports Stand Balance or Walk Forward on Flat Arena or Ramp Course with no optional objects.
+        </p>
         <div className="add-object-row">
           <label htmlFor="object-type">Object type</label>
           <select id="object-type" className="input" value={objectType} onChange={(event) => setObjectType(event.target.value as CatalogObjectInput["object_type"])}>
@@ -536,15 +682,27 @@ function EnvironmentBuilder({
         </div>
         <div className="readiness-panel">
           <span className="badge completed">Validated setup</span>
-          <p>Saving checks the setup contract. It does not enable custom GPU training.</p>
+          <p>Eligible setups run a bounded CPU preparation before the fixed PPO training profile is enabled.</p>
         </div>
         {error && <div className="alert alert-error" role="alert">{error}</div>}
-        {saved && <div className="alert alert-success" role="status">Setup saved. It is ready for your later GPU adapter validation.</div>}
+        {currentSaved && (
+          <div className="alert alert-success" role="status">
+            Setup saved. {readinessCopy(currentSaved)}.
+          </div>
+        )}
         <div className="builder-actions">
           <button className="btn" onClick={save} disabled={busy || !name.trim() || !taskId || !sceneId || invalidObjects || totalObjects > catalog.max_objects}>
             {busy ? "Saving…" : "Save validated setup"}
           </button>
-          <button className="btn" disabled>Training coming after GPU validation</button>
+          {currentSaved && (
+            <SetupTrainingActions
+              setup={currentSaved}
+              busy={busySetupId === currentSaved.id}
+              error={setupError[currentSaved.id]}
+              onPrepare={onPrepare}
+              onStart={onStart}
+            />
+          )}
         </div>
       </div>
     </section>

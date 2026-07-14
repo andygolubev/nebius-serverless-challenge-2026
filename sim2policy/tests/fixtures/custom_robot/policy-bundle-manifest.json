@@ -1,0 +1,17 @@
+{
+  "backend": "sb3",
+  "fingerprint": "029df643fa0c9f7bf6abf8908704543d1051c558f3bece3310329582a8e8600e",
+  "kind": "custom-robot-policy-bundle",
+  "members": [
+    {"path": "README.md", "size_bytes": 100, "sha256": "1111111111111111111111111111111111111111111111111111111111111111", "content_type": "text/markdown"},
+    {"path": "checkpoint/policy.zip", "size_bytes": 100, "sha256": "2222222222222222222222222222222222222222222222222222222222222222", "content_type": "application/zip"},
+    {"path": "robot/robot.xml", "size_bytes": 100, "sha256": "3333333333333333333333333333333333333333333333333333333333333333", "content_type": "application/xml"},
+    {"path": "setup/normalized-setup.json", "size_bytes": 100, "sha256": "4444444444444444444444444444444444444444444444444444444444444444", "content_type": "application/json"},
+    {"path": "config/resolved-config.json", "size_bytes": 100, "sha256": "5555555555555555555555555555555555555555555555555555555555555555", "content_type": "application/json"},
+    {"path": "runtime/versions.json", "size_bytes": 100, "sha256": "6666666666666666666666666666666666666666666666666666666666666666", "content_type": "application/json"},
+    {"path": "evaluation/metrics.json", "size_bytes": 100, "sha256": "7777777777777777777777777777777777777777777777777777777777777777", "content_type": "application/json"}
+  ],
+  "profile": "custom-ppo-quick",
+  "schema_version": 1,
+  "simulator_only": true
+}

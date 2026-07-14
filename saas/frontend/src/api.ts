@@ -41,10 +41,13 @@ export type Catalog = {
   presets: Preset[];
 };
 
-export type ResolvedConfig = {
-  environment: string;
-  algorithm: string;
-  params: Record<string, number>;
+export type ResolvedConfig = Record<string, unknown> & {
+  environment?: string;
+  algorithm?: string;
+  params?: Record<string, number>;
+  robot?: { id: string; name: string; robot_type: RobotType; digest: string };
+  setup?: { id: string; name: string; task_template_id: string; scene_preset_id: string };
+  training?: { version?: string; platform?: string; preset?: string; total_timesteps?: number };
 };
 
 export type Job = {
@@ -61,6 +64,11 @@ export type Job = {
   phase?: string | null;
   failure_phase?: string | null;
   artifacts_status: string;
+  job_kind: "catalog" | "custom-robot";
+  robot_id?: string | null;
+  setup_id?: string | null;
+  preparation_id?: string | null;
+  preparation_fingerprint?: string | null;
 };
 
 export type Artifact = {
@@ -190,17 +198,52 @@ export type RobotSetup = {
   digest: string;
   created_at: string;
   readiness: "validated";
-  trainable: false;
-  reason: "custom-training-not-enabled";
+  trainable: boolean;
+  reason: string;
+  training_readiness: TrainingReadiness;
+  can_prepare: boolean;
+  can_start_training: boolean;
+  current_preparation: Preparation | null;
+};
+
+export type TrainingReadiness =
+  | "ineligible"
+  | "not_prepared"
+  | "preparing"
+  | "ready"
+  | "preparation_failed";
+
+export type Preparation = {
+  id: string;
+  setup_id: string;
+  robot_id: string;
+  fingerprint: string;
+  state: "queued" | "preparing" | "accepted" | "failed";
+  phase: string;
+  created_at: string;
+  updated_at: string;
+  failure_phase: string | null;
+  failure_reason: string | null;
+  report_sha256: string | null;
+  report_ready: boolean;
+  can_retry: boolean;
 };
 
 export class ApiError extends Error {
   status: number;
   fieldError: FieldError | null;
+  detail: unknown;
 
   constructor(status: number, detail: unknown) {
-    super(typeof detail === "string" ? detail : "request failed");
+    super(
+      typeof detail === "string"
+        ? detail
+        : detail && typeof detail === "object" && "message" in detail
+          ? String((detail as { message: unknown }).message)
+          : "request failed",
+    );
     this.status = status;
+    this.detail = detail;
     this.fieldError =
       detail && typeof detail === "object" && "field" in (detail as object)
         ? (detail as FieldError)
@@ -304,6 +347,18 @@ export const api = {
   getRobotSetup: (id: string) => request<RobotSetup>(`/robot-setups/${encodeURIComponent(id)}`),
   deleteRobotSetup: (id: string) =>
     request<void>(`/robot-setups/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  prepareRobotSetup: (id: string, retry = false) =>
+    request<Preparation>(`/robot-setups/${encodeURIComponent(id)}/preparations`, {
+      method: "POST",
+      body: JSON.stringify({ retry }),
+    }),
+  latestPreparation: (id: string) =>
+    request<Preparation>(`/robot-setups/${encodeURIComponent(id)}/preparations/latest`),
+  startRobotTraining: (id: string, idempotencyKey: string) =>
+    request<Job>(`/robot-setups/${encodeURIComponent(id)}/training-jobs`, {
+      method: "POST",
+      body: JSON.stringify({ idempotency_key: idempotencyKey }),
+    }),
 };
 
 export const LIFECYCLE = ["queued", "starting", "training", "finalizing", "rendering", "evaluating", "completed"];

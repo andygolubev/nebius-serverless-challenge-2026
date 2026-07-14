@@ -1,0 +1,28 @@
+{
+  "artifacts": {
+    "final_policy": "checkpoints/final.zip",
+    "metrics_json": "report/metrics.json",
+    "report_md": "report/report.md",
+    "reward_curve": "report/reward-curve.png",
+    "video_final": "videos/final.mp4",
+    "resolved_config": "report/resolved-config.json",
+    "runtime_versions": "report/runtime-versions.json",
+    "policy_bundle": "bundle/policy-bundle.zip",
+    "bundle_manifest": "bundle/manifest.json",
+    "robot_xml": "inputs/robot.xml",
+    "normalized_setup": "inputs/normalized-setup.json"
+  },
+  "checksums": {
+    "final_policy": {"sha256": "1111111111111111111111111111111111111111111111111111111111111111", "size_bytes": 100},
+    "metrics_json": {"sha256": "2222222222222222222222222222222222222222222222222222222222222222", "size_bytes": 100},
+    "report_md": {"sha256": "3333333333333333333333333333333333333333333333333333333333333333", "size_bytes": 100},
+    "reward_curve": {"sha256": "4444444444444444444444444444444444444444444444444444444444444444", "size_bytes": 100},
+    "video_final": {"sha256": "5555555555555555555555555555555555555555555555555555555555555555", "size_bytes": 100},
+    "resolved_config": {"sha256": "6666666666666666666666666666666666666666666666666666666666666666", "size_bytes": 100},
+    "runtime_versions": {"sha256": "7777777777777777777777777777777777777777777777777777777777777777", "size_bytes": 100},
+    "policy_bundle": {"sha256": "8888888888888888888888888888888888888888888888888888888888888888", "size_bytes": 100},
+    "bundle_manifest": {"sha256": "9999999999999999999999999999999999999999999999999999999999999999", "size_bytes": 100},
+    "robot_xml": {"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "size_bytes": 100},
+    "normalized_setup": {"sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "size_bytes": 100}
+  }
+}

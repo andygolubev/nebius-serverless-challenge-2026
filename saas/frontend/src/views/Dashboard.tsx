@@ -68,8 +68,9 @@ export function Dashboard({
           <button key={j.id} className="job-row" onClick={() => onOpenJob(j.id)}>
             <div className="job-row-main">
               <div className="job-row-title">
-                {j.environment} · {j.algorithm}
-                {j.preset ? ` · ${j.preset}` : ""}
+                {j.job_kind === "custom-robot"
+                  ? `${j.resolved_config.robot?.name ?? "Uploaded robot"} · ${j.resolved_config.setup?.task_template_id?.replace(/-/g, " ") ?? "Custom locomotion"}`
+                  : `${j.environment} · ${j.algorithm}${j.preset ? ` · ${j.preset}` : ""}`}
               </div>
               <div className="job-row-sub">
                 #{j.id.slice(0, 8)} · created {relativeTime(j.created_at)} · updated {relativeTime(j.updated_at)}

@@ -3,15 +3,15 @@
 # --- Stage 1: build the frontend -----------------------------------------------------------
 FROM node:22-alpine AS frontend
 WORKDIR /app/frontend
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build   # emits to /app/backend/static (see vite.config.ts)
 
 # --- Stage 2: backend runtime --------------------------------------------------------------
 FROM python:3.12-slim AS runtime
 WORKDIR /app
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 SAAS_DB_PATH=/tmp/sim2policy-saas.db
 
 COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt

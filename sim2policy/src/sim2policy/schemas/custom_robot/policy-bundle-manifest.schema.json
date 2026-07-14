@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sim2policy/custom-robot/policy-bundle-manifest/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "fingerprint", "backend", "profile", "simulator_only", "members"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "custom-robot-policy-bundle"},
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "backend": {"const": "sb3"},
+    "profile": {"const": "custom-ppo-quick"},
+    "simulator_only": {"const": true},
+    "members": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "size_bytes", "sha256", "content_type"],
+        "properties": {
+          "path": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
+          "size_bytes": {"type": "integer", "minimum": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "content_type": {"type": "string", "minLength": 1, "maxLength": 100}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sim2policy/custom-robot/preparation-api-state/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "training_readiness",
+    "trainable",
+    "reason",
+    "can_prepare",
+    "can_start_training",
+    "current_preparation"
+  ],
+  "properties": {
+    "training_readiness": {
+      "enum": ["ineligible", "not_prepared", "preparing", "ready", "preparation_failed"]
+    },
+    "trainable": {"type": "boolean"},
+    "reason": {"type": "string", "maxLength": 200},
+    "can_prepare": {"type": "boolean"},
+    "can_start_training": {"type": "boolean"},
+    "current_preparation": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "fingerprint",
+            "state",
+            "phase",
+            "created_at",
+            "updated_at",
+            "failure_phase",
+            "failure_reason",
+            "report_sha256",
+            "report_ready",
+            "can_retry"
+          ],
+          "properties": {
+            "id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+            "state": {"enum": ["queued", "preparing", "accepted", "failed"]},
+            "phase": {"type": "string", "minLength": 1, "maxLength": 64},
+            "created_at": {"type": "string"},
+            "updated_at": {"type": "string"},
+            "failure_phase": {"type": ["string", "null"], "maxLength": 64},
+            "failure_reason": {"type": ["string", "null"], "maxLength": 200},
+            "report_sha256": {
+              "type": ["string", "null"],
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "report_ready": {"type": "boolean"},
+            "can_retry": {"type": "boolean"}
+          }
+        }
+      ]
+    }
+  }
+}

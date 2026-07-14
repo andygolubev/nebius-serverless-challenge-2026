@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from pathlib import Path
 
 DEFAULT_DB_PATH = "saas.db"
+_CONNECT_LOCK = threading.Lock()
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -57,6 +59,31 @@ CREATE TABLE IF NOT EXISTS robot_setups (
 CREATE INDEX IF NOT EXISTS robot_setups_tenant ON robot_setups (tenant_id);
 CREATE UNIQUE INDEX IF NOT EXISTS robot_setups_active_digest
     ON robot_setups (tenant_id, digest) WHERE deleted_at IS NULL;
+CREATE TABLE IF NOT EXISTS preparation_attempts (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT NOT NULL,
+    setup_id TEXT NOT NULL,
+    robot_id TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    state TEXT NOT NULL,
+    data TEXT NOT NULL,
+    created_at REAL NOT NULL
+);
+CREATE INDEX IF NOT EXISTS preparation_attempts_tenant_setup
+    ON preparation_attempts (tenant_id, setup_id, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS preparation_attempts_active_fingerprint
+    ON preparation_attempts (tenant_id, setup_id, fingerprint)
+    WHERE state IN ('queued', 'preparing');
+CREATE TABLE IF NOT EXISTS custom_training_requests (
+    tenant_id TEXT NOT NULL,
+    setup_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    job_id TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (tenant_id, setup_id, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS custom_training_requests_tenant_created
+    ON custom_training_requests (tenant_id, created_at);
 """
 
 
@@ -68,11 +95,18 @@ def connect(db_path: str | None = None) -> sqlite3.Connection:
     """Open a connection with WAL + schema; safe for cross-thread use behind a lock."""
     path = resolve_path(db_path)
     Path(path).parent.mkdir(parents=True, exist_ok=True)
-    # Autocommit + single-statement operations; the callers hold their own locks,
-    # sqlite's serialized mode covers the rest.
-    conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute("PRAGMA busy_timeout=5000")
-    conn.executescript(_SCHEMA)
+    # Only first-open configuration is serialized. Once returned, each store has
+    # its own connection and WAL provides the intended concurrent access.
+    with _CONNECT_LOCK:
+        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        try:
+            # Install the busy handler before WAL negotiation: concurrent first-open
+            # connections can otherwise race on the journal-mode schema lock.
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.executescript(_SCHEMA)
+        except Exception:
+            conn.close()
+            raise
     return conn

@@ -125,6 +125,9 @@ polling, and artifacts, see [API_RUNBOOK.md](API_RUNBOOK.md).
 | GET  | `/robot-setups` | bearer | list active tenant setup drafts |
 | GET  | `/robot-setups/{id}` | bearer | inspect one owned active setup |
 | DELETE | `/robot-setups/{id}` | bearer | soft-delete an owned setup |
+| POST | `/robot-setups/{id}/preparations` | bearer | prepare an eligible exact setup fingerprint |
+| GET | `/robot-setups/{id}/preparations/latest` | bearer | inspect live preparation phase/result |
+| POST | `/robot-setups/{id}/training-jobs` | bearer | start the fixed custom PPO profile from Ready |
 
 Submit either a custom configuration or a preset shortcut — both are validated against the
 catalog in `app/catalog.py` (allowlisted environments/algorithms, bounded parameters; no custom
@@ -179,15 +182,26 @@ validation deterministic and avoid parser, units, collision, licensing, storage,
 ambiguity while still covering realistic balance, walking, recovery, ramp, hurdle, box, and step
 workflows.
 
-Every accepted robot and setup deliberately returns:
+Robot upload still deliberately returns structural validation only:
 
 ```json
 {"readiness":"validated","trainable":false,"reason":"custom-training-not-enabled"}
 ```
 
-Neither resource appears in `/training-options` or is accepted by `POST /jobs`. The existing Go1
-Quick/Standard/Quality training path is unchanged; custom GPU training requires a later accepted
-adapter and convergence/operations validation.
+A saved setup additionally derives `training_readiness`. Training V1 admits only biped/quadruped,
+Stand Balance/Walk Forward, Flat Arena/Ramp Course, and no tenant-added objects. The user first
+clicks **Prepare for training**. A bounded `cpu-d3` worker uses the immutable generic SB3 image to
+verify exact S3 inputs, compile the robot in a server-owned scene, run deterministic rollout/render
+gates, and smoke-test PPO save/reload. An accepted fingerprint enables **Start training**, which
+creates a normal Job with the fixed `custom-ppo-quick` CPU profile. Preparation means technical
+compatibility, not that the policy will reach the task threshold.
+
+The completed custom Job publishes evaluation, task metrics, reward curve, rollout MP4,
+checkpoint, resolved configuration, exact inputs, and a checksummed policy bundle. The bundle is
+simulator-only and is not directly deployable to physical hardware. There is one runtime image for
+all robots—no API/runtime path builds Docker per upload. Custom setups never appear in
+`/training-options` and cannot be sent to generic `POST /jobs`; the public Go1 catalog remains
+unchanged.
 
 Run the backend tests:
 

@@ -41,7 +41,7 @@ flowchart LR
       AR --> SAAS["Tenant SaaS app (FastAPI + React)"]
       KS --> SAAS
       TEN["Tenants"] -->|"HTTPS 443"| SAAS
-      SAAS --> DB["SQLite: auth, jobs, robots, setup drafts"]
+      SAAS --> DB["SQLite: auth, jobs, robots, setups, preparations"]
       SAAS --> MAIL["Mailjet SMTP relay"]
       SAAS --> API["Nebius Serverless AI API"]
       API --> J
@@ -144,12 +144,25 @@ file, mesh, scene package, URL, reward, environment code, container, or plugin u
 tenant may keep 50 active immutable normalized setup drafts; robot/setup deletion is soft and all
 access derives ownership from the bearer session.
 
-Both resource types say `readiness: validated`, `trainable: false`, and
-`reason: custom-training-not-enabled`. They never enter `/training-options` or the `/jobs`
-submission path. Consequently this feature needs no new GPU job specification, runtime image,
-secret, bucket, VM, disk, IP, or cloud workflow. A future custom-MJX adapter must separately define
-and accept observation/action, reward, termination, evaluation, convergence, isolation, cost, and
-operations contracts before changing that readiness state.
+Robot upload remains structural validation only. For custom training V1, a saved setup is eligible
+only for biped/quadruped × Stand Balance/Walk Forward × Flat Arena/Ramp Course with no tenant-added
+objects. Its derived `training_readiness` moves through `not_prepared`, `preparing`, `ready`, or
+`preparation_failed`; wider saved setups remain `ineligible` with a stable reason. Preparation is a
+bounded asynchronous `cpu-d3` job that verifies exact S3 input digests, reparses the stricter
+training allowlist, composes a server-owned world, compiles MuJoCo, checks deterministic resets and
+rollouts, renders headlessly, runs the Gymnasium/SB3 checker, and performs a short PPO
+save/reload/inference cycle. Acceptance is fingerprinted to the robot/setup digests, immutable
+runtime image, adapter/reward versions, and preparation profile.
+
+Only the latest accepted current fingerprint enables the setup-bound Start training action. It
+creates a normal `job_kind=custom-robot` Job using the immutable generic SB3 image and fixed
+`custom-ppo-quick` `cpu-d3` profile. The tenant cannot select an image, command, object key,
+hardware, secret, code, reward, or hyperparameter; uploaded MJCF is inert runtime input and no
+per-robot image is built. Results use the normal artifact lifecycle and add the exact XML/setup,
+resolved schemas/configuration, evaluation, rollout MP4, checkpoint, and checksummed simulator-only
+policy bundle. Source deletion blocks new starts while retained preparation/job history and owned
+artifacts remain readable. Custom resources never enter the public `/training-options` gallery or
+generic `POST /jobs`, and V1 does not offer MJX/GPU selection.
 
 ### Secrets in use
 
