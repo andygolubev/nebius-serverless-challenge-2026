@@ -89,7 +89,7 @@ def render_mjx(
     try:
         import imageio.v2 as imageio
 
-        from sim2policy.train_mjx import mjx_policy_session
+        from sim2policy.train_mjx import fixed_forward_command_state, mjx_policy_session
     except ImportError as exc:
         raise RuntimeError("MJX rendering requires the mjx dependency group") from exc
     if checkpoint is None:
@@ -98,7 +98,13 @@ def render_mjx(
         reset = jax.jit(environment.reset)
         step = jax.jit(environment.step)
         key = jax.random.PRNGKey(config.rendering.seed)
-        state = reset(key)
+        state = fixed_forward_command_state(
+            reset(key),
+            environment,
+            jax,
+            target_velocity=config.success.target_velocity,
+            horizon=config.rendering.frames,
+        )
         trajectory: list[Any] = []
         for _ in range(config.rendering.frames):
             key, action_key = jax.random.split(key)
@@ -115,7 +121,13 @@ def render_mjx(
             trajectory.append(state)
             if bool(state.done):
                 key, reset_key = jax.random.split(key)
-                state = reset(reset_key)
+                state = fixed_forward_command_state(
+                    reset(reset_key),
+                    environment,
+                    jax,
+                    target_velocity=config.success.target_velocity,
+                    horizon=config.rendering.frames,
+                )
         frames = environment.render(
             trajectory,
             height=config.rendering.height,

@@ -237,6 +237,19 @@ def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
     class FakeJax:
         random = Random()
 
+        class numpy:
+            @staticmethod
+            def asarray(value: Any, dtype: str) -> Any:
+                class Array(list):
+                    pass
+
+                if isinstance(value, list):
+                    result: Any = Array(value)
+                else:
+                    result = type("Scalar", (int,), {})(value)
+                result.dtype = dtype
+                return result
+
         @staticmethod
         def jit(function: Callable[..., Any]) -> Callable[..., Any]:
             return function
@@ -245,10 +258,23 @@ def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
         qvel = [0.75]
 
     class State:
-        obs = [0.0]
-        reward = 1.25
-        done = False
-        data = Data()
+        def __init__(self) -> None:
+            self.obs = [0.0]
+            self.reward = 1.25
+            self.done = False
+            self.data = Data()
+            self.info = {
+                "command": type("Command", (list,), {"dtype": "float32"})([0.0] * 3),
+                "steps_until_next_cmd": type(
+                    "Counter", (int,), {"dtype": "int32"}
+                )(1),
+            }
+
+        def replace(self, **updates: Any) -> State:
+            state = State()
+            state.__dict__.update(self.__dict__)
+            state.__dict__.update(updates)
+            return state
 
     class Environment:
         def reset(self, key: int) -> State:
@@ -256,8 +282,17 @@ def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
             return State()
 
         def step(self, state: State, action: int) -> State:
-            del state, action
-            return State()
+            del action
+            assert state.info["command"] == [1.0, 0.0, 0.0]
+            return state
+
+        def _get_obs(self, data: Data, info: dict[str, Any]) -> list[float]:
+            del data
+            return list(info["command"])
+
+        def get_local_linvel(self, data: Data) -> list[float]:
+            del data
+            return [0.75, 0.0, 0.0]
 
     @contextmanager
     def session(checkpoint: Path, selected: object) -> Any:
@@ -268,6 +303,7 @@ def test_evaluate_mjx_restores_policy_and_records_locomotion_metrics(
     episodes, _ = evaluate_mjx(Path("policy.zip"), config)
     assert [episode["seed"] for episode in episodes] == [7, 9]
     assert all(episode["length"] == 3 for episode in episodes)
+    assert all(episode["command_velocity"] == 1.0 for episode in episodes)
     assert all(episode["mean_velocity"] == 0.75 for episode in episodes)
     assert all(episode["success"] for episode in episodes)
 

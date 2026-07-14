@@ -241,6 +241,45 @@ def mjx_policy_session(checkpoint: Path, config: RunConfig) -> Any:
         yield jax, environment, jax.jit(policy)
 
 
+def fixed_forward_command_state(
+    state: Any,
+    environment: Any,
+    jax: Any,
+    *,
+    target_velocity: float,
+    horizon: int,
+) -> Any:
+    """Replace a joystick environment's random command with local-forward motion.
+
+    Playground locomotion resets randomize both yaw and command. Gallery evaluation and
+    media instead exercise the product's declared Walk Forward task, so the policy must
+    observe one stable local-frame command for the complete rollout.
+    """
+    info = dict(state.info)
+    if "command" not in info or "steps_until_next_cmd" not in info:
+        raise RuntimeError("MJX locomotion environment has no joystick command contract")
+    command = jax.numpy.asarray(
+        [target_velocity, 0.0, 0.0], dtype=info["command"].dtype
+    )
+    info["command"] = command
+    info["steps_until_next_cmd"] = jax.numpy.asarray(
+        horizon + 1, dtype=info["steps_until_next_cmd"].dtype
+    )
+    state = state.replace(info=info)
+    observation_builder = getattr(environment, "_get_obs", None)
+    if not callable(observation_builder):
+        raise RuntimeError("MJX locomotion environment cannot refresh command observation")
+    return state.replace(obs=observation_builder(state.data, state.info))
+
+
+def local_forward_velocity(environment: Any, state: Any) -> float:
+    """Return base velocity in the robot frame, independent of randomized start yaw."""
+    velocity = getattr(environment, "get_local_linvel", None)
+    if not callable(velocity):
+        raise RuntimeError("MJX locomotion environment has no local velocity contract")
+    return float(velocity(state.data)[0])
+
+
 def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     """Create the step-zero Brax policy checkpoint used for progression media."""
     require_mjx()
@@ -499,7 +538,13 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
         step = jax.jit(environment.step)
         for index, seed in enumerate(seeds):
             key = jax.random.PRNGKey(seed)
-            state = reset(key)
+            state = fixed_forward_command_state(
+                reset(key),
+                environment,
+                jax,
+                target_velocity=config.success.target_velocity,
+                horizon=episode_length,
+            )
             reward_sum = 0.0
             velocities: list[float] = []
             fell = False
@@ -510,7 +555,7 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
                 action, _ = policy(state.obs, action_key)
                 state = step(state, action)
                 reward_sum += float(state.reward)
-                velocities.append(float(state.data.qvel[0]))
+                velocities.append(local_forward_velocity(environment, state))
                 if bool(state.done):
                     fell = True
                     break
@@ -524,6 +569,7 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
                     "seed": seed,
                     "reward": reward_sum,
                     "length": length,
+                    "command_velocity": config.success.target_velocity,
                     "mean_velocity": mean_velocity,
                     "fell": fell,
                     "success": success,

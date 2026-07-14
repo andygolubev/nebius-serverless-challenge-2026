@@ -132,13 +132,40 @@ def test_render_mjx_uses_restored_policy_and_playground_renderer(
     class FakeJax:
         random = Random()
 
+        class numpy:
+            @staticmethod
+            def asarray(value: Any, dtype: str) -> Any:
+                class Array(list):
+                    pass
+
+                if isinstance(value, list):
+                    result: Any = Array(value)
+                else:
+                    result = type("Scalar", (int,), {})(value)
+                result.dtype = dtype
+                return result
+
         @staticmethod
         def jit(function: Any) -> Any:
             return function
 
     class State:
-        obs = [0.0]
-        done = False
+        def __init__(self) -> None:
+            self.obs = [0.0]
+            self.done = False
+            self.data = object()
+            self.info = {
+                "command": type("Command", (list,), {"dtype": "float32"})([0.0] * 3),
+                "steps_until_next_cmd": type(
+                    "Counter", (int,), {"dtype": "int32"}
+                )(1),
+            }
+
+        def replace(self, **updates: Any) -> State:
+            state = State()
+            state.__dict__.update(self.__dict__)
+            state.__dict__.update(updates)
+            return state
 
     class Environment:
         action_size = 2
@@ -148,8 +175,13 @@ def test_render_mjx_uses_restored_policy_and_playground_renderer(
             return State()
 
         def step(self, state: State, action: int) -> State:
-            del state, action
-            return State()
+            del action
+            assert state.info["command"] == [1.0, 0.0, 0.0]
+            return state
+
+        def _get_obs(self, data: object, info: dict[str, Any]) -> list[float]:
+            del data
+            return list(info["command"])
 
         def render(self, trajectory: list[State], **size: int) -> list[Any]:
             assert len(trajectory) == 10

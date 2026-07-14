@@ -45,6 +45,7 @@ class SuccessConfig:
     kind: Literal["mean_reward", "locomotion"]
     threshold: float | None = None
     min_velocity: float | None = None
+    target_velocity: float = 1.0
     require_not_fallen: bool = True
 
 
@@ -186,6 +187,13 @@ def _validate(config: RunConfig) -> None:
         raise ConfigError("mean_reward success requires threshold")
     if config.success.kind == "locomotion" and config.success.min_velocity is None:
         raise ConfigError("locomotion success requires min_velocity")
+    if config.success.kind == "locomotion" and (
+        config.success.target_velocity <= 0
+        or float(config.success.min_velocity or 0) > config.success.target_velocity
+    ):
+        raise ConfigError(
+            "locomotion target_velocity must be positive and at least min_velocity"
+        )
     if config.backend == "sb3" and config.success.kind != "mean_reward":
         raise ConfigError("SB3 configs currently require mean_reward success")
     if config.backend == "mjx" and config.success.kind != "locomotion":

@@ -77,6 +77,12 @@ def test_rejects_incompatible_mjx_batch_geometry() -> None:
         )
 
 
+@pytest.mark.parametrize("target", [0.0, -1.0, 0.4])
+def test_rejects_invalid_locomotion_target_velocity(target: float) -> None:
+    with pytest.raises(ConfigError, match="target_velocity"):
+        load_config(ROOT / "configs/go1_mjx.yaml", {"success.target_velocity": target})
+
+
 def test_redacts_nested_secrets() -> None:
     assert redact_mapping({"token": "secret", "nested": {"password": "secret"}}) == {
         "token": "<redacted>",
