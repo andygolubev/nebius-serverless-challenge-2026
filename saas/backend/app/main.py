@@ -286,9 +286,9 @@ def download_robot_sample(
 
 @app.post("/robots", status_code=201)
 async def upload_robot(
-    name: str = Form(...),
-    robot_type: str = Form(...),
-    file: UploadFile = File(...),
+    name: str = Form(""),
+    robot_type: str = Form(""),
+    file: UploadFile | None = File(None),
     session: Session = Depends(require_session),
 ) -> RobotAsset:
     normalized_name = name.strip()
@@ -296,6 +296,8 @@ async def upload_robot(
         raise _field_error("name", "name must contain 1 to 80 characters")
     if robot_type not in {"quadruped", "biped"}:
         raise _field_error("robot_type", "choose quadruped or biped")
+    if file is None:
+        raise _field_error("file", "upload one .xml file with a safe filename")
     filename = file.filename or ""
     if (
         not filename

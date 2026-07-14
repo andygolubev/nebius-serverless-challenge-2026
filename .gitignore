@@ -220,6 +220,7 @@ __marimo__/
 # Sim2Policy local and generated artifacts
 sim2policy/runs/*
 !sim2policy/runs/.gitkeep
+sim2policy/jobs/logs/
 **/checkpoints/
 **/tensorboard/
 *.ckpt
@@ -246,6 +247,7 @@ service-account*.json
 *.tfplan
 backend.hcl
 terraform.tfvars
+*.auto.tfvars
 
 # Local handoff notes for AI-assisted implementation sessions.
 IMPLEMENTATION_LOG.MD

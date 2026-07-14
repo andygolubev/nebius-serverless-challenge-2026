@@ -134,4 +134,11 @@ def test_robot_upload_errors_are_bounded_sanitized_and_non_persistent(client, lo
         assert response.status_code == 422
         assert response.json()["detail"]["field"] == field
         assert "secret-raw-content" not in response.text
+    missing_file = client.post(
+        "/robots",
+        data={"name": "Robot", "robot_type": "quadruped"},
+        headers=headers,
+    )
+    assert missing_file.status_code == 422
+    assert missing_file.json()["detail"]["field"] == "file"
     assert client.get("/robots", headers=headers).json() == []
