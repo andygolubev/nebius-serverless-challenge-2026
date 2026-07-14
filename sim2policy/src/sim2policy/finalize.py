@@ -10,10 +10,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from sim2policy.checkpoint import metadata_path, progression_checkpoints
-from sim2policy.config import load_config
+from sim2policy.config import load_config, parse_override
 from sim2policy.evaluate import evaluate
 from sim2policy.policy_bundle import build_gallery_policy_bundle
 from sim2policy.render import montage_command, render_with_fallback
@@ -36,10 +34,7 @@ from sim2policy.storage import ArtifactStore
 
 
 def _override(value: str) -> tuple[str, Any]:
-    key, separator, raw = value.partition("=")
-    if not separator:
-        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    return key, yaml.safe_load(raw)
+    return parse_override(value)
 
 
 def _override_args(overrides: list[tuple[str, Any]]) -> list[str]:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime
 import functools
 import importlib
 import json
@@ -17,15 +16,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from sim2policy.checkpoint import (
     checkpoint_path,
     latest_checkpoint,
     validate_checkpoint,
     write_checkpoint_metadata,
 )
-from sim2policy.config import RunConfig, load_config
+from sim2policy.config import RunConfig, load_config, parse_override
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
@@ -536,15 +533,7 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
 
 
 def _override(value: str) -> tuple[str, Any]:
-    key, separator, raw = value.partition("=")
-    if not separator:
-        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    parsed = yaml.safe_load(raw)
-    # The jobs API transports args as a joined command string and may strip the
-    # quotes around an ISO date. Normalize YAML's date type before JSON metadata.
-    if isinstance(parsed, (datetime.date, datetime.datetime)):
-        parsed = parsed.isoformat()
-    return key, parsed
+    return parse_override(value)
 
 
 def build_parser() -> argparse.ArgumentParser:

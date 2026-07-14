@@ -11,17 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from sim2policy.checkpoint import progression_checkpoints, validate_checkpoint
-from sim2policy.config import RunConfig, load_config
+from sim2policy.config import RunConfig, load_config, parse_override
 from sim2policy.storage import ArtifactStore
 
 
 def _override(value: str) -> tuple[str, Any]:
-    key, separator, raw = value.partition("=")
-    if not separator:
-        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    import yaml
-
-    return key, yaml.safe_load(raw)
+    return parse_override(value)
 
 
 def _format_override(item: tuple[str, Any]) -> str:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import datetime
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -141,6 +142,22 @@ def validate_prefix(prefix: str) -> str:
     ):
         raise ConfigError("storage prefix must be a relative safe object-key prefix")
     return prefix
+
+
+def parse_override(value: str) -> tuple[str, Any]:
+    """Parse one CLI override while keeping the result safe for JSON metadata.
+
+    Serverless AI transports the argument vector as one joined command string, so
+    quotes around an ISO date can be removed before Python receives it. PyYAML then
+    yields ``datetime.date``; normalize that implicit type at the single shared edge.
+    """
+    key, separator, raw = value.partition("=")
+    if not separator:
+        raise ConfigError("override must be KEY=YAML_VALUE")
+    parsed = yaml.safe_load(raw)
+    if isinstance(parsed, (datetime.date, datetime.datetime)):
+        parsed = parsed.isoformat()
+    return key, parsed
 
 
 def redact_mapping(value: Any) -> Any:

@@ -5,10 +5,14 @@ import pytest
 from sim2policy.config import (
     ConfigError,
     load_config,
+    parse_override,
     redact_mapping,
     validate_prefix,
     validate_run_id,
 )
+from sim2policy.evaluate import _override as evaluate_override
+from sim2policy.finalize import _override as finalize_override
+from sim2policy.render import _override as render_override
 from sim2policy.run import create_run_paths, write_metadata
 from sim2policy.train_mjx import _override as mjx_override
 from sim2policy.train_sb3 import _override as sb3_override
@@ -23,7 +27,17 @@ def test_load_and_override_config() -> None:
     assert config.backend == "sb3"
 
 
-@pytest.mark.parametrize("parser", [sb3_override, mjx_override])
+@pytest.mark.parametrize(
+    "parser",
+    [
+        parse_override,
+        sb3_override,
+        mjx_override,
+        evaluate_override,
+        render_override,
+        finalize_override,
+    ],
+)
 def test_serverless_iso_date_override_remains_json_safe(parser) -> None:
     assert parser("reporting.rate_date=2026-07-14") == (
         "reporting.rate_date",

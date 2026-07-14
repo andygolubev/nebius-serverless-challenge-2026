@@ -8,10 +8,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from sim2policy.checkpoint import validate_checkpoint
-from sim2policy.config import RunConfig, load_config
+from sim2policy.config import RunConfig, load_config, parse_override
 from sim2policy.reporting import (
     aggregate_episodes,
     calculate_cost,
@@ -24,10 +22,7 @@ from sim2policy.telemetry import gpu_snapshot, mean_gpu_utilization, utc_now_iso
 
 
 def _override(value: str) -> tuple[str, Any]:
-    key, separator, raw = value.partition("=")
-    if not separator:
-        raise argparse.ArgumentTypeError("override must be KEY=YAML_VALUE")
-    return key, yaml.safe_load(raw)
+    return parse_override(value)
 
 
 def seed_schedule(episodes: int, seeds: list[int]) -> list[int]:
