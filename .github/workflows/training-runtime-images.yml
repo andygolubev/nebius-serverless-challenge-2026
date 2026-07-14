@@ -38,6 +38,8 @@ jobs:
 
       - name: Run runtime, schema, security, and bundle gates
         working-directory: sim2policy
+        env:
+          MUJOCO_GL: egl
         run: |
           uv sync --frozen --extra api --extra sb3 --extra dev
           uv run ruff check src tests
