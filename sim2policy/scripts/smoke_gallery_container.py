@@ -66,9 +66,14 @@ def smoke_mjx() -> None:
         hyperparameters.pop("impl", None)
         _apply_initial_hyperparameters(ppo_params, hyperparameters)
         for key in _NETWORK_FACTORY_HYPERPARAMETERS & hyperparameters.keys():
+            actual = getattr(ppo_params.network_factory, key)
+            expected = hyperparameters[key]
+            if isinstance(actual, (list, tuple)) and isinstance(expected, (list, tuple)):
+                actual = tuple(actual)
+                expected = tuple(expected)
             if (
                 key in ppo_params
-                or getattr(ppo_params.network_factory, key) != hyperparameters[key]
+                or actual != expected
             ):
                 raise RuntimeError(f"MJX initial-policy network contract failed: {name} {key}")
         probe = validate_mjx_environment(config)
