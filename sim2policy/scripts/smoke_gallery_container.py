@@ -54,12 +54,14 @@ def smoke_mjx() -> None:
         validate_mjx_environment,
     )
 
+    # Importing Playground's CLI module defines the Abseil flags consumed by
+    # get_rl_config. Match the initial-policy worker's production import order.
+    playground_train = importlib.import_module("learning.train_jax_ppo")
+
     for name in MJX_CONFIGS:
         config = load_config(ROOT / "configs" / name)
         _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
-        ppo_params = importlib.import_module("learning.train_jax_ppo").get_rl_config(
-            config.environment
-        )
+        ppo_params = playground_train.get_rl_config(config.environment)
         hyperparameters = dict(config.training.hyperparameters)
         hyperparameters.pop("impl", None)
         _apply_initial_hyperparameters(ppo_params, hyperparameters)

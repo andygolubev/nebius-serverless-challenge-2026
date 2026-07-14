@@ -31,7 +31,7 @@
 - [x] 2.4 Declare complete server-owned production job specs for all five SB3 examples, including
   immutable image setting, right-sized CPU or L40S shape, command/config, timeout, bounded fields,
   artifact prefix, and required outputs; prohibit H100 for these specs.
-- [ ] 2.5 Keep Go1 on the MJX/H100 path, confirm Quick, Standard, and Quality resolve to complete
+- [x] 2.5 Keep Go1 on the MJX/H100 path, confirm Quick, Standard, and Quality resolve to complete
   immutable job specs, and select the smallest named workload that passes the corrected
   robot-frame velocity and no-fall gate as the gallery recommendation; do not publish the failed
   5M Quick workload as verified walking.
