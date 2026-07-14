@@ -91,6 +91,7 @@ def test_bounded_preparation_runs_compile_rollout_render_checker_and_ppo(tmp_pat
         profile=profile,
     )
     assert report["status"] == "accepted"
+    assert report["compiled"]["process_peak_rss_mib"] > 0
     assert [phase["name"] for phase in report["phases"]] == [
         "compile",
         "rollouts",
@@ -188,6 +189,7 @@ def test_reduced_training_publishes_complete_checksummed_simulator_bundle(
     assert metrics["benchmark"]["hourly_rate"] == 0.1984
     assert metrics["benchmark"]["currency"] == "USD"
     assert metrics["benchmark"]["estimated_cost"] > 0
+    assert metrics["benchmark"]["process_peak_rss_mib"] > 0
     assert len(metrics["training"]["progress_evaluations"]) == 2
     assert isinstance(metrics["aggregate"]["task_threshold_achieved"], bool)
     assert metrics["simulator_only"] is True

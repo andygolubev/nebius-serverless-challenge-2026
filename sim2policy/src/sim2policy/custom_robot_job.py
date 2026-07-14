@@ -8,6 +8,7 @@ import importlib.metadata
 import json
 import math
 import platform
+import resource
 import signal
 import sys
 import tempfile
@@ -60,6 +61,12 @@ REQUIRED_BUNDLE_MEMBERS = (
     "runtime/versions.json",
     "evaluation/metrics.json",
 )
+
+
+def _process_peak_rss_mib() -> float:
+    value = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+    # Linux reports KiB; macOS reports bytes.
+    return value / (1024 * 1024 if sys.platform == "darwin" else 1024)
 
 
 class PhaseTimeout(TimeoutError):
@@ -363,6 +370,7 @@ def run_preparation(
             failure_phase = phases[-1].name if phases else "inputs"
             failure_reason = _safe_failure(exc)
 
+        compiled["process_peak_rss_mib"] = _process_peak_rss_mib()
         report = {
             "schema_version": SCHEMA_VERSION,
             "preparation_id": str(documents.manifest["preparation_id"]),
@@ -748,6 +756,7 @@ def run_training(
                 "currency": profile.currency,
                 "rate_date": profile.rate_date,
                 "estimated_cost": runtime_seconds / 3600 * profile.hourly_rate,
+                "process_peak_rss_mib": _process_peak_rss_mib(),
             },
             "training": {
                 "timesteps": profile.total_timesteps,
