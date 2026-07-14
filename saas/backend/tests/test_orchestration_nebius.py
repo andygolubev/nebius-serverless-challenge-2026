@@ -19,6 +19,7 @@ from app.models import (
     ArtifactManifest,
     Job,
 )
+from app.nebius_client import shell_join_args
 from app.orchestration import (
     MockBackend,
     NebiusBackend,
@@ -207,6 +208,19 @@ def test_submission_never_contains_plaintext_secret():
     }
     assert sub.env_secrets == {"AWS_SECRET_ACCESS_KEY": SETTINGS.s3_secret_selector}
     assert SETTINGS.aws_secret_access_key not in " ".join(sub.args)
+
+
+def test_nebius_argument_join_preserves_structured_server_owned_value():
+    args = [
+        "-m",
+        "sim2policy.hosted_mjx",
+        "--set",
+        'training.hyperparameters={"entropy_cost":0.005,"policy_obs_key":"state"}',
+    ]
+
+    import shlex
+
+    assert shlex.split(shell_join_args(args)) == args
 
 
 def test_unsafe_run_id_refused():

@@ -31,8 +31,10 @@
 - [x] 2.4 Declare complete server-owned production job specs for all five SB3 examples, including
   immutable image setting, right-sized CPU or L40S shape, command/config, timeout, bounded fields,
   artifact prefix, and required outputs; prohibit H100 for these specs.
-- [x] 2.5 Keep Go1 on the accepted MJX/H100 path, mark Quick as the gallery recommendation, and
-  confirm Quick, Standard, and Quality still resolve to complete immutable job specs.
+- [ ] 2.5 Keep Go1 on the MJX/H100 path, confirm Quick, Standard, and Quality resolve to complete
+  immutable job specs, and select the smallest named workload that passes the corrected
+  robot-frame velocity and no-fall gate as the gallery recommendation; do not publish the failed
+  5M Quick workload as verified walking.
 - [x] 2.6 Add a bounded `G1JoystickRoughTerrain` MJX configuration, task-specific evaluation and
   rendering contract, artifact requirements, and production job-spec candidates that reuse the
   immutable MJX runtime without changing the Go1 task.
@@ -130,12 +132,14 @@
 - [x] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
   or the cheapest validated L40S path with explicit timeouts; verify convergence threshold,
   evaluation, final video, checkpoint, policy bundle, manifest, S3 durability, runtime, and cost.
-- [ ] 7.3 Run one bounded Go1 Quick acceptance on the single-H100 shape only after local/image gates;
-  verify CUDA/JAX discovery, training threshold, finalization, video, checkpoint, policy bundle,
-  durable upload, runtime, and cost, then stop/delete the H100 immediately.
-- [ ] 7.4 Run the exact bounded G1 Rough Terrain profile on the smallest L40S candidate and the
-  single-H100 candidate with identical image/config/seed gates; compare memory, convergence,
-  end-to-end wall time, utilization, artifact completion, and cost-to-result, then select the
+- [ ] 7.3 Run bounded named Go1 workloads on the single-H100 shape only after local/image gates;
+  record the failed 5M Quick gate, select the smallest passing workload, and verify CUDA/JAX
+  discovery, training threshold, finalization, video, checkpoint, policy bundle, durable upload,
+  runtime, and cost, then stop/delete the H100 immediately.
+- [ ] 7.4 Run the exact pinned 200M / 8,192-environment G1 Rough Terrain profile on the smallest
+  L40S candidate and the single-H100 candidate with identical image/config/seed gates; compare
+  memory, convergence, end-to-end wall time, utilization, artifact completion, and cost-to-result,
+  then select the
   cheapest passing shape and claim H100-required only if L40S fails a declared gate.
 - [ ] 7.5 Bind observed duration/cost and passing evidence to each exact config/image/compute
   revision, enable only current accepted entries, and fail release readiness unless all seven cards

@@ -16,6 +16,7 @@ PROVISIONING/STARTING/RUNNING/CANCELLING/DELETING/COMPLETED/FAILED/CANCELLED/ERR
 
 from __future__ import annotations
 
+import shlex
 from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Protocol
@@ -119,7 +120,7 @@ class SdkJobsClient:
             spec=JobSpec(
                 image=submission.image,
                 container_command=submission.command,
-                args=" ".join(submission.args),
+                args=shell_join_args(submission.args),
                 platform=submission.platform,
                 preset=submission.preset,
                 timeout=timedelta(seconds=submission.timeout_seconds),
@@ -142,3 +143,8 @@ class SdkJobsClient:
         job = self._service().get(GetJobRequest(id=job_id)).wait()
         state = job.status.state
         return state.name if hasattr(state, "name") else str(state)
+
+
+def shell_join_args(args: list[str]) -> str:
+    """Preserve each validated argv item across Nebius' shell command boundary."""
+    return shlex.join(args)

@@ -84,11 +84,21 @@ of scope.
 
 ### 4. Use MJX for Go1 and a complex G1 flagship, then select hardware from evidence
 
-Go1 continues on its accepted MJX/JAX H100 path. The generic Gymnasium `Humanoid-v5` card is
-replaced by `G1JoystickRoughTerrain`, a complex Unitree G1 humanoid task already shaped for the
-MuJoCo Playground/MJX training interface. It reuses the MJX image, hosted trainer, checkpoint,
+Go1 continues on its MJX/JAX H100 path. A fresh 5M Quick acceptance showed a stable standing
+policy but did not meet the declared forward-velocity gate, so the gallery recommendation is the
+smallest named Go1 workload that passes the corrected robot-frame, no-fall evaluation; Quick is
+not published as verified merely because training and artifact generation complete. The generic
+Gymnasium `Humanoid-v5` card is replaced by `G1JoystickRoughTerrain`, a complex Unitree G1 humanoid
+task already shaped for the MuJoCo Playground/MJX training interface. It reuses the MJX image,
+hosted trainer, checkpoint,
 evaluation, rendering, and finalization families while receiving its own bounded configuration and
 success criteria.
+
+The first 25M G1 comparison learned forward motion but fell in every fixed-seed episode and is not
+accepted. The replacement workload follows the pinned MuJoCo Playground v0.2 tuned G1 contract:
+200M steps, 8,192 environments, 32 minibatches, 4 updates per batch, unroll length 20, entropy
+cost 0.005, the privileged critic observation, and 20 evaluation points. These values live in the
+immutable runtime config instead of being assembled from fragile nested command-line overrides.
 
 No robot intrinsically makes H100 mandatory. G1 acceptance will first define the exact workload,
 convergence threshold, maximum wall time, and cost-to-result gate, then run that immutable revision
