@@ -36,10 +36,15 @@ jobs:
           enable-cache: true
           cache-dependency-glob: sim2policy/uv.lock
 
+      - name: Install headless MuJoCo libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libosmesa6
+
       - name: Run runtime, schema, security, and bundle gates
         working-directory: sim2policy
         env:
-          MUJOCO_GL: egl
+          MUJOCO_GL: osmesa
         run: |
           uv sync --frozen --extra api --extra sb3 --extra dev
           uv run ruff check src tests
