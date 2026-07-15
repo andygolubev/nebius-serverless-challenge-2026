@@ -35,8 +35,10 @@ function fieldError(error: unknown): { field?: string; message: string } {
 }
 
 export function MyRobots({
+  onBrowseExamples = () => undefined,
   onJobStarted = () => undefined,
 }: {
+  onBrowseExamples?: () => void;
   onJobStarted?: (id: string) => void;
 }) {
   const [data, setData] = useState<WorkspaceData | null>(null);
@@ -331,7 +333,7 @@ export function MyRobots({
                     <h3>{robot.name}</h3>
                     <span className="metadata-line">{robot.robot_type} · {robot.filename}</span>
                   </div>
-                  <span className="badge completed">Validated model</span>
+                  <span className="badge completed">Model validated</span>
                 </div>
                 <dl className="stat-strip">
                   <div><dt>Bodies</dt><dd>{robot.validation.body_count}</dd></div>
@@ -344,7 +346,7 @@ export function MyRobots({
                   <code title={robot.digest}>{robot.digest}</code>
                 </div>
                 <p className="readiness-note">
-                  Structure validated. Build an eligible setup to run bounded CPU preparation and training.
+                  Model file and structure validated. Build a setup to review its available training path.
                 </p>
                 <div className="card-actions">
                   <button className="btn" onClick={() => setSelectedRobot(robot)}>Build environment</button>
@@ -381,6 +383,7 @@ export function MyRobots({
           }
           onPrepare={prepareSetup}
           onStart={startTraining}
+          onBrowseExamples={onBrowseExamples}
           busySetupId={setupBusy}
           setupError={setupError}
         />
@@ -400,7 +403,7 @@ export function MyRobots({
             {data.setups.map((setup) => (
               <article className="setup-card" key={setup.id}>
                 <div>
-                  <span className="badge completed">Validated setup</span>
+                  <span className="badge completed">Setup validated</span>
                   <h3>{setup.name}</h3>
                   <p>{setup.robot_name} · {humanize(setup.task_template_id)} · {humanize(setup.scene_preset_id)}</p>
                 </div>
@@ -414,6 +417,7 @@ export function MyRobots({
                   error={setupError[setup.id]}
                   onPrepare={prepareSetup}
                   onStart={startTraining}
+                  onBrowseExamples={onBrowseExamples}
                 />
                 {deleteSetupId === setup.id ? (
                   <span className="confirm-actions">
@@ -461,12 +465,14 @@ function SetupTrainingActions({
   error,
   onPrepare,
   onStart,
+  onBrowseExamples,
 }: {
   setup: RobotSetup;
   busy: boolean;
   error?: string;
   onPrepare: (setup: RobotSetup, retry?: boolean) => void;
   onStart: (setup: RobotSetup) => void;
+  onBrowseExamples: () => void;
 }) {
   const preparing = setup.training_readiness === "preparing";
   const failed = setup.training_readiness === "preparation_failed";
@@ -479,7 +485,7 @@ function SetupTrainingActions({
         <button className="btn" disabled={busy} onClick={() => onStart(setup)}>
           {busy ? "Starting…" : "Start training"}
         </button>
-      ) : (
+      ) : setup.can_prepare || preparing || failed ? (
         <button
           className="btn"
           disabled={busy || preparing || !setup.can_prepare}
@@ -487,6 +493,17 @@ function SetupTrainingActions({
         >
           {busy ? "Submitting…" : preparing ? "Preparing…" : failed ? "Retry preparation" : "Prepare for training"}
         </button>
+      ) : (
+        <div className="verified-example-handoff">
+          <p>
+            {setup.reason === "custom-training-not-enabled"
+              ? "This setup is saved and validated, but this deployment has no accepted custom training adapter and production job specification. No training job was created."
+              : "This setup is saved and validated, but it is outside the fixed custom training profile. No training job was created."}
+          </p>
+          <button type="button" className="btn btn-ghost" onClick={onBrowseExamples}>
+            Train a verified example
+          </button>
+        </div>
       )}
       {error && <span className="field-error" role="alert">{error}</span>}
     </div>
@@ -501,6 +518,7 @@ function EnvironmentBuilder({
   onClose,
   onPrepare,
   onStart,
+  onBrowseExamples,
   busySetupId,
   setupError,
 }: {
@@ -511,6 +529,7 @@ function EnvironmentBuilder({
   onClose: () => void;
   onPrepare: (setup: RobotSetup, retry?: boolean) => void;
   onStart: (setup: RobotSetup) => void;
+  onBrowseExamples: () => void;
   busySetupId: string | null;
   setupError: Record<string, string>;
 }) {
@@ -681,7 +700,7 @@ function EnvironmentBuilder({
           <p>{robot.name} · {humanize(taskId)} · {scene?.label} · {totalObjects} objects</p>
         </div>
         <div className="readiness-panel">
-          <span className="badge completed">Validated setup</span>
+          <span className="badge completed">Setup validated</span>
           <p>Eligible setups run a bounded CPU preparation before the fixed PPO training profile is enabled.</p>
         </div>
         {error && <div className="alert alert-error" role="alert">{error}</div>}
@@ -701,6 +720,7 @@ function EnvironmentBuilder({
               error={setupError[currentSaved.id]}
               onPrepare={onPrepare}
               onStart={onStart}
+              onBrowseExamples={onBrowseExamples}
             />
           )}
         </div>

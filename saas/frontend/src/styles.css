@@ -1450,6 +1450,25 @@ select {
   min-width: 190px;
 }
 
+.verified-example-handoff {
+  display: grid;
+  gap: var(--sp-2);
+  max-width: 360px;
+  min-width: 0;
+}
+
+.verified-example-handoff p {
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.verified-example-handoff .btn {
+  justify-self: end;
+}
+
 .readiness-state {
   color: var(--text-muted);
   font-size: var(--fs-xs);

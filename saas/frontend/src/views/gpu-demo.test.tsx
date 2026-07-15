@@ -98,6 +98,22 @@ describe("verified examples gallery", () => {
     expect(screen.queryByLabelText(/^Hardware$/)).not.toBeInTheDocument();
   });
 
+  it("shows explicit loading, catalog error, and accepted-empty gallery states", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+    render(<Composer onSubmitted={() => undefined} />);
+    expect(screen.getByLabelText("Loading training options")).toBeVisible();
+
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+    render(<Composer onSubmitted={() => undefined} />);
+    expect(await screen.findByText("Couldn't load training options. Reload the page to retry.")).toBeVisible();
+
+    cleanup();
+    vi.stubGlobal("fetch", vi.fn(() => json({ ...galleryCatalog, examples: [] })));
+    render(<Composer onSubmitted={() => undefined} />);
+    expect(await screen.findByRole("heading", { name: "No accepted examples yet" })).toBeVisible();
+  });
+
   it("selects the measured passing Go1 Quality workload as the recommendation", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json(galleryCatalog)));
     render(<Composer onSubmitted={() => undefined} />);

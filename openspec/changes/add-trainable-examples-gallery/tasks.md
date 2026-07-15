@@ -80,13 +80,13 @@
   recommendation review, successful submission, backend-override 422 errors, absence of a global
   backend selector, hidden entries, historical fallback, and the absence of custom
   robot/environment training actions.
-- [ ] 4.6 Verify the gallery and review flow at 375 px, tablet, and desktop widths, light/dark themes,
+- [x] 4.6 Verify the gallery and review flow at 375 px, tablet, and desktop widths, light/dark themes,
   keyboard-only navigation, screen reader labels, loading/error/empty states, and no horizontal
   scrolling or broken asset request.
-- [ ] 4.7 Replace My Robots' misleading “Training coming after GPU validation” controls with clear
+- [x] 4.7 Replace My Robots' misleading “Training coming after GPU validation” controls with clear
   `Model validated` / `Setup validated` copy, an explanation that no accepted custom training
   adapter exists, and an active **Train a verified example** link that preserves the saved setup.
-- [ ] 4.8 Add UI tests proving custom validation creates no job, exposes no hidden/disabled GPU
+- [x] 4.8 Add UI tests proving custom validation creates no job, exposes no hidden/disabled GPU
   validation or custom Start Training action, navigates the active handoff to the seven-card
   gallery, and leaves the saved custom robot/setup unchanged.
 
@@ -106,7 +106,7 @@
 - [x] 5.5 Add result-page tests covering completed/finalizing/failed/legacy jobs, KPI and cost
   summaries, nested metrics, long content, bundle presence/absence, compatibility warning,
   player failures, and tenant-authorized downloads.
-- [ ] 5.6 Visually verify result pages at 375 px, tablet, and desktop widths plus light/dark themes;
+- [x] 5.6 Visually verify result pages at 375 px, tablet, and desktop widths plus light/dark themes;
   confirm the key outcome/actions are compact, no raw object becomes a narrow full-height column,
   and no horizontal scrolling occurs.
 
@@ -135,7 +135,7 @@
 - [x] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
   or the cheapest validated L40S path with explicit timeouts; verify convergence threshold,
   evaluation, final video, checkpoint, policy bundle, manifest, S3 durability, runtime, and cost.
-- [ ] 7.3 Run bounded named Go1 workloads on the single-H100 shape only after local/image gates;
+- [x] 7.3 Run bounded named Go1 workloads on the single-H100 shape only after local/image gates;
   record the failed 5M Quick gate, select the smallest passing workload, and verify CUDA/JAX
   discovery, training threshold, finalization, video, checkpoint, policy bundle, durable upload,
   runtime, and cost, then stop/delete the H100 immediately.

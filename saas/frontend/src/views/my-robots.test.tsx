@@ -126,8 +126,8 @@ describe("My Robots workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
     const name = await screen.findByText(uploaded.name);
     const card = name.closest("article")!;
-    expect(within(card).getByText("Validated model")).toBeVisible();
-    expect(within(card).getByText(/bounded CPU preparation and training/)).toBeVisible();
+    expect(within(card).getByText("Model validated")).toBeVisible();
+    expect(within(card).getByText(/Model file and structure validated/)).toBeVisible();
     const uploadCall = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(uploadCall[1]?.body).toBeInstanceOf(FormData);
     expect((uploadCall[1]?.headers as Headers).has("Content-Type")).toBe(false);
@@ -169,8 +169,9 @@ describe("My Robots workspace", () => {
     expect(save).toHaveFocus();
     fireEvent.click(save);
     expect(await screen.findByText(/Setup saved\./)).toBeVisible();
-    expect(screen.getAllByText("Validated setup").length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Prepare for training" })[0]).toBeDisabled();
+    expect(screen.getAllByText("Setup validated").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Train a verified example" }).length).toBeGreaterThan(0);
   });
 
   it("renders the full workflow at a 375px viewport using native keyboard controls", async () => {
@@ -259,6 +260,36 @@ describe("My Robots workspace", () => {
     expect(startCalls).toHaveLength(1);
     const startCall = startCalls[0];
     expect(String(startCall?.[1]?.body)).toContain("idempotency_key");
+  });
+
+  it("hands a validation-only setup to the gallery without creating a job or changing the saved setup", async () => {
+    const validationOnly: RobotSetup = {
+      id: "setup-validation-only", name: "Saved validation", robot_id: biped.id, robot_name: biped.name,
+      robot_type: "biped", task_template_id: "walk-forward", scene_preset_id: "flat-arena",
+      objects: [], digest: "7".repeat(64), created_at: "2026-07-13T00:00:00Z",
+      readiness: "validated", trainable: false, reason: "custom-training-not-enabled",
+      training_readiness: "ineligible", can_prepare: false, can_start_training: false,
+      current_preparation: null,
+    };
+    const fetch = workspaceFetch({ robots: [biped], setups: [validationOnly] });
+    vi.stubGlobal("fetch", fetch);
+    const onBrowseExamples = vi.fn();
+    render(<MyRobots onBrowseExamples={onBrowseExamples} />);
+
+    const setupName = await screen.findByText(validationOnly.name);
+    const card = setupName.closest("article")!;
+    expect(within(card).getByText("Setup validated")).toBeVisible();
+    expect(within(card).getByText(/no accepted custom training adapter and production job specification/i)).toBeVisible();
+    expect(within(card).getByText(/No training job was created/)).toBeVisible();
+    expect(within(card).queryByRole("button", { name: /GPU validation/i })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Start training" })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole("button", { name: "Train a verified example" }));
+    expect(onBrowseExamples).toHaveBeenCalledOnce();
+    expect(screen.getByText(validationOnly.name)).toBeVisible();
+    expect(fetch.mock.calls.some(([path]) => String(path).includes("training-jobs"))).toBe(false);
+    expect(fetch.mock.calls.some(([path]) => String(path) === "/jobs")).toBe(false);
   });
 
   it("shows a sanitized preparation failure and submits an explicit retry", async () => {

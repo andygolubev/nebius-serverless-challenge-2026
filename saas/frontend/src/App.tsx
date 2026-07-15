@@ -82,7 +82,10 @@ export function App() {
         )}
         {route.view === "composer" && <Composer onSubmitted={() => setRoute({ view: "dashboard" })} />}
         {route.view === "robots" && (
-          <MyRobots onJobStarted={(id) => setRoute({ view: "job", id })} />
+          <MyRobots
+            onBrowseExamples={() => setRoute({ view: "composer" })}
+            onJobStarted={(id) => setRoute({ view: "job", id })}
+          />
         )}
         {route.view === "job" && <JobDetail jobId={route.id} onBack={() => setRoute({ view: "dashboard" })} />}
       </main>
