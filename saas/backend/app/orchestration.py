@@ -725,20 +725,18 @@ class NebiusBackend:
         try:
             nebius_job_id = self._client.create_job(submission)
         except Exception as e:
-            if job.job_kind == "custom-robot":
-                log.warning(
-                    "custom training submission failed for job %s (%s)",
-                    job.id,
-                    type(e).__name__,
-                )
-                error = "remote-submission-failed"
-            else:
-                log.exception("nebius job submission failed for job %s", job.id)
-                error = sanitize_error(e, (self._settings.aws_secret_access_key,))
+            # Provider exceptions can include request/trace IDs and transport
+            # details. Keep them in operator logs, but expose only a stable,
+            # retry-safe category to the tenant UI.
+            log.warning(
+                "nebius job submission failed for job %s (%s)",
+                job.id,
+                type(e).__name__,
+            )
             self._fail(
                 job,
                 store,
-                error,
+                "remote-submission-failed",
                 phase="submission",
             )
             return

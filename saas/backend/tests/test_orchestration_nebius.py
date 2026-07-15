@@ -337,15 +337,17 @@ def test_remote_failure_marks_job_failed():
 
 
 def test_create_failure_is_sanitized():
-    boom = RuntimeError("denied for key topsecretvalue\nstack frame 1\nstack frame 2")
+    boom = RuntimeError(
+        "denied for key topsecretvalue; request_id=internal-request; "
+        "trace_id=internal-trace\nstack frame 1"
+    )
     backend, store = _backend(FakeJobsClient(fail_create=boom)), JobStore()
     job = _job()
     store.put(job)
     backend._run(job, store)
     stored = store.get(job.tenant_id, job.id)
     assert stored.status == STATUS_FAILED
-    assert "topsecretvalue" not in stored.error
-    assert "stack frame" not in stored.error
+    assert stored.error == "remote-submission-failed"
 
 
 # -- state mapping / helpers --

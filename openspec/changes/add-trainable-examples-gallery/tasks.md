@@ -157,7 +157,7 @@
 - [ ] 8.1 Deploy the accepted immutable revisions through the repository's normal CI/GitOps path,
   use `gh` to verify the relevant Actions runs and failed logs, and confirm production health before
   interactive validation.
-- [ ] 8.2 In the signed-in production browser, open New Job and click each of the seven gallery cards;
+- [x] 8.2 In the signed-in production browser, open New Job and click each of the seven gallery cards;
   verify avatar, copy, measured guidance, recommended configuration, backend/hardware, review
   state, absence of a global backend/hardware selector, and Start training behavior at desktop and
   375 px widths.
