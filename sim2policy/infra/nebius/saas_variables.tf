@@ -80,11 +80,22 @@ variable "saas_job_registry_secret_version_id" {
 variable "saas_mjx_image_tag" {
   description = "Immutable MJX runtime tag accepted for production GPU jobs."
   type        = string
-  default     = "mjx-7c00c0a1c1e0c4b6c59470357e4949cc00e0737e"
+  default     = "mjx-ce4ad5a0a2e957020f74dd208f71eb21135f4a9c"
 
   validation {
     condition     = can(regex("^mjx-[0-9a-f]{40}$", var.saas_mjx_image_tag))
     error_message = "saas_mjx_image_tag must be an immutable mjx-<40-character git SHA> tag."
+  }
+}
+
+variable "saas_sb3_image_tag" {
+  description = "Immutable SB3 runtime tag accepted for production gallery and custom-robot jobs."
+  type        = string
+  default     = "sb3-64af839496821ec7024fac257cbbb81c00d4d49b"
+
+  validation {
+    condition     = can(regex("^sb3-[0-9a-f]{40}$", var.saas_sb3_image_tag))
+    error_message = "saas_sb3_image_tag must be an immutable sb3-<40-character git SHA> tag."
   }
 }
 

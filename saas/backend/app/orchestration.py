@@ -34,6 +34,9 @@ from .models import (
 from .store import CustomTrainingStore, JobStore
 
 log = logging.getLogger(__name__)
+REMOTE_SUBMISSION_ERROR = (
+    "The training job could not be submitted. Please try again later."
+)
 
 
 def _now() -> str:
@@ -736,7 +739,7 @@ class NebiusBackend:
             self._fail(
                 job,
                 store,
-                "remote-submission-failed",
+                REMOTE_SUBMISSION_ERROR,
                 phase="submission",
             )
             return

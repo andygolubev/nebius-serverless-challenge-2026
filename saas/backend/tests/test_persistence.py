@@ -34,6 +34,12 @@ def test_jobs_and_artifacts_survive_reopen(tmp_path):
     assert manifest is not None and manifest.metrics == {"reward": 1.0}
 
 
+def test_terminal_job_history_has_no_store_delete_path():
+    """Provider cleanup must not grow into deletion of tenant-visible history."""
+    assert not hasattr(JobStore, "delete")
+    assert not hasattr(JobStore, "delete_job")
+
+
 def test_tenant_isolation_survives_reopen(tmp_path):
     path = str(tmp_path / "saas.db")
     store = JobStore(path)

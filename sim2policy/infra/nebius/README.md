@@ -161,21 +161,23 @@ sudo systemctl --no-pager --full status saas-nebius-sync.service
 kubectl -n saas get secret saas-nebius -o json | jq -r '.data | keys[]'
 ```
 
-The contract includes both runtime images: `SIM2POLICY_JOB_IMAGE` (`sim2policy:sb3-runtime`) and
+The contract includes both runtime images: `SIM2POLICY_JOB_IMAGE` (an immutable
+`sim2policy:sb3-<git-sha>` tag selected by `saas_sb3_image_tag`) and
 `SIM2POLICY_MJX_JOB_IMAGE` (an immutable `sim2policy:mjx-<git-sha>` tag selected by
 `saas_mjx_image_tag`). Both are required at startup by the nebius backend, so roll out in order:
 publish the immutable image (CI), rerun `saas-nebius-sync` so the
 secret gains `SIM2POLICY_MJX_JOB_IMAGE`, then deploy the app — a pod started before the secret has
 the key fails readiness by design while the old ReplicaSet keeps serving.
 
-Custom uploaded-robot execution is additive and disabled by default. The reconciled contract keeps
-`CUSTOM_ROBOT_TRAINING_ENABLED=false`, a placeholder `CUSTOM_ROBOT_SB3_IMAGE`, one active
-preparation/training job per tenant, eight daily starts, and bounded report finalization. Before
-enabling, build the generic SB3 target once on the CPU builder, publish an immutable
-`sim2policy:sb3-<git-sha>` tag or digest, replace only `CUSTOM_ROBOT_SB3_IMAGE`, benchmark and freeze
-the `cpu-d3` profiles, then set the flag true. Missing or mutable image identity fails startup while
-enabled. Disabling the flag blocks new Prepare/Start requests but does not stop reconciliation or
-authorized access to existing preparation/job history and artifacts.
+Custom uploaded-robot execution is additive and enabled only with the pinned immutable SB3 runtime.
+The reconciled contract keeps `CUSTOM_ROBOT_TRAINING_ENABLED=true`, the same immutable
+`CUSTOM_ROBOT_SB3_IMAGE` used by the public SB3 gallery, one active
+preparation/training job per tenant, eight daily starts, and bounded report finalization. When
+changing this revision, build the generic SB3 target once on the CPU builder, publish an immutable
+`sim2policy:sb3-<git-sha>` tag or digest, update `saas_sb3_image_tag`, and rerun the frozen `cpu-d3`
+profile gates before rollout. Missing or mutable image identity fails startup while enabled.
+Disabling the flag blocks new Prepare/Start requests but does not stop reconciliation or authorized
+access to existing preparation/job history and artifacts.
 
 The last command lists key names only. Do not decode values or use `kubectl describe`. For rollback,
 set the backend to `mock` or delete `saas-nebius`, restart the deployment, and only then detach or

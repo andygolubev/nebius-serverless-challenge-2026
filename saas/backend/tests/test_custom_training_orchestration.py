@@ -17,7 +17,7 @@ from app.custom_training import (
     canonical_json,
 )
 from app.models import Job, PreparationAttempt
-from app.orchestration import NebiusBackend
+from app.orchestration import NebiusBackend, REMOTE_SUBMISSION_ERROR
 from app.settings import CustomTrainingSettings, NebiusSettings
 from app.store import CustomTrainingStore, JobStore
 
@@ -381,7 +381,7 @@ def test_custom_training_submission_failure_is_sanitized_in_state_and_logs(
     failed = store.get(job.tenant_id, job.id)
     assert failed is not None
     assert failed.status == "failed"
-    assert failed.error == "remote-submission-failed"
+    assert failed.error == REMOTE_SUBMISSION_ERROR
     assert "/tenant" not in caplog.text
     assert "provider payload" not in caplog.text
 

@@ -34,6 +34,13 @@ class QuotaExceeded(Exception):
 
 
 class JobStore:
+    """Append/update-only job history.
+
+    Terminal jobs and artifact manifests are intentionally retained. There is
+    no delete operation: provider-resource lifecycle must never erase the
+    tenant-visible history kept in SQLite and object storage.
+    """
+
     def __init__(self, db_path: str | None = None) -> None:
         self._lock = threading.Lock()
         self._conn = db.connect(db_path)

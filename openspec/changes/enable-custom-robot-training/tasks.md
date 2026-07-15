@@ -87,7 +87,7 @@
 - [x] 8.3 Add CI gates for backend/frontend/runtime/unit/integration/security tests, schema/golden compatibility, mock end-to-end flow, container import/health, archive validation, and proof that public `/training-options` behavior is unchanged.
 - [ ] 8.4 Build the generic SB3 image once on a reusable `cpu-d3` builder with BuildKit, tag/push an immutable Git revision/digest, record the non-secret digest and evidence, then stop the builder immediately while preserving only the useful cache disk.
 - [ ] 8.5 Deploy additive migrations/API/UI with `CUSTOM_ROBOT_TRAINING_ENABLED=false`; verify existing login, robots/setups, seven-example gallery, public MJX job submission, dashboard, and result/artifact access before enabling custom starts.
-- [ ] 8.6 Configure the immutable SB3 digest, typed `cpu-d3` profiles, MysteryBox-backed storage credentials, quotas, and deadlines without committing secrets; verify fail-fast readiness for incomplete or inconsistent production configuration.
+- [x] 8.6 Configure the immutable SB3 digest, typed `cpu-d3` profiles, MysteryBox-backed storage credentials, quotas, and deadlines without committing secrets; verify fail-fast readiness for incomplete or inconsistent production configuration.
 - [x] 8.7 Document rollout/rollback so disabling the flag stops new Prepare/Start requests while reconciliation and authorized access continue for existing preparations/jobs and no historical rows/artifacts are deleted.
 
 ## 9. Benchmark and freeze the production CPU profiles

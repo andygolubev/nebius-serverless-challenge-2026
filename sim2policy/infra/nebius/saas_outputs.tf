@@ -30,23 +30,24 @@ output "saas_registry_secret_selector" {
 output "saas_nebius_contract" {
   description = "Selector-only and non-secret source contract reconciled into the saas-nebius Kubernetes Secret."
   value = {
-    SAAS_ORCHESTRATION_BACKEND = "nebius"
-    NEBIUS_PROJECT_ID          = var.project_id
-    NEBIUS_SUBNET_ID           = var.saas_subnet_id
-    SIM2POLICY_JOB_IMAGE       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    SIM2POLICY_MJX_JOB_IMAGE   = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_mjx_image_tag}"
-    CUSTOM_ROBOT_TRAINING_ENABLED = "false"
-    CUSTOM_ROBOT_SB3_IMAGE        = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:sb3-runtime"
-    CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS = "1"
-    CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS = "1"
-    CUSTOM_ROBOT_MAX_DAILY_STARTS = "8"
+    SAAS_ORCHESTRATION_BACKEND                 = "nebius"
+    NEBIUS_PROJECT_ID                          = var.project_id
+    NEBIUS_SUBNET_ID                           = var.saas_subnet_id
+    SAAS_GALLERY_ENABLED                       = "true"
+    SIM2POLICY_JOB_IMAGE                       = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_sb3_image_tag}"
+    SIM2POLICY_MJX_JOB_IMAGE                   = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_mjx_image_tag}"
+    CUSTOM_ROBOT_TRAINING_ENABLED              = "true"
+    CUSTOM_ROBOT_SB3_IMAGE                     = "${nebius_registry_v1_registry.sim2policy.status.registry_fqdn}/${trimprefix(nebius_registry_v1_registry.sim2policy.id, "registry-")}/sim2policy:${var.saas_sb3_image_tag}"
+    CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS       = "1"
+    CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS      = "1"
+    CUSTOM_ROBOT_MAX_DAILY_STARTS              = "8"
     CUSTOM_ROBOT_PREPARATION_FINALIZE_ATTEMPTS = "60"
-    NEBIUS_S3_SECRET_SELECTOR  = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
-    NEBIUS_REGISTRY_SECRET     = var.saas_job_registry_secret_version_id
-    AWS_ACCESS_KEY_ID          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
-    AWS_ENDPOINT_URL_S3        = "https://storage.eu-north1.nebius.cloud"
-    AWS_DEFAULT_REGION         = "eu-north1"
-    SIM2POLICY_S3_BUCKET       = nebius_storage_v1_bucket.artifacts.name
+    NEBIUS_S3_SECRET_SELECTOR                  = "${nebius_iam_v2_access_key.artifacts.status.secret_reference_id}/${var.saas_artifact_secret_version_id}"
+    NEBIUS_REGISTRY_SECRET                     = var.saas_job_registry_secret_version_id
+    AWS_ACCESS_KEY_ID                          = nebius_iam_v2_access_key.artifacts.status.aws_access_key_id
+    AWS_ENDPOINT_URL_S3                        = "https://storage.eu-north1.nebius.cloud"
+    AWS_DEFAULT_REGION                         = "eu-north1"
+    SIM2POLICY_S3_BUCKET                       = nebius_storage_v1_bucket.artifacts.name
   }
 }
 

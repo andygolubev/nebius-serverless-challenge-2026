@@ -23,6 +23,7 @@ from app.nebius_client import shell_join_args
 from app.orchestration import (
     MockBackend,
     NebiusBackend,
+    REMOTE_SUBMISSION_ERROR,
     build_backend,
     map_nebius_state,
     parse_duration_seconds,
@@ -347,7 +348,7 @@ def test_create_failure_is_sanitized():
     backend._run(job, store)
     stored = store.get(job.tenant_id, job.id)
     assert stored.status == STATUS_FAILED
-    assert stored.error == "remote-submission-failed"
+    assert stored.error == REMOTE_SUBMISSION_ERROR
 
 
 # -- state mapping / helpers --
