@@ -86,6 +86,7 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
     assert config.checkpoint.keep == 20
     assert config.training.hyperparameters == {
         "impl": "jax",
+        "playground_config_overrides": {"push_config.enable": False},
         "num_eval_envs": 128,
         "batch_size": 256,
         "num_minibatches": 32,
@@ -104,6 +105,29 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
         "policy_hidden_layer_sizes": [512, 256, 128],
         "value_hidden_layer_sizes": [512, 256, 128],
     }
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"push_config.enable": "false"}, "must be boolean"),
+        ({"reward_config.scales.alive": 1.0}, "unsupported MJX Playground"),
+        ([], "must be a mapping"),
+    ],
+)
+def test_rejects_unsupported_mjx_playground_overrides(
+    overrides: object, message: str
+) -> None:
+    with pytest.raises(ConfigError, match=message):
+        load_config(
+            ROOT / "configs/g1_mjx.yaml",
+            {
+                "training.hyperparameters": {
+                    "impl": "jax",
+                    "playground_config_overrides": overrides,
+                }
+            },
+        )
 
 
 @pytest.mark.parametrize("target", [0.0, -1.0, 0.4])

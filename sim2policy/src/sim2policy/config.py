@@ -199,6 +199,24 @@ def _validate(config: RunConfig) -> None:
     if config.backend == "mjx" and config.success.kind != "locomotion":
         raise ConfigError("MJX configs currently require locomotion success")
     if config.backend == "mjx":
+        playground_overrides = config.training.hyperparameters.get(
+            "playground_config_overrides"
+        )
+        if playground_overrides is not None:
+            if not isinstance(playground_overrides, dict):
+                raise ConfigError("MJX playground_config_overrides must be a mapping")
+            unknown_overrides = sorted(
+                set(playground_overrides) - {"push_config.enable"}
+            )
+            if unknown_overrides:
+                raise ConfigError(
+                    "unsupported MJX Playground environment override(s): "
+                    + ", ".join(unknown_overrides)
+                )
+            if not isinstance(playground_overrides.get("push_config.enable"), bool):
+                raise ConfigError(
+                    "MJX push_config.enable environment override must be boolean"
+                )
         batch_size = config.training.hyperparameters.get("batch_size")
         num_minibatches = config.training.hyperparameters.get("num_minibatches")
         if batch_size is not None and num_minibatches is not None:

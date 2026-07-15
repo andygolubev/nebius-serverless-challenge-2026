@@ -16,6 +16,7 @@ from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
 from sim2policy.train_mjx import (
     _apply_initial_hyperparameters,
+    _environment_overrides,
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
     build_playground_command,
@@ -61,6 +62,27 @@ def test_build_playground_command_rejects_unknown_hyperparameters(tmp_path: Path
     paths = create_run_paths("mjx-bad-command", tmp_path)
     with pytest.raises(RuntimeError, match="unsupported MJX hyperparameter"):
         build_playground_command(config, paths)
+
+
+def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
+    config = load_config(ROOT / "configs/g1_mjx.yaml")
+    command = build_playground_command(config, create_run_paths("g1-no-push", tmp_path))
+
+    assert _environment_overrides(config) == {
+        "impl": "jax",
+        "push_config.enable": False,
+    }
+    assert _environment_overrides(load_config(ROOT / "configs/go1_mjx.yaml")) == {
+        "impl": "jax"
+    }
+    override_index = command.index("--playground_config_overrides")
+    assert json.loads(command[override_index + 1]) == {
+        "impl": "jax",
+        "push_config.enable": False,
+    }
+    assert not any(
+        part.startswith("--playground_config_overrides=") for part in command
+    )
 
 
 def test_initial_worker_parses_playground_impl_before_config_access() -> None:

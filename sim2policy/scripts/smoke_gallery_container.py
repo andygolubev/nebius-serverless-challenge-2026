@@ -48,6 +48,7 @@ def smoke_mjx() -> None:
     from sim2policy.train_mjx import (
         _NETWORK_FACTORY_HYPERPARAMETERS,
         _apply_initial_hyperparameters,
+        _environment_overrides,
         _parse_initial_worker_flags,
         fixed_forward_command_state,
         local_forward_velocity,
@@ -64,6 +65,7 @@ def smoke_mjx() -> None:
         ppo_params = playground_train.get_rl_config(config.environment)
         hyperparameters = dict(config.training.hyperparameters)
         hyperparameters.pop("impl", None)
+        hyperparameters.pop("playground_config_overrides", None)
         _apply_initial_hyperparameters(ppo_params, hyperparameters)
         for key in _NETWORK_FACTORY_HYPERPARAMETERS & hyperparameters.keys():
             actual = getattr(ppo_params.network_factory, key)
@@ -81,7 +83,7 @@ def smoke_mjx() -> None:
             raise RuntimeError(f"MJX gallery environment smoke failed: {name}")
         environment = registry.load(
             config.environment,
-            config_overrides={"impl": config.training.hyperparameters.get("impl", "jax")},
+            config_overrides=_environment_overrides(config),
         )
         state = fixed_forward_command_state(
             environment.reset(jax.random.PRNGKey(config.seed)),

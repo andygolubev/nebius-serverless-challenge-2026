@@ -42,6 +42,12 @@ resource is created.
   declared memory, convergence, wall-time, and cost-to-result gate, and it says H100 required only
   when L40S fails a declared gate and H100 passes
 
+#### Scenario: G1 evaluates the advertised traversal task
+- **WHEN** the G1 Rough Terrain revision is trained, rendered, or evaluated
+- **THEN** the immutable server-owned environment configuration disables undeclared random external
+  pushes while preserving rough terrain, randomized resets, observation noise, the declared
+  1,000-step horizon, and the fixed-seed velocity/no-termination acceptance gate
+
 ### Requirement: Server-resolved gallery submission
 Submitting a gallery example SHALL send its stable example ID and only optional fields explicitly
 allowlisted by that entry. The server SHALL derive the environment, algorithm, image, command,

@@ -66,7 +66,14 @@ _PLAYGROUND_FLAG_MAP = {
 
 
 def _environment_overrides(config: RunConfig) -> dict[str, Any]:
-    return {"impl": str(config.training.hyperparameters.get("impl", "jax"))}
+    overrides = {
+        "impl": str(config.training.hyperparameters.get("impl", "jax"))
+    }
+    playground_overrides = config.training.hyperparameters.get(
+        "playground_config_overrides", {}
+    )
+    overrides.update(playground_overrides)
+    return overrides
 
 
 def _json_flag(value: Any) -> str:
@@ -126,8 +133,10 @@ def build_playground_command(
     *,
     resume: Path | None = None,
 ) -> list[str]:
+    environment_overrides = _environment_overrides(config)
     hyperparameters = dict(config.training.hyperparameters)
     impl = str(hyperparameters.pop("impl", "jax"))
+    hyperparameters.pop("playground_config_overrides", None)
     hyperparameters["num_evals"] = max(
         2, math.ceil(config.training.total_steps / config.checkpoint.every_steps) + 1
     )
@@ -144,7 +153,7 @@ def build_playground_command(
         "--use_tb",
         "--num_videos=0",
         "--playground_config_overrides",
-        _json_flag({"impl": impl}),
+        _json_flag(environment_overrides),
     ]
     if resume is not None:
         command.append(f"--load_checkpoint_path={resume}")
@@ -340,6 +349,7 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     ppo_params = playground_train.get_rl_config(config.environment)
     hyperparameters = dict(config.training.hyperparameters)
     hyperparameters.pop("impl", None)
+    hyperparameters.pop("playground_config_overrides", None)
     _apply_initial_hyperparameters(ppo_params, hyperparameters)
     ppo_params.num_timesteps = 0
     # Policy initialization is independent of rollout parallelism. One environment keeps the

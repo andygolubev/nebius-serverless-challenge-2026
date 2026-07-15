@@ -40,6 +40,9 @@
   immutable MJX runtime without changing the Go1 task.
 - [ ] 2.7 Add configuration, command-construction, environment import, short train, evaluation,
   headless-render, artifact-contract, and unsafe-run-ID tests for all seven entries.
+- [x] 2.8 Pin the G1 traversal task's server-owned Playground environment override to disable the
+  undeclared random push disturbance consistently in training, evaluation, and rendering; reject
+  unsupported environment overrides and add regression coverage without changing Go1.
 
 ## 3. Deterministic policy bundle
 
@@ -136,8 +139,9 @@
   record the failed 5M Quick gate, select the smallest passing workload, and verify CUDA/JAX
   discovery, training threshold, finalization, video, checkpoint, policy bundle, durable upload,
   runtime, and cost, then stop/delete the H100 immediately.
-- [ ] 7.4 Run the exact pinned 200M / 8,192-environment G1 Rough Terrain profile on the smallest
-  L40S candidate and the single-H100 candidate with identical image/config/seed gates; compare
+- [ ] 7.4 Run the exact pinned 200M / 8,192-environment G1 Rough Terrain no-push revision on the
+  smallest L40S candidate and the single-H100 candidate with identical image/config/seed gates;
+  retain the failed original/default-push and command-ladder evidence, compare
   memory, convergence, end-to-end wall time, utilization, artifact completion, and cost-to-result,
   then select the
   cheapest passing shape and claim H100-required only if L40S fails a declared gate.

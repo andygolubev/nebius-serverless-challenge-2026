@@ -100,6 +100,17 @@ accepted. The replacement workload follows the pinned MuJoCo Playground v0.2 tun
 cost 0.005, the privileged critic observation, and 20 evaluation points. These values live in the
 immutable runtime config instead of being assembled from fragile nested command-line overrides.
 
+The first exact 200M revision also learned forward motion but did not meet the 1,000-step
+no-termination gate on either L40S or H100. Shortening the evaluation horizon and lowering the
+command were rejected as publication fixes because neither bounded candidate passed all fixed
+seeds. Root-cause review found that Playground's default G1 environment injects random lateral
+pushes every 5–10 seconds even though this gallery task promises rough-terrain traversal, not push
+recovery. The next immutable revision therefore pins `push_config.enable=false` as a server-owned
+Playground environment override for training, evaluation, and rendering. Rough terrain, randomized
+initial state, observation noise, the 1,000-step horizon, and the all-seed velocity/no-termination
+gate remain unchanged. The failing checkpoint is diagnostic evidence only; the no-push revision
+must train from scratch and pass the complete artifact path before publication.
+
 No robot intrinsically makes H100 mandatory. G1 acceptance will first define the exact workload,
 convergence threshold, maximum wall time, and cost-to-result gate, then run that immutable revision
 on the smallest L40S candidate and the single-H100 candidate. The production job spec selects the

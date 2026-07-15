@@ -7,6 +7,8 @@ training:
   device: gpu
   hyperparameters:
     impl: jax
+    playground_config_overrides:
+      push_config.enable: false
     num_eval_envs: 128
     batch_size: 256
     num_minibatches: 32
