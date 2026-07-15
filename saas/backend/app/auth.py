@@ -33,6 +33,14 @@ def is_valid_email(email: str) -> bool:
     return bool(_EMAIL_RE.match(email))
 
 
+# Access is limited to Nebius staff. `email` is already lowercased by normalize_email.
+ALLOWED_EMAIL_DOMAIN = "@nebius.com"
+
+
+def is_allowed_email(email: str) -> bool:
+    return email.endswith(ALLOWED_EMAIL_DOMAIN)
+
+
 def _hash_code(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 

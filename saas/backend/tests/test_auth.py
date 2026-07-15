@@ -10,7 +10,7 @@ from app.email_sender import EmailDeliveryError
 
 
 def _email() -> str:
-    return f"{uuid.uuid4().hex[:10]}@example.com"
+    return f"{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def test_request_and_verify_happy_path(client, sender):
@@ -31,6 +31,11 @@ def test_request_and_verify_happy_path(client, sender):
 def test_invalid_email_format(client, sender):
     res = client.post("/auth/request-code", json={"email": "not-an-email"})
     assert res.status_code == 422
+
+
+def test_non_nebius_email_rejected(client, sender):
+    res = client.post("/auth/request-code", json={"email": "someone@example.com"})
+    assert res.status_code == 403
 
 
 def test_wrong_code_rejected(client, sender):

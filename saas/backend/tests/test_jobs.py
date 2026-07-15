@@ -6,7 +6,7 @@ import uuid
 
 
 def _email() -> str:
-    return f"{uuid.uuid4().hex[:10]}@example.com"
+    return f"{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def test_training_options_catalog(client):

@@ -8,7 +8,7 @@ import pytest
 
 
 def _email() -> str:
-    return f"setup-{uuid.uuid4().hex[:10]}@example.com"
+    return f"setup-{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def _upload_sample(client, headers, sample_id: str, robot_type: str) -> dict:

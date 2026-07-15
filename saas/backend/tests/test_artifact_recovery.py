@@ -12,7 +12,7 @@ from app.models import STATUS_COMPLETED, STATUS_TRAINING, ArtifactManifest, Job
 
 
 def _email() -> str:
-    return f"{uuid.uuid4().hex[:10]}@example.com"
+    return f"{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def _put_job(tenant: str, status: str) -> Job:

@@ -32,7 +32,7 @@ def enabled_gallery(monkeypatch: pytest.MonkeyPatch):
 
 
 def _email() -> str:
-    return f"gallery-{uuid.uuid4().hex[:8]}@example.com"
+    return f"gallery-{uuid.uuid4().hex[:8]}@nebius.com"
 
 
 def test_catalog_has_exact_order_metadata_and_one_recommendation(

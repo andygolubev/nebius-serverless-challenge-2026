@@ -19,7 +19,13 @@ from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import catalog, environment_catalog
-from .auth import AuthService, RateLimited, is_valid_email, normalize_email
+from .auth import (
+    AuthService,
+    RateLimited,
+    is_allowed_email,
+    is_valid_email,
+    normalize_email,
+)
 from .custom_training import (
     ADAPTER_VERSION,
     PREPARATION_PROFILE_VERSION,
@@ -218,6 +224,10 @@ def request_code(req: AuthRequest) -> dict[str, str]:
     email = normalize_email(req.email)
     if not is_valid_email(email):
         raise HTTPException(status_code=422, detail="invalid email address")
+    if not is_allowed_email(email):
+        raise HTTPException(
+            status_code=403, detail="access is limited to @nebius.com email addresses"
+        )
     try:
         _auth.request_code(email)
     except RateLimited:

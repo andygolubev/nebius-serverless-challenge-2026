@@ -8,7 +8,7 @@ from app import main
 
 
 def _email() -> str:
-    return f"custom-{uuid.uuid4().hex[:10]}@example.com"
+    return f"custom-{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def _enabled(monkeypatch) -> None:

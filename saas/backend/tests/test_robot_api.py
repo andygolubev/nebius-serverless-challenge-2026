@@ -6,7 +6,7 @@ import uuid
 
 
 def _email() -> str:
-    return f"robot-{uuid.uuid4().hex[:10]}@example.com"
+    return f"robot-{uuid.uuid4().hex[:10]}@nebius.com"
 
 
 def test_sample_routes_require_auth_and_samples_round_trip_through_upload(
