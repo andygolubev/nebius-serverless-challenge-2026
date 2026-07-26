@@ -1,67 +1,76 @@
 ## Why
 
-The new public showcase is intentionally empty because all seven run IDs are placeholders. Real
-evidence already exists for six examples, while the G1 humanoid evidence shows that 25M steps is
-far too short and that even the later 200M no-push policy still falls before the 1,000-step horizon;
-publishing the tenant's latest completed row would therefore hardcode a bad demo rather than proof.
+The public training gallery still contains placeholder run IDs. Historical acceptance artifacts prove
+that six examples can succeed, but they do not satisfy the new objective: run a fresh, reproducible,
+result-first campaign whose training progression is trustworthy and whose winning checkpoint can be
+hardcoded as durable public evidence. G1 is the limiting case. A 25M run barely moved, and two later
+200M no-push runs learned useful forward motion but still fell before the 1,000-step horizon in every
+20-episode acceptance evaluation.
+
+The campaign must be executable by a lower-cost agent without improvising hyperparameters, cloud
+resources, retry policy, checkpoint selection, or acceptance decisions. The plan therefore needs an
+explicit experiment matrix, a resumable state machine, machine-verifiable gates, and hard stop
+conditions—not prose that asks the operator to “monitor and decide.”
 
 ## What Changes
 
-- Audit the retained, non-tenant acceptance prefixes and pin the five passing SB3 runs plus the
-  passing 100M Go1 run instead of paying to reproduce already-valid evidence.
-- Add a reproducible operator curation workflow that validates exact image/config provenance,
-  evaluation success, required checksummed artifacts, policy-bundle contents, measured cost and
-  runtime, and public-response compatibility before a run ID can replace a placeholder.
-- Fix the showcase evidence adapter for real runtime schemas: canonical environment identities such
-  as `Ant-v5`/`Go1JoystickFlatTerrain`, the existing `success.met` object, and measured values from
-  the pinned run must be normalized without weakening integrity or tenant-isolation gates.
-- Require a published card to point at a run that passed its predeclared task gate. Artifact-complete
-  but below-threshold diagnostics remain private and cannot be described as verified examples.
-- Add structured milestone evidence and labeled initial/mid/final rollout media so each public result
-  demonstrates actual training progress rather than only showing one final video.
-- Replace the failed G1 “just run longer” approach with a bounded ladder: evaluate every retained
-  no-push checkpoint first; if none passes, run cheap immutable pilot candidates using
-  stability-aware model selection and flat-to-rough locomotion curriculum; only then fund one fresh
-  full candidate. Keep the 1,000-step, 20-episode, fixed-seed, forward-velocity/no-fall acceptance
-  gate unchanged.
-- Compare L40S and H100 only after the G1 training contract is frozen, choose on passing
-  cost-to-result evidence, and stop or delete every temporary compute resource immediately after
-  durable artifacts are verified.
-- Hardcode the seventh run only after G1 passes. If the bounded ladder exhausts its budget without a
-  pass, keep that card unpublished and record the blocker; do not lower the threshold, shorten the
-  evaluation, or substitute the user's failed 25M job.
+- Replace the earlier reuse-first curation strategy with a fresh result-first training campaign for
+  Reacher, HalfCheetah, Ant, Hopper, Walker2D, Go1, and G1. Historical passing runs remain immutable
+  baselines and emergency fallbacks, not the default public pins.
+- Add a server-owned campaign matrix containing exact algorithms, budgets, checkpoint intervals,
+  training seeds, disjoint selection/final evaluation seeds, hardware, timeouts, hard acceptance
+  floors, preferred showcase targets, and one bounded extension rule per example.
+- Add a deterministic campaign runner and operator runbook. It serializes jobs, persists non-secret
+  state, makes submission idempotent, verifies durable artifacts, selects checkpoints, classifies
+  failures, performs cloud cleanup audits, and stops with `NEEDS_HUMAN` whenever the declared matrix
+  cannot decide the next action.
+- Train the five SB3 examples on the validated CPU profile. Run three independent seeds, select the
+  best checkpoint across seeds, and extend only the best seed once when the hard floor is met but the
+  preferred showcase target is missed.
+- Train Go1 directly on one H100 for three independent 200M-step seeds, select by full-horizon
+  locomotion quality, and permit one 300M continuation of only the best seed when needed.
+- Train G1 directly on one H100 with a maximum 450M-step flat-to-rough curriculum in one allocation:
+  acquire a stable no-push flat gait by at most 200M steps, then spend the remaining budget on
+  no-push rough-terrain robustness. Evaluate retained milestones and select the best checkpoint, not
+  automatically the final checkpoint.
+- Keep final acceptance strict: SB3 examples must pass their configured deterministic reward floor;
+  Go1 and G1 must complete 20/20 deterministic 1,000-step episodes without falling and meet the
+  per-episode minimum forward-velocity floor. Preferred targets are used for result quality but never
+  weaken the hard publication gate.
+- Pin a run only after immutable provenance, selected-checkpoint evidence, required checksummed
+  artifacts, policy bundle, measured runtime/cost, public-schema compatibility, and cleanup audit all
+  pass. Failed or merely artifact-complete runs stay private diagnostics.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `showcase-run-curation`: Reproducible selection, training, acceptance, promotion, provenance, cost
-  control, and cleanup contract for server-pinned public showcase runs.
+- `showcase-run-curation`: Deterministic, resumable, result-first training, checkpoint selection,
+  acceptance, cleanup, and promotion of server-owned public showcase runs.
 
 ### Modified Capabilities
 
-- `public-training-showcase`: Publish only passing curated runs, consume real runtime identity and
-  evaluation schemas, and derive displayed execution/runtime/cost evidence from the pinned run.
-- `policy-evaluation-reporting`: Record deterministic checkpoint-level progress and the selected
-  checkpoint so convergence and regression are measurable before publication.
-- `rollout-media`: Bind progression videos to evaluated checkpoint steps and expose honest labeled
-  initial/intermediate/selected rollouts for curated showcase runs.
+- `public-training-showcase`: Publish only accepted curated runs and derive displayed configuration,
+  progression, runtime, cost, and hardware from their immutable evidence.
+- `policy-evaluation-reporting`: Report selection-set and final-set checkpoint evidence, including
+  explicit selected-checkpoint provenance and regressions.
+- `rollout-media`: Bind initial, intermediate, selected, and final rollout media to exact evaluated
+  checkpoints and labels.
 
 ## Impact
 
-- **OpenSpec and operator workflow**: adds a curated-run acceptance matrix, bounded G1 experiment
-  ladder, explicit cloud budgets, immutable revision rules, and cleanup/audit gates.
-- **Runtime** (`sim2policy/configs/`, `sim2policy/src/sim2policy/`): may add one server-owned G1
-  curriculum/profile, checkpoint evaluation/model selection, and progress metadata/media. No tenant
-  hyperparameter surface is restored.
-- **Backend** (`saas/backend/app/catalog.py`, `showcase.py`, `artifacts.py`): replaces placeholder
-  pins with accepted non-tenant run IDs and normalizes real manifest/config/metric schemas while
-  preserving the separate public resolver and private bucket.
-- **Frontend** (`saas/frontend/src/views/Showcase.tsx`, `ResultPanels.tsx`): shows measured progress
-  and selected-checkpoint evidence already supplied by the public API; it gains no training action.
-- **Cloud**: reuses six durable accepted runs. Paid work is limited to bounded G1 evaluation/pilots
-  and at most the frozen final/hardware comparison, using immutable images and the existing private
-  artifact bucket. No new VM, secret, ACL, public prefix, or tenant job is introduced.
-- **Compatibility**: public routes stay read-only and unauthenticated; custom-robot training remains
-  the only tenant job-creation path. Existing tenant jobs, including the inspected user's failed G1
-  and custom-biped results, remain private and unchanged.
+- **Planning and operations**: adds a detailed execution runbook, campaign matrix, resumable journal,
+  exact robot run cards, retry/extension rules, cost/time envelopes, and handoff templates suitable
+  for a lightweight execution agent.
+- **Runtime** (`sim2policy/configs/`, `sim2policy/src/sim2policy/`, `sim2policy/jobs/`): will add
+  server-owned result profiles, checkpoint selection/finalization, the G1 curriculum entry point, and
+  a campaign CLI. These are implementation tasks; this proposal launches no jobs and changes no
+  cloud resources.
+- **Backend/frontend**: will replace placeholders only with independently accepted non-tenant runs
+  and will expose measured progression evidence without restoring any public training action.
+- **Cloud**: SB3 uses the validated `cpu-d3` profile; Go1 and G1 use the single-H100 profile because
+  the operator explicitly prioritizes result and predictable wall time over minimum spend. Jobs are
+  serialized and chargeable compute is stopped or deleted after durable evidence verification.
+- **Compatibility/security**: public routes stay read-only, the artifact bucket stays private,
+  tenant-shaped job identities remain forbidden, secrets never enter campaign state or Git, and
+  existing tenant jobs remain unchanged.

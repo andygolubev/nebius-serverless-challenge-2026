@@ -1,221 +1,243 @@
 ## Context
 
-`add-public-training-showcase` landed a safe read-only surface and deliberately left all seven
-`SHOWCASE_RUNS` values as `pending-curated-run-*`. The publication path is therefore empty today.
-The artifact bucket already contains dedicated, non-tenant acceptance prefixes for five SB3
-examples and Go1. Those runs passed predeclared gates and retained checkpoints, metrics, reports,
-resolved configuration, runtime versions, initial/mid/final rollout media, checksums, and policy
-bundles:
+The public gallery has seven placeholders. Historical non-tenant artifacts establish useful baselines:
 
-| Example | Candidate source run | Observed gate |
-| --- | --- | --- |
-| Reacher | `gallery-reacher-3aa59b1-20260714a` | -7.779 mean reward, passes >= -10 |
-| HalfCheetah | `gallery-halfcheetah-3aa59b1-20260714a` | 1672.368 mean reward, passes >= 1500 |
-| Hopper | `gallery-hopper2m-3aa59b1-20260714a` | 1562.019 mean reward, passes >= 1000 |
-| Ant | `gallery-ant-3aa59b1-20260714a` | 2869.711 mean reward, passes >= 1000 |
-| Walker2D | `gallery-walker2d2m-3aa59b1-20260714a` | 3812.003 mean reward, passes >= 1800 |
-| Go1 | `gallery-go1-quality-433f3f9-20260714a` | 20/20 full 1,000-step episodes, 0.965 m/s mean, passes |
+| Example | Historical result | Interpretation |
+| --- | ---: | --- |
+| Reacher | -7.779 mean reward at 300k | passes the -10 floor |
+| HalfCheetah | 1672.368 at 1M | passes the 1500 floor, little margin |
+| Ant | 2869.711 at 1M | strong reward, 895.6 mean episode length |
+| Hopper | 1562.019 at 2M | passes the 1000 floor, moderate margin |
+| Walker2D | 3812.003 at 2M | strong, full-length episodes |
+| Go1 | 20/20 no-fall, 0.9653 m/s mean at 100M | strong locomotion baseline |
+| G1 | 0/20 no-fall at 200M; about 763 mean steps | learns motion but fails durability |
 
-Production tenant evidence confirms why no existing G1 row is suitable. The latest 25M gallery run
-completed its artifact pipeline but averaged only 82.9/1,000 steps and failed the velocity/no-fall
-gate. Two later non-tenant 200M no-push runs improved mean episode length to 760.25 on L40S and
-763.45 on H100, yet both remained below the all-episode no-fall gate. That is useful learning
-progress, not an accepted walking policy. A separate 100k custom-biped run was a Stand Balance task,
-not Walk Forward, and recorded 100% fall rate; it is unrelated to the G1 card and is not a curation
-candidate.
+The G1 H100 measurement is the planning anchor: 202.3424M effective steps took 5,510 seconds end to
+end, including roughly 249 seconds of JIT and 5,105 seconds of PPO. Linear scaling puts 450M training
+near 204 minutes; allowing a second environment compile, checkpoint evaluations, uploads, and final
+rendering gives a realistic 3h50–4h15 completion window. The job timeout is therefore five hours so
+successful training is not killed while finalizing.
 
-There are also three real-data mismatches in the just-landed showcase adapter. Runtime metrics use
-canonical environment names (`Ant-v5`, `Go1JoystickFlatTerrain`, and so on) while the catalog uses
-friendly IDs; evaluation success is the object `{"met": bool, "criterion": ...}` rather than a
-bare boolean; and the serializer currently takes duration/configuration labels from current catalog
-constants instead of the pinned run's resolved evidence. Tests built around synthetic manifests do
-not expose those mismatches.
+The current generic submitter invokes only `train_sb3` or `train_mjx`; hosted entry points train and
+finalize but always evaluate the final checkpoint. Neither is sufficient for a low-judgment campaign
+operator. Implementation must precede paid execution.
 
-Constraints: public routes remain unauthenticated and read-only, the bucket remains private,
-tenant-owned 32-character job identities remain forbidden pins, cloud work follows increasing-cost
-gates, immutable image/config revisions are mandatory, and all temporary compute must be stopped or
-deleted when its task ends. Implementation and any commits stay on `debug-portal` under the
-temporary branch policy.
+Constraints are unchanged: work remains on `debug-portal`; public routes are anonymous and read-only;
+tenant identities cannot be pinned; images/configs are immutable; bucket and registry secrets are
+resolved from existing infrastructure; Serverless AI provider history is retained unless explicitly
+reversed; every chargeable VM is stopped or deleted when its work ends.
 
 ## Goals / Non-Goals
 
-**Goals:**
+**Goals**
 
-- Publish six already-passing examples without rerunning their training.
-- Make promotion reproducible and fail closed on identity, integrity, provenance, success, progress,
-  measurement, and public-schema mismatches.
-- Produce a G1 policy that visibly learns and passes the existing 20-episode, 1,000-step,
-  velocity-at-least-0.4-m/s, no-fall gate, or stop at a predeclared budget with the card unpublished.
-- Show evaluated initial/intermediate/selected progress with exact checkpoint steps and honest
-  metrics, not merely “job completed.”
-- Select L40S or H100 from passing cost-to-result evidence and leave no idle builder or accelerator.
+- Produce fresh, high-quality, independently accepted runs for all seven gallery examples.
+- Give a lightweight agent an exact, resumable execution path with no hyperparameter or retry
+  improvisation.
+- Prefer robust final behavior over minimum spend while keeping experiments bounded.
+- Select the best evaluated checkpoint across steps and seeds, not merely the latest checkpoint.
+- Preserve honest initial/intermediate/selected/final progression and immutable provenance.
+- End every branch in `ACCEPTED`, `REJECTED`, or `NEEDS_HUMAN`, with chargeable resources audited.
 
-**Non-Goals:**
+**Non-goals**
 
-- Restoring public gallery training or allowing visitors to rerun/parameterize examples.
-- Publishing tenant jobs, copying private robot inputs, or relaxing the tenant/showcase resolver
-  boundary.
-- Treating artifact completion, reward increase, standing, short-horizon motion, or a single good
-  seed as locomotion success.
-- Lowering the G1 threshold, shortening its horizon, reducing evaluation breadth, or relabeling the
-  rough-terrain task after seeing a failure.
-- Improving the generic custom-robot 100k quick profile; that is a separate product change.
+- Launching jobs as part of this proposal.
+- Exposing gallery training controls or arbitrary hyperparameters to tenants or public users.
+- Automatically searching reward weights, architectures, or unbounded seeds after a declared plan
+  fails.
+- Treating a completed upload, high scalar reward, brief walking, or one lucky episode as success.
+- Publishing the failed tenant G1 run or the unrelated custom-biped Stand Balance result.
 
 ## Decisions
 
-### Reuse six accepted source runs; do not pay for identical retraining
+### 1. A versioned campaign matrix is the sole source of execution choices
 
-The curator first validates the six named source prefixes byte-for-byte with the current artifact
-reader and independently checks their resolved config, immutable image revision, success object,
-checkpoint identity, measured runtime/cost inputs, and visual progression. It emits a machine-
-readable acceptance record containing only safe provenance and exact digests. `SHOWCASE_RUNS` is
-then changed from placeholders to those accepted non-tenant IDs (or to deterministic promoted IDs
-if derived progress evidence must be materialized without mutating the source prefix).
+Implementation SHALL add `sim2policy/configs/showcase_training_matrix.yaml`. It contains one entry per
+example and a schema version. Runtime code validates it before resolving infrastructure or submitting
+a job. The campaign CLI prints a normalized plan plus SHA-256 digest; submission requires that digest.
+The operator may choose a campaign ID, but may not override training steps, seeds, hardware, timeout,
+acceptance, extension, or image/config revision from the CLI.
 
-Alternative considered: submit seven new jobs for symmetry. Rejected because it spends CPU/GPU
-budget while adding variance and no product evidence. The immutable source run is the evidence;
-curation is verification, not a freshness contest.
+The initial matrix is:
 
-### Add a typed curated-evidence adapter rather than special cases in the serializer
+| Example | Train budget per seed | Train seeds | Checkpoint interval | Preferred target | One allowed extension |
+| --- | ---: | --- | ---: | --- | ---: |
+| Reacher | 1M | 0, 7, 42 | 100k | mean reward >= -7 | best seed to 1.5M |
+| HalfCheetah | 3M | 0, 7, 42 | 250k | mean reward >= 2000 | best seed to 5M |
+| Ant | 3M | 0, 7, 42 | 250k | reward >= 2500 and mean length >= 850 | best seed to 5M |
+| Hopper | 5M | 0, 7, 42 | 250k | reward >= 1800 and mean length >= 500 | best seed to 8M |
+| Walker2D | 5M | 0, 7, 42 | 250k | reward >= 3500 and mean length = 1000 | best seed to 8M |
+| Go1 | 200M | 0, 7, 42 | 10M | 20/20 no-fall, min >= 0.75 m/s, mean >= 0.9 m/s | best seed to 300M |
+| G1 | 450M total curriculum | 0 | see curriculum | 20/20 no-fall, min >= 0.4 m/s, mean >= 0.6 m/s | none |
 
-The artifact reader gains a showcase-evidence read that returns one typed internal record:
-validated manifest, sanitized resolved configuration, sanitized runtime versions, normalized
-evaluation outcome, measured benchmark/runtime, and progress checkpoints. Canonical runtime
-environment identity is compared against a server-owned per-example expected value, not against the
-friendly UI ID. Evaluation normalization accepts the documented runtime `success.met` shape and
-rejects missing, non-boolean, contradictory, or legacy ambiguous values. The public serializer uses
-this record for executed configuration, checkpoint, duration, cost, hardware, and revision; catalog
-text remains presentation copy only.
+Hard publication floors remain Reacher -10, HalfCheetah 1500, Ant 1000, Hopper 1000, Walker2D 1800,
+Go1 minimum 0.5 m/s in every full no-fall episode, and G1 minimum 0.4 m/s in every full no-fall
+episode. Preferred targets control whether the single extension is used; they do not replace the hard
+floor. A run below its hard floor is never accepted even when all artifacts exist.
 
-The typed record is cached durably beside the manifest with its source run ID and evidence digest.
-Cache reuse is allowed only while the hardcoded run ID and digest still match. Raw resolved config
-is allowlisted field-by-field before caching/serialization, so a future runtime field is private by
-default.
+All non-G1 examples use three independent training seeds to reduce seed luck. Selection evaluations
+use `[101, 151, 211, 271, 331]`, with two episodes per seed for ten episodes per checkpoint. Final
+acceptance uses `[0, 1, 2, 3, 4]`, with four episodes per seed for twenty episodes. Training, selection,
+and final seed roles are recorded separately; selection and final seeds may not overlap.
 
-Alternative considered: translate `Ant-v5` to `ant` and `success.met` inline in `ShowcaseService`.
-Rejected because it would fix two symptoms while leaving displayed configuration/cost detached from
-the pinned evidence and would make future schema drift hard to reject coherently.
+Alternative: let the operator edit environment variables for each launch. Rejected because an agent
+could silently drift the experiment and make retries incomparable.
 
-### Publication means artifact-complete and task-successful
+### 2. The campaign is a persisted, serialized state machine
 
-A pinned run publishes only when all integrity/provenance checks pass and normalized
-`evaluation.success` is true. A completed but below-threshold run is still retained for diagnosis,
-but `GET /showcase` omits it and direct access returns the same 404 as any unpublished entry. The
-curator prints a sanitized reason and never “promotes with warning.”
+The campaign CLI writes only non-secret metadata beneath gitignored
+`.showcase-campaigns/<campaign-id>/`: normalized matrix digest, state JSON, append-only JSONL journal,
+redacted plans, remote IDs, evidence digests, decisions, cleanup audits, and a handoff summary. Atomic
+file replacement and a campaign lock prevent two operators from advancing the same campaign.
 
-Alternative considered: publish failed examples with an honest red failure badge. Rejected for this
-seven-card surface because its product promise is “verified examples”; failed diagnostics belong in
-engineering evidence, not the public proof set.
+Per-attempt states are `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`,
+`ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, and `CLEANED`. Exactly one remote training/finalization job may
+be active for this campaign. Re-running a command reads state and either performs the one missing
+transition or reports that the transition already completed.
 
-### Progress is evaluated evidence with a selected checkpoint
+The CLI owns polling, redaction, artifact verification, deterministic selection, extension choice,
+and cleanup checks. A lightweight agent runs documented commands and reports exit status. It never
+parses live logs to invent a decision. Exit codes are stable: 0 completed requested transition; 10
+remote work still active; 20 deterministic rejection recorded and campaign may advance; 30 human
+decision required; 40 invariant/security/cleanup failure.
 
-For a curated run, initial, intermediate, and candidate checkpoints are associated with exact step,
-digest, deterministic selection-set metrics, and rollout identity. Selection uses seeds distinct
-from the final acceptance set and ranks locomotion checkpoints lexicographically by: number of
-full-horizon no-fall episodes, minimum achieved forward velocity, mean episode length, then mean
-velocity. Reward alone never selects G1. The selected checkpoint receives the unchanged final
-20-episode acceptance evaluation. SB3 checkpoints use their configured mean-reward criterion.
+Alternative: a markdown checklist alone. Rejected because it cannot guarantee idempotency, seed
+separation, one-active-job serialization, or safe resume after agent/context interruption.
 
-The public progress payload reports step, normalized success measures, and media ID for the initial,
-representative intermediate, and selected checkpoint. If a retained source run lacks structured
-checkpoint metrics, a bounded evaluation-only curation job may generate them under a deterministic
-new public run prefix; it must not modify the accepted source prefix. A progression stage that is
-worse than the previous stage remains visible and labeled as regression rather than being silently
-substituted.
+### 3. SB3 gets more steps and multiple seeds on the validated CPU profile
 
-Alternative considered: label the nearest 25% checkpoint “mid” and the final checkpoint “best.”
-Rejected because the existing G1 evidence demonstrates that later training can still terminate
-early; step count is not model quality.
+Reacher, HalfCheetah, Ant, Hopper, and Walker2D retain their tested SB3 PPO configuration except for
+server-owned total-step and checkpoint cadence changes declared in the matrix. Each run uses
+`cpu-d3`, `8vcpu-32gb`, 100 GiB, non-preemptible capacity. GPU is not used: SB3 PPO is CPU-bound in
+this stack, so a GPU would not improve policy quality. Result-first here means more seeds, more steps,
+and checkpoint selection on a stable platform, not unnecessarily expensive hardware.
 
-### G1 uses a stop/go evidence ladder, not an unconditional longer run
+Timeouts are one hour for Reacher, two hours for HalfCheetah, and three hours each for Ant, Hopper,
+and Walker2D. Recorded throughput implies approximate first-pass durations per seed of 6–8, 13, 25,
+24, and 28 minutes respectively, excluding unusual queue delays. The timeouts intentionally include
+provisioning and finalization margin.
 
-The ladder is sequential and each phase must pass before the next spends money:
+For each example all three base seeds run sequentially. Checkpoints are ranked on the selection set.
+If the leading checkpoint meets the preferred target, the extension is skipped. Otherwise only that
+seed continues from its exact selected checkpoint to the declared extension total. There is exactly
+one extension. Final acceptance runs on the best candidate after base runs plus any extension. If it
+passes the hard floor but misses the preferred target after the extension, it remains an engineering
+result but is not pinned automatically; state becomes `NEEDS_HUMAN`. This preserves the user's
+quality preference instead of filling the gallery with a merely adequate result.
 
-1. **Retained-checkpoint sweep** — on L40S, screen all retained checkpoints from the two 200M
-   no-push runs with a small deterministic selection set, then run the full 20-episode acceptance
-   set on at most the top three. If one passes, promote it and stop; no training occurs.
-2. **Flat-gait prerequisite** — if no checkpoint passes, freeze an immutable candidate derived from
-   the pinned upstream G1 PPO contract and train a 100M `G1JoystickFlatTerrain` no-push stage from
-   scratch. Continue only if the selected checkpoint sustains commanded walking on the full
-   horizon; standing or reward-only improvement stops the candidate.
-3. **Rough-terrain fine-tune** — resume the validated flat checkpoint into the no-push rough-terrain
-   task for up to 200M additional steps. Preserve 8,192 environments, privileged critic, 1,000-step
-   episodes, and 20 evaluation points; freeze any stability/reward/curriculum changes in source and
-   CI before launch. Selection checkpoints use the separate selection seeds and stop early if two
-   consecutive gates regress without a recovery checkpoint.
-4. **Fresh acceptance run** — after the contract is frozen, produce one clean curated run whose
-   resolved provenance records both curriculum phases and parent checkpoint digest. It must pass
-   the unchanged final gate and complete all checksummed media/bundle artifacts before pinning.
+### 4. Go1 uses H100 directly and emphasizes robust locomotion
 
-This makes “train longer” conditional: the likely budget is 100M flat plus at most 200M rough, not a
-blind repeat of the failed 25M or 200M setup. Exact reward-scale or command-curriculum changes are
-not guessed in this proposal; the implementation task first inspects the pinned Playground v0.2.0
-G1 contract and allowlists one reviewed candidate at a time. Candidate count, GPU-hours, and dollar
-ceiling are written into the operator record before launch. Exceeding any ceiling leaves G1
-unpublished and requires a new reviewed change.
+Go1 runs three non-preemptible 200M-step seeds on `gpu-h100-sxm` / `1gpu-16vcpu-200gb`, 100 GiB,
+with a two-hour timeout and 10M checkpoint cadence. The strong historical 100M result shows the task
+is solvable; the larger budget and three seeds give selection room for a showcase-quality rollout.
+Checkpoint ranking is lexicographic: full-horizon no-fall episode count, minimum forward velocity,
+mean episode length, mean velocity, then configured reward. If the best base checkpoint misses the
+preferred target, only its seed resumes to 300M. Final acceptance retains the existing 20-episode,
+1,000-step, no-fall, per-episode 0.5 m/s hard floor.
 
-Alternative considered: continue the final failed checkpoint directly to 400M with identical
-settings. Rejected as the default because both accelerators converged to the same early-termination
-failure; more steps alone do not address gait acquisition versus rough-terrain robustness and can
-hide checkpoint regression.
+Alternative: L40S-first because it is cheaper. Rejected for this campaign because the operator
+explicitly accepts a 3–4 hour training window and prioritizes predictable completion and result.
 
-### L40S first, H100 only for a declared wall-time reason
+### 5. G1 is one bounded 450M H100 curriculum, not another flat 200M repeat
 
-Evaluation sweeps and G1 pilots use L40S because the measured 200M no-push run cost about $4.23
-versus $5.89 on H100, although H100 was about 1.8 times faster. If the frozen L40S candidate passes
-within the declared timeout, it is the production hardware and no H100 duplicate is launched. H100
-is tried only when the identical frozen workload exceeds a declared L40S wall-time/operational
-deadline or fails a measured capacity gate; a policy-quality failure on L40S is not treated as a
-hardware failure unless the exact H100 run passes.
+G1 uses one non-preemptible H100 job, seed 0, 100 GiB, and a five-hour timeout. A dedicated hosted
+curriculum entry point keeps both stages in one allocation and produces one provenance chain.
 
-### Partial publication is the deployment unit
+1. Start `G1JoystickFlatTerrain` from scratch with pushes disabled and the reviewed upstream PPO
+   contract: 8,192 environments, privileged critic, 20-step unroll, 32 minibatches, four updates,
+   entropy cost 0.005, and the existing action/observation/reward contract.
+2. Save candidates at least every 25M steps; run flat gait gates at 100M, 150M, and 200M. The gate is
+   deterministic full-horizon commanded locomotion on the selection set, not reward alone.
+3. Transition as soon as a gate passes. If none passes by 200M, stop training, finalize diagnostics,
+   clean up, and set `NEEDS_HUMAN`; rough training is prohibited because there is no gait to harden.
+4. Resume the selected flat checkpoint into no-push rough terrain. The rough stage receives all
+   remaining steps from the fixed 450M total, so an early flat pass yields a longer rough stage.
+   Preserve candidates every 25M and evaluate milestone candidates without deleting regressions.
+5. Rank rough checkpoints by full-horizon no-fall count, minimum velocity, mean episode length, mean
+   velocity, then reward. Evaluate the selected checkpoint on the disjoint final set.
+6. Accept only if all 20 final episodes run 1,000 steps without falling and each achieves at least
+   0.4 m/s. The preferred mean is at least 0.6 m/s. There is no automatic second 450M seed or
+   post-hoc reward tuning.
 
-The six accepted pins can ship while G1 remains a placeholder. The catalog order remains stable and
-the evidence gate naturally returns six cards. G1 is added in a later commit only after acceptance;
-there is no all-or-nothing release and no pressure to weaken its gate for visual completeness.
+The selected checkpoint may precede 450M. The job still finishes its bounded budget unless a
+numerical/infrastructure failure occurs; checkpoint selection prevents later regression from erasing
+an earlier good policy. The runner never cancels merely because an intermediate metric looks weak.
+
+Alternative: continue a failed 200M rough checkpoint to 450M. Rejected because the policy has not
+demonstrated a stable flat gait and two accelerators converged to the same fall pattern.
+
+### 6. Immutable provenance and best-checkpoint finalization precede execution
+
+The runner only accepts images tagged with the exact source commit and resolved to a recorded digest.
+It records the normalized config digest, image digest, parent checkpoint digest, effective steps,
+checkpoint digest, framework/runtime versions, and campaign matrix digest. Resume is allowed only
+when all of these inputs match the failed attempt.
+
+Hosted finalization must accept an explicit selected checkpoint. It evaluates and renders that
+checkpoint, while retaining final-step metrics/media as honest progression evidence. Required
+artifacts include status, resolved config, versions, metrics, report, native checkpoint, initial/
+intermediate/selected/final media, checksummed manifest, and policy bundle. The artifact reader and
+public serializer validate allowlisted real runtime schemas before a run can be pinned.
+
+### 7. Recovery is bounded and mechanical
+
+- Submission with no returned remote ID may be retried once with the same campaign key and run ID.
+- A duplicate remote name is adopted only when its immutable plan digest matches.
+- Queue/provisioning timeout, quota denial, unknown provider state, digest mismatch, numerical failure,
+  or cleanup failure transitions to `NEEDS_HUMAN`; the agent does not change hardware or settings.
+- A container failure after a durable compatible checkpoint may use `RESUME=remote` once. A failure
+  before a checkpoint gets one identical retry. Further failure stops.
+- If training and selected evidence are durable but finalization failed, retry finalization only; do
+  not retrain.
+- Preemptible capacity is prohibited for the result campaign.
+
+### 8. Promotion is atomic per example and cleanup is mandatory
+
+The normal order is Reacher, HalfCheetah, Ant, Hopper, Walker2D, Go1, then G1. Estimated sequential
+first-pass wall time is roughly ten hours, dominated by G1, plus any single-seed extensions. An
+accepted example may be pinned independently after its source change and tests pass; no failed card
+is included just to reach seven.
+
+After each terminal job the runner verifies durable evidence, then audits jobs, instances, disks,
+public IPs, temporary security rules, and the reusable builder. Chargeable VMs are stopped or deleted.
+Provider job records, SaaS rows, and S3 evidence are retained under the current policy. Promotion is
+blocked until the cleanup audit passes.
 
 ## Risks / Trade-offs
 
-- **[Historical source artifact no longer satisfies current validation]** -> Leave only that card
-  unpublished, run evaluation/finalization from its retained checkpoint into a new curated prefix,
-  and never patch the historical prefix in place.
-- **[Real schema normalization accidentally broadens public data]** -> Parse into an allowlisted
-  typed record, add fixtures from sanitized real manifests, and assert secrets/storage/tenant fields
-  cannot serialize.
-- **[Checkpoint selection overfits acceptance seeds]** -> Use disjoint deterministic selection and
-  final seed sets; run the unchanged final set only on the bounded shortlist.
-- **[Flat-to-rough transfer forgets the gait]** -> Keep exact milestone evaluations, select the best
-  stable checkpoint rather than the last one, and stop after two consecutive regressions.
-- **[G1 never passes within budget]** -> Preserve all diagnostic evidence, clean up compute, keep the
-  placeholder/unpublished state, and require a separate proposal for a new task/reward design.
-- **[Provider history conflicts with compute cleanup]** -> Stop/delete chargeable VM instances and
-  follow the current explicit retention instruction for Serverless AI job history; record the exact
-  cleanup state without deleting SaaS rows or durable S3 evidence.
-- **[Pinned prices become stale]** -> Display rate date with measured runtime/cost, and recurate via a
-  reviewed source change rather than silently recomputing old evidence at request time.
+- **G1 still fails after 450M**: preserve all milestone evidence, clean up, leave G1 unpublished, and
+  require a reviewed follow-up for a reward/task redesign or second seed.
+- **Three seeds multiply total runtime**: execution is sequential and resumable; quality and seed
+  robustness are deliberately prioritized over minimum spend.
+- **Preferred targets are too ambitious**: the one-extension rule bounds cost; missing a preferred
+  target becomes `NEEDS_HUMAN` rather than silently publishing a marginal policy.
+- **Selection overfits**: selection and final seed sets are disjoint and recorded; only the selected
+  bounded candidate receives final acceptance.
+- **Long G1 job dies during upload**: five-hour timeout includes margin, durable checkpoints permit
+  exact resume, and finalization can be retried without retraining.
+- **Agent interruption causes duplicate spend**: campaign lock, remote-name adoption, plan digests,
+  and persisted state make every command idempotent.
+- **Schema normalization leaks private fields**: the curator parses an allowlisted typed record and
+  rejects unknown fields from public serialization by default.
 
 ## Migration Plan
 
-1. Add real-manifest fixtures and the typed evidence adapter while all pins remain placeholders.
-2. Run the local/backend/frontend/OpenSpec gates and an offline audit of the six source runs.
-3. Materialize new curated prefixes only for sources that need derived progress evidence; otherwise
-   leave the verified source prefixes untouched.
-4. Replace six placeholders, deploy through the normal `debug-portal` CI/GitOps path, and verify the
-   anonymous catalog/detail/artifact surface at desktop/mobile with no training control.
-5. Execute the G1 ladder under explicit operator budget and cleanup gates; pin G1 in a separate
-   reviewed commit only after its full acceptance record passes.
-6. Audit active jobs, instances, disks, IPs, temporary rules, and the reusable builder after every
-   cloud phase; stop/delete chargeable instances immediately.
+1. Implement and test the matrix schema, campaign CLI/state machine, explicit-checkpoint finalizer,
+   typed curation evidence, and G1 curriculum locally; launch nothing.
+2. Build immutable SB3/MJX images on the CPU builder, run increasing-cost image/smoke gates, push exact
+   commit tags/digests, and stop the builder.
+3. Execute the detailed runbook sequentially. Each job must verify artifacts and cleanup before the
+   next submission.
+4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
+   fixtures, and provenance checks pass.
+5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production
+   cards, media, measured details, and unchanged tenant isolation.
 
-Rollback is a source revert from a real pin to its placeholder. The next request omits the card;
-the private artifacts remain durable and no database or bucket rollback is needed. If the evidence
-cache schema changes, its rows are disposable and rebuilt from the hardcoded pinned prefix.
+Rollback is a source revert from a curated run ID to its placeholder or last accepted baseline. It
+does not mutate or delete private artifacts.
 
 ## Open Questions
 
-- What exact stability/curriculum fields exist in the pinned Playground v0.2.0 G1 config and can be
-  narrowly allowlisted without forking upstream environment code? Resolve before the first pilot.
-- Are all initial/intermediate checkpoints for the six historical passing sources still durable,
-  or do any require a derived curation prefix to supply structured progress evidence?
-- What candidate-count, L40S/H100-hour, and dollar ceilings does the operator approve for G1? Record
-  them before any paid run; the task defaults to stopping rather than inferring authorization.
+None for campaign execution. Any missing immutable image, infrastructure output, quota, or runner
+capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight operator is not
+authorized to fill the gap by guessing.

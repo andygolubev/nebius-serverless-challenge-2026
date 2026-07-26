@@ -25,8 +25,8 @@ final acceptance; it MUST NOT assume the final step or highest scalar reward is 
 
 #### Scenario: Selected checkpoint receives final acceptance
 - **WHEN** checkpoint selection completes
-- **THEN** only the bounded shortlist is evaluated on the separate final acceptance seeds and the
-  promotion record names the checkpoint that passed
+- **THEN** only the single selected checkpoint is evaluated on the separate final acceptance seeds
+  and the promotion record names that checkpoint and its result
 
 ### Requirement: Measured curriculum provenance
 The system SHALL, when a policy is trained through multiple curriculum phases, record in

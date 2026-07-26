@@ -1,83 +1,141 @@
-## 1. Baseline and real-evidence fixtures
+## 1. Re-establish the reviewed baseline
 
-- [ ] 1.1 Re-read `ARCHITECTURE.md`, this change's proposal/design/specs, the archived public-showcase and trainable-gallery changes, `saas/API_RUNBOOK.md`, and current `IMPLEMENTATION_LOG.MD`; record the observed branch, retained-run baseline, commands, blockers, and safe next action without overwriting unrelated work
-- [ ] 1.2 Confirm `debug-portal` is checked out, preserve unrelated worktree changes, run `openspec list`, and verify no implementation commit/push targets `main`
-- [ ] 1.3 Read-only audit the six named non-tenant source prefixes and capture sanitized fixtures for status, artifacts manifest, metrics, resolved configuration, runtime versions, checkpoint metadata, and progress media; exclude bucket/key/credential/secret/tenant fields
-- [ ] 1.4 Add a regression fixture for the inspected below-threshold 25M G1 shape (`success.met=false`, canonical environment, completed artifacts) without including tenant identity or provider-private data
-- [ ] 1.5 Add tests proving current synthetic assumptions fail against real runtime shapes: friendly versus canonical environment IDs, `success.met` object versus boolean, and catalog defaults versus measured run evidence
+- [ ] 1.1 Read `AGENTS.md`, `ARCHITECTURE.md`, this change's proposal/design/specs/runbook, the archived gallery/showcase changes, `saas/API_RUNBOOK.md`, and `IMPLEMENTATION_LOG.MD`; record branch, revision, active change, observed source state, and safe next action without secrets
+- [ ] 1.2 Confirm `debug-portal` is checked out, run `openspec list`, preserve unrelated worktree changes, and stop if planned implementation overlaps dirty user files
+- [ ] 1.3 Inventory the current SB3/MJX configs, hosted entry points, submitter, finalizer, checkpoint loaders, artifact schemas, public evidence adapter, infrastructure outputs, and tests; map every runbook dependency to an existing or missing implementation
+- [ ] 1.4 Re-verify sanitized historical baselines for all seven examples and save only non-tenant metrics/digests needed for regression tests; historical results remain comparison/rollback evidence, not fresh campaign pins
+- [ ] 1.5 Add fixtures for real canonical environment identities, nested `success.met`, selected-checkpoint evidence, a completed-but-failed G1, and measured runtime/cost fields; exclude tenant email, bearer tokens, secret selectors, storage credentials, and raw private keys
+- [ ] 1.6 Convert every unresolved implementation dependency into an explicit task below; do not launch a paid job while the runbook implementation-complete gate is unavailable
 
-## 2. Typed curated evidence and promotion tooling
+## 2. Define and validate the campaign matrix
 
-- [ ] 2.1 Define typed internal models for sanitized resolved configuration, runtime versions, normalized evaluation, measured benchmark/runtime, selected checkpoint, progression stages, and immutable curation provenance
-- [ ] 2.2 Extend the S3 artifact reader with a showcase-evidence read that validates the existing checksummed manifest/bundle and parses only allowlisted fields from resolved config, runtime versions, metrics, checkpoint metadata, and progression evidence
-- [ ] 2.3 Add exact server-owned canonical runtime environment mappings for all seven examples and reject unknown, fuzzy, caller-controlled, or mismatched identities
-- [ ] 2.4 Normalize only recognized task-success schemas, including the runtime `success.met` object; reject missing, contradictory, non-boolean, legacy ambiguous, or threshold-inconsistent results
-- [ ] 2.5 Add durable evidence caching keyed by hardcoded run ID plus evidence digest, with additive migration and disposable/rebuildable rows that cannot collide with tenant artifact cache keys
-- [ ] 2.6 Implement a CLI/operator curator that accepts only server-owned example IDs plus non-tenant run IDs, validates immutable provenance and public-schema compatibility, and emits a deterministic acceptance record with no storage or secret details
-- [ ] 2.7 Make the curator reject tenant-shaped IDs, placeholder IDs, mutable image tags, duplicate pins, private robot/setup evidence, failed task gates, unsafe config fields, missing progress, or incomplete cost/provenance
-- [ ] 2.8 Add unit/integration tests for accepted SB3/MJX records, every fail-closed branch, deterministic output, cache digest invalidation, cross-boundary isolation, and zero training/storage mutation during audit
+- [ ] 2.1 Add `sim2policy/configs/showcase_training_matrix.yaml` with a schema version and the exact seven run cards from `execution-runbook.md`; prohibit extra example IDs and unknown fields
+- [ ] 2.2 Encode Reacher base 1M/extension 1.5M, seeds 0/7/42, 100k checkpoints, one-hour timeout, hard -10, preferred -7, and deterministic reward/stability ranking
+- [ ] 2.3 Encode HalfCheetah base 3M/extension 5M, seeds 0/7/42, 250k checkpoints, two-hour timeout, hard 1500, preferred 2000, and ranking rule
+- [ ] 2.4 Encode Ant base 3M/extension 5M, seeds 0/7/42, 250k checkpoints, three-hour timeout, hard 1000, preferred reward 2500 plus mean length 850, and ranking rule
+- [ ] 2.5 Encode Hopper base 5M/extension 8M, seeds 0/7/42, 250k checkpoints, three-hour timeout, hard 1000, preferred reward 1800 plus mean length 500, and ranking rule
+- [ ] 2.6 Encode Walker2D base 5M/extension 8M, seeds 0/7/42, 250k checkpoints, three-hour timeout, hard 1800, preferred reward 3500 plus mean length 1000, and ranking rule
+- [ ] 2.7 Encode Go1 base 200M/extension 300M, seeds 0/7/42, 10M checkpoints, H100 preset, 100 GiB disk, two-hour timeout, hard 20/20 no-fall with per-episode 0.5 m/s, and preferred min 0.75/mean 0.9 m/s
+- [ ] 2.8 Encode G1 seed 0, H100 preset, 100 GiB disk, five-hour timeout, fixed 450M curriculum total, flat gates at 100M/150M/200M, 25M candidate cadence, no extension, hard 20/20 no-fall with per-episode 0.4 m/s, and preferred mean 0.6 m/s
+- [ ] 2.9 Encode selection seeds `[101,151,211,271,331]`, final seeds `[0,1,2,3,4]`, two selection episodes and four final episodes per seed; reject overlapping sets and role ambiguity
+- [ ] 2.10 Add typed schema/loading/normalization code that rejects runtime overrides, mutable image tags, preemptible capacity, missing digests, nonpositive steps, invalid extension totals, wrong preset/backend combinations, and changes after campaign initialization
+- [ ] 2.11 Add snapshot tests for the normalized matrix and digest plus negative tests for every prohibited override and matrix invariant
 
-## 3. Checkpoint progression, selection, and media
+## 3. Implement checkpoint evaluation and explicit finalization
 
-- [ ] 3.1 Add a structured progression schema containing exact step, checkpoint digest, selection seeds, per-episode/aggregate task metrics, criterion/result, evaluation runtime, rank, regression state, and rollout ID
-- [ ] 3.2 Add deterministic selection-seed configuration disjoint from the existing final acceptance seeds and reject any curation record whose selection/final sets overlap
-- [ ] 3.3 Implement SB3 checkpoint ranking by configured deterministic mean-reward criterion and locomotion ranking by full-horizon no-fall count, minimum forward velocity, mean episode length, then mean velocity
-- [ ] 3.4 Evaluate only a bounded shortlist on the final seed set, record the selected checkpoint explicitly, and never auto-select the final step or highest scalar reward
-- [ ] 3.5 Extend resolved config, `metrics.json`, and Markdown reporting with structured progress and selected-checkpoint provenance while preserving backward compatibility for historical non-curated runs
-- [ ] 3.6 Render deterministic initial, representative intermediate, selected, and final-step rollouts; label exact steps/digests/selection and retain visibly regressed final media when an earlier checkpoint wins
-- [ ] 3.7 Make `video_final` use the selected passing checkpoint for curated runs, link every progress media item to its metrics record, and reject unlinked/mislabelled media from curation
-- [ ] 3.8 Add runtime tests for ranking ties, regression, missing quarter checkpoint, earlier-best selection, disjoint seeds, progression JSON/report schema, deterministic renders, montage labels, and backwards-compatible normal finalization
+- [ ] 3.1 Define a common checkpoint inventory containing backend, run lineage, effective step, native path/object ID, SHA-256 digest, phase, environment identity, and load compatibility
+- [ ] 3.2 Implement deterministic SB3 selection evaluation on the configured selection seeds, including mean/std reward and episode-length evidence for every retained candidate
+- [ ] 3.3 Implement MJX per-episode selection evidence containing horizon, fall/termination reason, measured forward velocity, mean velocity, episode length, reward, seed, and checkpoint digest
+- [ ] 3.4 Implement SB3 ranking exactly as the matrix declares, with deterministic tie-breaking and no final-step preference
+- [ ] 3.5 Implement locomotion ranking lexicographically by full-horizon no-fall count, minimum velocity, mean episode length, mean velocity, configured reward, then earlier checkpoint
+- [ ] 3.6 Reject any selection/final seed overlap and prove final-seed results are unavailable to the selection function
+- [ ] 3.7 Change hosted finalization to accept one explicit selected checkpoint digest and evaluate/render that checkpoint while preserving the final-step checkpoint as labeled progression evidence
+- [ ] 3.8 Emit initial, representative intermediate, selected, and final-step videos linked to exact checkpoint steps/digests and metrics; retain regressions rather than silently substituting media
+- [ ] 3.9 Extend `metrics.json`, resolved config, report, manifest, and policy bundle with matrix digest, phase lineage, selected checkpoint, ranking explanation, seed roles, hard/preferred results, and measured runtime/cost
+- [ ] 3.10 Add tests for earlier-best selection, ties, regression, missing candidates, corrupt checkpoints, incompatible resume, explicit finalization, deterministic videos, manifest checksums, and bundle inventory
 
-## 4. Showcase backend and frontend
+## 4. Implement the G1 450M curriculum
 
-- [ ] 4.1 Refactor `ShowcaseService` to consume the typed curated-evidence record instead of deriving executed config, runtime, cost, hardware, checkpoint, or evaluation outcome from current catalog defaults
-- [ ] 4.2 Strengthen the publication gate so only recognized `success=true` evidence with matching canonical identity, selected checkpoint, progress, provenance, and required artifacts publishes; completed below-threshold pins remain 404
-- [ ] 4.3 Return sanitized measured executed config, runtime/cost/rate date, runtime versions, selected checkpoint, and structured progress stages from catalog/detail without tenant, storage, secret-selector, or unallowlisted fields
-- [ ] 4.4 Keep the public resolver structurally separate from tenant lookups and prove that bearer headers, tenant IDs/run IDs, object keys, query overrides, and write methods cannot influence evidence resolution or launch/mutate work
-- [ ] 4.5 Update `Showcase`/`ResultPanels` to display measured evidence and exact initial/intermediate/selected progress with honest regression labels and no train/re-run control
-- [ ] 4.6 Add backend fixtures/tests for all six real source shapes plus failed G1, partial publication, stable order, catalog/default drift, cache rebuild, anonymous equality, artifact playback/download, 404 isolation, and sanitized upstream failures
-- [ ] 4.7 Add frontend tests for six-card partial publication, selected-versus-final progress, nested metrics, regression labels, missing optional stages, mobile layout, keyboard/video controls, dark/light themes, and absence of training actions
+- [ ] 4.1 Inspect and record the exact pinned Playground G1 flat/rough environment identities, PPO defaults, reward terms, commands, observations, reset/termination rules, checkpoint compatibility, and current no-push overrides; do not guess field names
+- [ ] 4.2 Add one server-owned G1 result profile retaining 8,192 environments, privileged critic, 20-step unroll, 32 minibatches, four updates, entropy cost 0.005, 20 evaluation points, 1,000-step horizon, and disabled pushes unless inspected source requires a reviewed compatibility adjustment
+- [ ] 4.3 Define the flat gait prerequisite as deterministic full-horizon commanded motion and no-fall stability on the selection set; add tests proving standing, reward-only improvement, and short motion cannot pass
+- [ ] 4.4 Implement the dedicated hosted MJX curriculum entry point: train flat from scratch; evaluate at 100M, 150M, and 200M; select the earliest passing gate; stop diagnostic if none passes
+- [ ] 4.5 Resume the exact selected flat checkpoint into the reviewed no-push rough environment and allocate `450M - selected_flat_step` effective steps without exceeding 450M total
+- [ ] 4.6 Retain rough candidates every 25M, rank them with the locomotion rule, and final-evaluate only the selected candidate on the disjoint final set
+- [ ] 4.7 Record both phase configs, image/config/matrix digests, input/output checkpoint digests, effective-step accounting, JIT/train/eval/render/upload timings, and phase outcomes in one immutable provenance chain
+- [ ] 4.8 Ensure rough training does not cancel because an intermediate checkpoint looks weak; only numerical failure, provider failure, or timeout may terminate after rough start
+- [ ] 4.9 Prohibit automatic second G1 seed, steps above 450M, L40S comparison, reward mutation, threshold relaxation, or final-set reselection
+- [ ] 4.10 Add unit/integration tests for flat pass at 100M/150M/200M, flat failure, correct remainder arithmetic, cross-phase resume, earlier-best rough selection, 450M ceiling, final hard/preferred outcomes, and diagnostic finalization
 
-## 5. Audit and publish the six passing examples
+## 5. Implement the resumable campaign CLI
 
-- [ ] 5.1 Run local lint/type/test/build gates before any cloud access and validate the curator against sanitized fixtures
-- [ ] 5.2 Through read-only artifact access, run the curator on Reacher `gallery-reacher-3aa59b1-20260714a` and verify threshold, immutable provenance, required objects/bundle, measured evidence, progress, and public payload
-- [ ] 5.3 Curate HalfCheetah `gallery-halfcheetah-3aa59b1-20260714a` and Ant `gallery-ant-3aa59b1-20260714a` under the same gates
-- [ ] 5.4 Curate Hopper `gallery-hopper2m-3aa59b1-20260714a` and Walker2D `gallery-walker2d2m-3aa59b1-20260714a` under the same gates, retaining their rejected shorter-run evidence as diagnostics only
-- [ ] 5.5 Curate Go1 `gallery-go1-quality-433f3f9-20260714a`, verify the corrected robot-frame 20/20 1,000-step no-fall result and 0.5 m/s floor, and reject Quick plus the inspected later failed 100M tenant row
-- [ ] 5.6 If a passing source lacks required structured progress, run only bounded evaluation/finalization into a new deterministic non-tenant curated prefix, validate it, and leave the historical source untouched; do not repeat training
-- [ ] 5.7 Replace exactly the six accepted placeholders in `SHOWCASE_RUNS`, leave G1 pending, add exact acceptance records/tests, and verify no tenant-shaped or failed run ID is present in source
-- [ ] 5.8 Run backend/frontend/runtime suites, `git diff --check`, secret/large-artifact scans, and `openspec validate curate-public-showcase-runs --strict` before deployment
-- [ ] 5.9 Commit and push only `debug-portal`, use `gh` to verify SaaS/runtime workflows and failed logs, then confirm ArgoCD/deployment health without placing credentials or generated artifacts in Git
-- [ ] 5.10 In an anonymous production browser verify six cards in stable order, measured details, progress playback/seeking, downloads, desktop/375px light/dark layout, no console/storage leak, and no training action; verify signed-in custom training/history is unchanged
+- [ ] 5.1 Implement `init` with campaign-ID validation, normalized matrix digest, atomic non-secret state, append-only journal, campaign lock, ordered examples, and refusal to reuse an ID for a different digest
+- [ ] 5.2 Implement states `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`, `ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, and `CLEANED` with validated transitions and one active remote job invariant
+- [ ] 5.3 Implement stable exit codes 0/10/20/30/40 and a redacted structured envelope with exact `next_command`; ensure raw environment/provider errors cannot leak credentials
+- [ ] 5.4 Implement `implementation-gate` that proves matrix, runner, finalizer, curriculum, artifact verifier, cloud auditor, immutable images, smoke tests, local suites, and stopped builder before paid work
+- [ ] 5.5 Implement `preflight` for branch/revision, tracked overlap, immutable image digest, GitHub Actions status, infrastructure outputs, credential availability without value disclosure, preset/quota, disk/timeout, non-preemptible flag, and cloud baseline
+- [ ] 5.6 Implement `plan` with exact run ID/prefix, backend/module, image/config/matrix digests, steps/cadence/seeds, hardware/timeout, parent lineage, required artifacts/gates, retry allowance, cleanup action, and redacted provider preview
+- [ ] 5.7 Implement plan-digest confirmation and reject any submission whose normalized plan differs from the reviewed plan
+- [ ] 5.8 Implement `submit` with deterministic non-tenant run IDs, idempotency key, exact immutable tag/digest, existing infrastructure/secret selectors, no secret output, and no direct mutable CLI overrides
+- [ ] 5.9 Implement `watch` with 60-second polling, heartbeats, effective-step/last-checkpoint/finalization progress, terminal recognition, safe re-entry, and needs-human after five minutes of missing heartbeat while provider state remains active
+- [ ] 5.10 Implement `verify`, `select`, `extend`, `accept`, `cleanup`, `audit-cloud`, `status`, and `handoff` according to the runbook, with every command idempotent
+- [ ] 5.11 Implement stale-lock recovery that proves no live local process and changes no remote state; prohibit force-clearing an active campaign lock
+- [ ] 5.12 Add state-machine tests for interruption/resume, duplicate command, concurrent invocation, duplicate remote name with matching/mismatching digest, unknown provider state, finalization-only retry, compatible/incompatible resume, and cleanup blocking
+- [ ] 5.13 Add redaction tests using sentinel secrets across stdout/stderr/state/journal/plans/audits/handoff and fail the suite if any sentinel appears
 
-## 6. Freeze the bounded G1 experiment contract
+## 6. Implement immutable acceptance and public evidence handling
 
-- [ ] 6.1 Inspect the exact pinned Playground v0.2.0 G1 flat/rough configuration, reward terms, command distribution, reset/termination, observation keys, and resume compatibility inside the immutable MJX image; record evidence rather than guessed overrides
-- [ ] 6.2 Define and test the exact selection seeds, final seeds, retained-checkpoint screen size, top-three cap, flat 100M prerequisite, rough maximum 200M, two-regression stop rule, image/config revisions, artifact contract, timeouts, and safe resume digest chain
-- [ ] 6.3 Propose one narrowly allowlisted server-owned stability/curriculum candidate at a time, add config/parser/command/container-matrix tests, and reject arbitrary nested reward/environment overrides or tenant-facing parameters
-- [ ] 6.4 Add curriculum provenance to hosted MJX training/finalization/policy bundle: every phase records canonical environment, immutable config/image, step budget, input/selected checkpoint digest, runtime/cost, and phase result while final success remains rough-terrain-only
-- [ ] 6.5 Run local quality, real MJX container import/environment/initial-policy/resume/evaluation/render/bundle gates, publish an immutable commit-SHA image only after all pass, and stop the CPU builder immediately after image work
-- [ ] 6.6 Before paid work, obtain and record operator-approved maximum candidate count, L40S hours, optional H100 hours, dollar ceiling, wall-time deadline, exact immutable image/config, run prefixes, and cleanup actions; if approval is absent, stop with G1 unpublished
+- [ ] 6.1 Define a typed allowlisted curated-evidence model for canonical environment, sanitized resolved config, runtime versions, matrix/image/config/checkpoint/manifest digests, selection/final metrics, progression media, measured runtime/cost, and acceptance timestamp
+- [ ] 6.2 Add exact canonical identity mappings for Reacher, HalfCheetah, Ant, Hopper, Walker2D, Go1, G1 flat, and G1 rough; reject fuzzy, friendly-only, unknown, and caller-controlled identity values
+- [ ] 6.3 Normalize only recognized `success.met` shapes and reject missing, contradictory, non-boolean, threshold-inconsistent, or ambiguous legacy values
+- [ ] 6.4 Verify every required object, checksum, content linkage, policy bundle member, selected checkpoint, progression entry, and public fixture against the exact curated prefix without cross-run fallback
+- [ ] 6.5 Make the curator reject tenant-shaped IDs, placeholders, duplicate pins, mutable images, failed hard/preferred targets, missing cleanup proof, unsafe fields, and incomplete measured evidence
+- [ ] 6.6 Keep historical accepted runs available only as named baselines/rollback targets; require an explicit reviewed decision before using one instead of a fresh accepted run
+- [ ] 6.7 Refactor public serialization to use measured curated evidence rather than catalog defaults for executed config, hardware, duration, cost, versions, checkpoint, success, and progress
+- [ ] 6.8 Keep the public resolver structurally separate from tenant lookup and prove headers, tenant IDs/run IDs, object keys, query overrides, and write methods cannot influence evidence resolution or start work
+- [ ] 6.9 Add backend/frontend fixtures and tests for all fresh accepted shapes, completed failure, hard-only/preferred-fail, partial publication, stable order, selected-versus-final progress, regressions, anonymous equality, media/downloads, 404 isolation, and no training actions
 
-## 7. Execute the G1 ladder in increasing cost order
+## 7. Build immutable images and pass increasing-cost gates
 
-- [ ] 7.1 Audit zero unintended active jobs/instances first, then run one bounded L40S evaluation-only sweep across retained checkpoints from both 200M no-push runs using selection seeds; persist exact rank/progress evidence without training
-- [ ] 7.2 Run the unchanged full 20-episode/1,000-step/0.4-m/s/no-fall acceptance set on at most the top three retained checkpoints; if any passes, finalize/promote it and skip every training task below
-- [ ] 7.3 After durable sweep evidence is verified, stop/delete chargeable compute as allowed by the retention instruction and audit AI jobs, instances, disks, IPs, rules, and builder state before the next gate
-- [ ] 7.4 Only if no retained checkpoint passes, train the frozen 100M flat-terrain no-push prerequisite from scratch on L40S, evaluate/select checkpoints by sustained commanded gait, and stop the ladder if the full-horizon prerequisite fails
-- [ ] 7.5 Verify flat artifacts/provenance and clean up/audit chargeable resources before deciding whether rough fine-tuning is allowed
-- [ ] 7.6 Only after the flat prerequisite passes, resume its selected digest into the frozen no-push rough-terrain phase on L40S for at most 200M, recording checkpoint progress and stopping after the declared regression/budget gate
-- [ ] 7.7 Run final acceptance only on the bounded rough shortlist; require 20/20 full 1,000-step episodes, every episode at least 0.4 m/s with no fall, complete measured provenance/progress/media/checkpoint/bundle evidence, and no post-hoc threshold change
-- [ ] 7.8 If L40S passes within bounds, select it and launch no H100 duplicate; use H100 only under the preapproved capacity/wall-time rule with an otherwise identical frozen contract and record why it was necessary
-- [ ] 7.9 After every terminal candidate, preserve required provider/SaaS/S3 history, stop/delete every chargeable VM or unneeded instance, audit all cloud resources, and pause promotion on any cleanup blocker
-- [ ] 7.10 If the approved candidate/hour/dollar/wall-time ceiling expires without a pass, leave G1 pending, record diagnostics and safe next action, and do not submit more work without a new reviewed change
+- [ ] 7.1 Run local lint, type, unit, integration, frontend, production-build, `git diff --check`, secret scan, large-file scan, and `openspec validate curate-public-showcase-runs --strict`; resolve failures before image work
+- [ ] 7.2 Start or reuse the approved `cpu-d3` builder with its cached disk, verify ownership/scope, and record non-secret instance state in `IMPLEMENTATION_LOG.MD`
+- [ ] 7.3 Build SB3 and MJX images with BuildKit from the exact reviewed commit, tag with immutable commit SHA, run health/import/config/matrix/CLI tests, and push without replacing any tag used by an active job
+- [ ] 7.4 Resolve and record registry digests; prove planned configs/modules are present and no secret or generated training artifact is baked into either image
+- [ ] 7.5 Run a short bounded CPU SB3 smoke with explicit timeout through the campaign path; verify one update, checkpoint, explicit finalization, durable upload, artifact read, cleanup, and idempotent re-entry
+- [ ] 7.6 Run a short bounded single-H100 MJX smoke with explicit timeout; verify CUDA/JAX device discovery, compile, flat/rough environment construction, one update per path, checkpoint resume, selection evaluation, render, bundle, upload, and cleanup
+- [ ] 7.7 Stop the CPU builder after images are durable; stop/delete smoke compute; audit jobs, instances, disks, IPs, and temporary rules; do not proceed until audit passes
+- [ ] 7.8 Re-run `implementation-gate` and archive its sanitized output/digests in the gitignored campaign evidence location
 
-## 8. Pin G1 and final verification
+## 8. Execute fresh SB3 campaigns sequentially
 
-- [ ] 8.1 For a passing G1 only, run the curator against the exact final non-tenant run, validate both curriculum phases and selected checkpoint digest, and prove the public payload contains measured successful rough-terrain evidence
-- [ ] 8.2 Replace the G1 placeholder with the accepted run ID in a separate reviewed source change; add negative tests that every failed 25M/200M/default-push/no-push diagnostic remains unpublishable
-- [ ] 8.3 Re-run complete runtime/backend/frontend tests, production builds, `git diff --check`, secret/large-file scans, strict OpenSpec validation, and a final cloud resource audit
-- [ ] 8.4 Commit/push only `debug-portal`, verify relevant GitHub Actions with `gh`, deploy normally, and confirm anonymous production shows all seven cards in stable order only if all seven independently pass
-- [ ] 8.5 Browser-verify G1 progress and final rollout at desktop/375px light/dark, exact measured metrics/config/runtime/cost, playback/seeking/download, no training controls, and unchanged tenant/private artifact isolation
-- [ ] 8.6 Update `ARCHITECTURE.md`, SaaS/operator runbooks, acceptance records, and `IMPLEMENTATION_LOG.MD` with commands/results/blockers/cleanup and no credentials; run `openspec validate curate-public-showcase-runs --strict` and check tasks only after their evidence exists
+- [ ] 8.1 Initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff
+- [ ] 8.2 Execute Reacher seed 0 through plan/submit/watch/verify/cleanup; record exact state/evidence/cleanup and run no other campaign job concurrently
+- [ ] 8.3 Execute Reacher seeds 7 and 42 with the identical matrix contract, verifying and cleaning each before the next
+- [ ] 8.4 Run Reacher selection; if required by structured `next_command`, extend only the winning seed to 1.5M; final-accept once and emit accepted/rejected/needs-human without improvisation
+- [ ] 8.5 Execute HalfCheetah seeds 0, 7, and 42 sequentially at 3M each, with verification/cleanup after each; select, optionally extend only the winner to 5M, and final-accept once
+- [ ] 8.6 Execute Ant seeds 0, 7, and 42 sequentially at 3M each; verify reward and episode-length evidence; select, optionally extend only the winner to 5M, and final-accept once
+- [ ] 8.7 Execute Hopper seeds 0, 7, and 42 sequentially at 5M each; verify stability evidence; select, optionally extend only the winner to 8M, and final-accept once
+- [ ] 8.8 Execute Walker2D seeds 0, 7, and 42 sequentially at 5M each; verify full-horizon evidence; select, optionally extend only the winner to 8M, and final-accept once
+- [ ] 8.9 After every terminal attempt, run the full cloud cleanup audit and stop the campaign on unknown resources, missing durable evidence, or incomplete cleanup
+- [ ] 8.10 After each example, generate a handoff containing consumed retries/extensions, winning checkpoint, hard/preferred result, measured runtime/cost, cleanup proof, and exact next command
+
+## 9. Execute fresh Go1 H100 campaign
+
+- [ ] 9.1 Run Go1 preflight and prove H100 preset/quota, immutable MJX digest, 100 GiB disk, two-hour timeout, non-preemptible setting, 200M budget, and zero unaccounted accelerator resources
+- [ ] 9.2 Execute Go1 seed 0 at 200M with 10M checkpoints; verify per-episode selection evidence, all artifacts, and cleanup before continuing
+- [ ] 9.3 Execute Go1 seeds 7 and 42 under the identical contract, verifying and cleaning each independently
+- [ ] 9.4 Rank all Go1 checkpoints across seeds without final-set access; if preferred quality is missed, resume only the selected seed/checkpoint to 300M and consume the sole extension
+- [ ] 9.5 Final-evaluate the selected Go1 checkpoint exactly once on 20 episodes; require the per-episode 0.5 m/s/no-fall hard floor and 0.75 minimum/0.9 mean preferred target for automatic acceptance
+- [ ] 9.6 Verify selected/final progression media, exact checkpoint digest, report/manifest/bundle, measured H100 runtime/cost, public fixture, and cleanup audit; do not launch an L40S or further seed fallback
+
+## 10. Execute the one G1 H100 result campaign
+
+- [ ] 10.1 Run G1 preflight and prove exact curriculum module/config/matrix/image digests, H100 preset/quota, 100 GiB disk, five-hour timeout, non-preemptible setting, 450M ceiling, no extension, and clean accelerator audit
+- [ ] 10.2 Plan and submit seed 0 once; record the immutable run ID, expected prefix, plan digest, flat/rough identities, gate schedule, and cleanup action without secrets
+- [ ] 10.3 Watch at 60-second intervals through flat training; rely only on structured gates at 100M, 150M, and 200M and never cancel or alter settings from manual log impressions
+- [ ] 10.4 If a flat gate passes, verify exact selected flat checkpoint/digest and automatic remaining-budget arithmetic before rough resume; if none passes by 200M, finalize diagnostics, clean up, and stop G1 at needs-human
+- [ ] 10.5 Watch rough training through the fixed 450M total, retaining 25M candidates and regressions; do not use final acceptance seeds or cancel after weak intermediate metrics
+- [ ] 10.6 Rank rough checkpoints with the declared locomotion rule and final-evaluate only the selected checkpoint on 20 deterministic episodes
+- [ ] 10.7 Require 20/20 1,000-step no-fall episodes with every episode >=0.4 m/s and mean >=0.6 m/s for automatic acceptance; do not lower, average away, or reinterpret any failed episode
+- [ ] 10.8 Verify both-phase provenance, selected and final checkpoint evidence/media, report, manifest, native checkpoint, bundle, effective-step total, measured H100 runtime/cost, and public fixture
+- [ ] 10.9 Clean up and audit every chargeable resource; retain provider history/SaaS row/S3 evidence; launch no second seed, extra steps, L40S comparison, or reward variant
+- [ ] 10.10 Generate the final G1 handoff with pass/fail metrics for every episode, selected checkpoint, flat transition step, total steps, measured timing, consumed retry state, cleanup, and exact blocker or pin-readiness
+
+## 11. Promote accepted examples safely
+
+- [ ] 11.1 For each accepted example, run the curator against the exact fresh non-tenant run and produce a deterministic acceptance record with hard/preferred pass, immutable digests, selected checkpoint, public fixture, and cleanup proof
+- [ ] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
+- [ ] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
+- [ ] 11.4 Run complete runtime/backend/frontend suites, production builds, `git diff --check`, secret/large-file scans, and strict OpenSpec validation for each promotion batch
+- [ ] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
+- [ ] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
+- [ ] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
+- [ ] 11.8 Verify signed-in tenant custom training/history, private artifact isolation, and user jobs remain unchanged by public pins
+
+## 12. Close out and hand off
+
+- [ ] 12.1 Run a final cloud audit covering Serverless AI jobs, H100/L40S/CPU instances, builder, disks, public IPs, temporary security rules, durable prefixes, SaaS rows, and provider-history retention; stop/delete every chargeable VM
+- [ ] 12.2 Produce a final campaign table for all seven examples with state, selected run/checkpoint, base/extension steps, hard/preferred metrics, measured duration/cost, retry/extension use, public pin state, and cleanup result
+- [ ] 12.3 Record accepted pins, unpublished examples, exact blockers, commands/results, and safe next actions in `IMPLEMENTATION_LOG.MD` without credentials or secret selectors
+- [ ] 12.4 Update architecture/operator documentation for the campaign matrix, state machine, explicit checkpoint finalization, G1 curriculum, recovery, cleanup, and public acceptance flow
+- [ ] 12.5 Re-run all local gates and `openspec validate curate-public-showcase-runs --strict`; check off tasks only after their evidence exists and archive the change only after implementation and production verification are complete
