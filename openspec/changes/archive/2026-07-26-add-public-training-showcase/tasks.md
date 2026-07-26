@@ -36,30 +36,30 @@
 
 ## 5. Remove the gallery training path
 
-- [ ] 5.1 Delete `catalog.resolve_gallery` and `catalog.expand_preset`, and reshape `catalog.serialize` for showcase display; retain `JOB_SPECS` as the record of what each curated run executed
-- [ ] 5.2 Remove the gallery, preset, and raw environment/algorithm branches of `main.py::submit_job` so `POST /jobs` accepts no `gallery_example_id`, `gallery_profile_id`, `preset`, `environment`, `algorithm`, or parameter override, and refuses every such payload while naming the supported custom-training path
-- [ ] 5.3 Narrow the Nebius backend in `saas/backend/app/orchestration.py` to its typed custom preparation and custom training submission sources only, removing the public-catalog production submission source and its validator
+- [x] 5.1 Delete `catalog.resolve_gallery` and `catalog.expand_preset`, and reshape `catalog.serialize` for showcase display; retain `JOB_SPECS` as the record of what each curated run executed
+- [x] 5.2 Remove the gallery, preset, and raw environment/algorithm branches of `main.py::submit_job` so `POST /jobs` accepts no `gallery_example_id`, `gallery_profile_id`, `preset`, `environment`, `algorithm`, or parameter override, and refuses every such payload while naming the supported custom-training path
+- [x] 5.3 Narrow the Nebius backend in `saas/backend/app/orchestration.py` to its typed custom preparation and custom training submission sources only, removing the public-catalog production submission source and its validator
 - [x] 5.4 Delete `saas/frontend/src/views/Composer.tsx` and its "New Job" navigation entry
 - [x] 5.5 Retarget the My Robots handoff from "Train a verified example" to "See a verified example" pointing at the read-only showcase, keeping the preparation path as the only training action
 - [x] 5.6 Update the dashboard empty state to guide tenants to My Robots for upload/setup/preparation, offering the showcase as an example of a finished run
-- [ ] 5.7 Verify historical gallery jobs still render their persisted example identity, label, avatar, metrics, and artifacts in the dashboard and detail views, with no broken re-run affordance
+- [x] 5.7 Verify historical gallery jobs still render their persisted example identity, label, avatar, metrics, and artifacts in the dashboard and detail views, with no broken re-run affordance
 
 ## 6. Tests
 
-- [ ] 6.1 Rewrite `saas/backend/tests/test_gallery.py` around the public showcase: anonymous catalog and detail reads, documented ordering, no tenant/storage identity in responses, identical response with and without a bearer token, 200-with-empty-list when nothing validates, and 404 for unknown or gate-failing entries
-- [ ] 6.2 Rewrite `saas/backend/tests/test_gallery_artifacts.py` for public artifact delivery: range support and `video/mp4` on media, safe filename on download, 404 for identifiers absent from the manifest, bounded read-only single-object presigned URLs, and withheld entries on out-of-prefix, missing, or digest-mismatched manifest members
-- [ ] 6.3 Add the negative test that no showcase route creates or mutates a job, preparation, remote resource, or storage object under any method, parameter, or header
-- [ ] 6.4 Add the negative test that substituting a tenant job ID, tenant run ID, or traversing value into any showcase route returns 404 and performs zero reads against a tenant prefix, and that a showcase example ID passed to a tenant artifact route returns 404
-- [ ] 6.5 Add tests that `POST /jobs` refuses every gallery example ID, gallery profile ID, and Go1 preset ID without creating a SaaS record or Nebius resource, and that the only job-creating endpoint is `POST /robot-setups/{setup_id}/training-jobs`
-- [ ] 6.6 Add a test that a showcase manifest lookup cannot return a tenant job's manifest and vice versa, given the shared `artifacts` cache table
-- [ ] 6.7 Add a test that the orchestration layer exposes no public-catalog submission validator and that no showcase call path reaches a launch/submit function
+- [x] 6.1 Rewrite `saas/backend/tests/test_gallery.py` around the public showcase: anonymous catalog and detail reads, documented ordering, no tenant/storage identity in responses, identical response with and without a bearer token, 200-with-empty-list when nothing validates, and 404 for unknown or gate-failing entries
+- [x] 6.2 Rewrite `saas/backend/tests/test_gallery_artifacts.py` for public artifact delivery: range support and `video/mp4` on media, safe filename on download, 404 for identifiers absent from the manifest, bounded read-only single-object presigned URLs, and withheld entries on out-of-prefix, missing, or digest-mismatched manifest members
+- [x] 6.3 Add the negative test that no showcase route creates or mutates a job, preparation, remote resource, or storage object under any method, parameter, or header
+- [x] 6.4 Add the negative test that substituting a tenant job ID, tenant run ID, or traversing value into any showcase route returns 404 and performs zero reads against a tenant prefix, and that a showcase example ID passed to a tenant artifact route returns 404
+- [x] 6.5 Add tests that `POST /jobs` refuses every gallery example ID, gallery profile ID, and Go1 preset ID without creating a SaaS record or Nebius resource, and that the only job-creating endpoint is `POST /robot-setups/{setup_id}/training-jobs`
+- [x] 6.6 Add a test that a showcase manifest lookup cannot return a tenant job's manifest and vice versa, given the shared `artifacts` cache table
+- [x] 6.7 Add a test that the orchestration layer exposes no public-catalog submission validator and that no showcase call path reaches a launch/submit function
 - [x] 6.8 Replace composer coverage in `saas/frontend/src/views/gpu-demo.test.tsx` with unauthenticated showcase coverage: root renders the showcase with no session, empty state, detail navigation, media selection, absence of any training control, and the sign-in call to action
-- [ ] 6.9 Add a rate-limit test asserting 429 for a single abusive client while the showcase stays available to others
+- [x] 6.9 Add a rate-limit test asserting 429 for a single abusive client while the showcase stays available to others
 
 ## 7. Deploy and verification
 
-- [ ] 7.1 Confirm the three public routes are reachable through the existing ingress without a session header and that static frontend serving still wins for non-API paths
-- [ ] 7.2 Confirm no new secret, volume, bucket ACL, public prefix, or credential change is required, and that the artifact bucket remains private
-- [ ] 7.3 Run the backend and frontend test suites and record results in `IMPLEMENTATION_LOG.MD`
-- [ ] 7.4 Verify in the deployed UI that an anonymous browser session reaches the showcase, sees the correct empty or published state, plays any published media, and finds no training control; then verify a signed-in tenant can still prepare and start their own custom robot
-- [ ] 7.5 Run `openspec validate add-public-training-showcase --strict` and confirm the change is ready to archive
+- [x] 7.1 Confirm the three public routes are reachable through the existing ingress without a session header and that static frontend serving still wins for non-API paths
+- [x] 7.2 Confirm no new secret, volume, bucket ACL, public prefix, or credential change is required, and that the artifact bucket remains private
+- [x] 7.3 Run the backend and frontend test suites and record results in `IMPLEMENTATION_LOG.MD`
+- [x] 7.4 Verify in the deployed UI that an anonymous browser session reaches the showcase, sees the correct empty or published state, plays any published media, and finds no training control; then verify a signed-in tenant can still prepare and start their own custom robot
+- [x] 7.5 Run `openspec validate add-public-training-showcase --strict` and confirm the change is ready to archive

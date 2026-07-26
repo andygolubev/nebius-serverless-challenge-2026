@@ -4,99 +4,51 @@
 Replace the free-form job composer with exactly seven server-owned, evidence-backed trainable
 examples so every tenant submission resolves to a complete, accepted production job specification,
 while keeping Bring Your Robot custom assets isolated from public training.
-
 ## Requirements
 ### Requirement: Exact trainable examples gallery
-The system SHALL expose exactly seven public gallery examples with stable IDs:
+The system SHALL expose exactly seven public showcase examples with stable IDs:
 `go1-walker`, `ant-explorer`, `halfcheetah-sprint`, `hopper-balance`, `walker2d-stride`,
 `g1-rough-terrain`, and `reacher-target`. Each entry SHALL include a label, concise task and
-environment description, local avatar, expected result, backend and hardware labels, one
-recommended bounded configuration, observed duration/cost guidance, success criteria, and a
-server-owned production job-spec reference.
+environment description, local avatar, expected result, backend and hardware labels, the bounded
+configuration that its curated run actually executed, observed duration/cost guidance, success
+criteria, and a server-owned pinned curated run reference. No entry SHALL carry an executable
+submission contract.
 
 #### Scenario: User requests the gallery
-- **WHEN** an authenticated client requests the public training catalog
-- **THEN** it receives the seven examples in the documented order with complete display and
-  executable metadata and no additional gallery card
+- **WHEN** any visitor requests the public showcase catalog
+- **THEN** it receives the published examples in the documented order with complete display and
+  evidence metadata, no additional card, and no submission affordance
 
 #### Scenario: Existing Go1 sizes do not multiply cards
-- **WHEN** the Go1 example exposes backward-compatible Standard and Quality workload sizes
-- **THEN** the gallery still contains one `go1-walker` card and marks one bounded profile as its
-  recommendation
-
-### Requirement: Executability-gated publication
-A gallery entry SHALL be returned or accepted only when its exact revision resolves to an
-immutable runtime image, training configuration, allowlisted compute shape, timeout, evaluation
-and render contract, required artifact contract, and recorded acceptance result. A direct request
-for an unknown, hidden, or incomplete entry SHALL be rejected before a local job record or remote
-resource is created.
-
-#### Scenario: Fully accepted entry is published
-- **WHEN** an entry has complete job-spec metadata and passing acceptance evidence for its current
-  image and configuration revision
-- **THEN** it is visible and can be submitted using its stable gallery ID
-
-#### Scenario: Incomplete entry is hidden and rejected
-- **WHEN** any required runtime, evaluation, artifact, compute, timeout, or acceptance field is
-  missing or stale
-- **THEN** the entry is omitted from the catalog and direct submission returns 422 without creating
-  a SaaS or Nebius job
-
-#### Scenario: G1 hardware claim is evidence-backed
-- **WHEN** the current G1 workload revision is evaluated for publication
-- **THEN** its production shape is the cheapest accepted L40S or H100 candidate that meets every
-  declared memory, convergence, wall-time, and cost-to-result gate, and it says H100 required only
-  when L40S fails a declared gate and H100 passes
-
-#### Scenario: G1 evaluates the advertised traversal task
-- **WHEN** the G1 Rough Terrain revision is trained, rendered, or evaluated
-- **THEN** the immutable server-owned environment configuration disables undeclared random external
-  pushes while preserving rough terrain, randomized resets, observation noise, the declared
-  1,000-step horizon, and the fixed-seed velocity/no-termination acceptance gate
-
-### Requirement: Server-resolved gallery submission
-Submitting a gallery example SHALL send its stable example ID and only optional fields explicitly
-allowlisted by that entry. The server SHALL derive the environment, algorithm, image, command,
-compute shape, timeout, secret selectors, artifact prefix, and recommended defaults from the
-catalog and persist the example ID plus the fully resolved configuration. Unknown fields and
-out-of-range values SHALL return field-level 422 errors.
-
-#### Scenario: Recommended example is submitted
-- **WHEN** a tenant submits `hopper-balance` without optional overrides
-- **THEN** the server creates a queued job using the exact recommended Hopper configuration and
-  records `gallery_example_id: hopper-balance`
-
-#### Scenario: Unsafe customization is attempted
-- **WHEN** a client supplies an image, command, environment variable, arbitrary algorithm, or field
-  outside the selected entry's declared bounds
-- **THEN** the server returns 422 before creating any local or remote resource
-
-#### Scenario: Historical job has no example identity
-- **WHEN** the UI reads a pre-gallery job whose `gallery_example_id` is null
-- **THEN** the API and UI continue to use its resolved environment/profile without inventing a
-  gallery association
+- **WHEN** the Go1 example's curated run used one of the historical Standard or Quality workload
+  sizes
+- **THEN** the showcase still contains one `go1-walker` card and reports the single workload that
+  its pinned run actually ran
 
 ### Requirement: Honest measured guidance
-Every visible example SHALL show observed end-to-end duration and cost guidance tied to the exact
-accepted job-spec and immutable image revision. The UI SHALL distinguish observed ranges from live
-run progress and SHALL NOT present an unmeasured estimate as a verified value.
+Every visible example SHALL show observed end-to-end duration and cost guidance tied to its exact
+pinned curated run and the immutable image revision that run used. The UI SHALL present these as
+recorded historical measurements of a completed run and SHALL NOT present an unmeasured estimate as
+a verified value or imply a live run.
 
 #### Scenario: Accepted measurement is shown
-- **WHEN** a gallery card is rendered from current acceptance evidence
-- **THEN** its duration/cost guidance identifies the measured range and accepted revision
+- **WHEN** a showcase card is rendered from its pinned run's recorded evidence
+- **THEN** its duration/cost guidance identifies the measured value and the run's accepted revision
 
 #### Scenario: Measurement becomes stale
-- **WHEN** an entry's image, compute shape, or recommended workload changes after measurement
-- **THEN** the entry is not publicly trainable until current acceptance evidence is recorded
+- **WHEN** an entry's declared configuration, image, or compute shape no longer matches what its
+  pinned run recorded
+- **THEN** the entry is withheld from the public showcase until the declaration and the pinned run
+  agree
 
 ### Requirement: Original accessible avatars
-Each gallery example SHALL use an original, repository-owned, same-origin SVG avatar with a stable
-aspect ratio and meaningful accessible label. Rendering the gallery SHALL make no third-party image
-request.
+Each showcase example SHALL use an original, repository-owned, same-origin SVG avatar with a stable
+aspect ratio and meaningful accessible label. Rendering the showcase SHALL make no third-party image
+request, including for unauthenticated visitors.
 
 #### Scenario: Gallery assets load
-- **WHEN** the gallery is opened on mobile or desktop
-- **THEN** all seven avatars render from local application assets without layout shift or an
+- **WHEN** the showcase is opened on mobile or desktop, signed in or not
+- **THEN** all published avatars render from local application assets without layout shift or an
   external network dependency
 
 #### Scenario: Assistive technology reads a card
@@ -104,31 +56,16 @@ request.
 - **THEN** the example name and task are available without relying on the avatar's appearance
 
 ### Requirement: Server-selected training backend
-Every gallery entry SHALL resolve to exactly one accepted SB3 or MJX backend. The UI SHALL display
-that backend as informational metadata and SHALL NOT provide a global backend/algorithm selector.
-Client attempts to override the selected entry's algorithm or backend SHALL be rejected before job
-creation.
+Every showcase entry SHALL report exactly one SB3 or MJX backend — the one its pinned curated run
+used. The UI SHALL display that backend as informational metadata about a historical run and SHALL
+NOT provide any backend, algorithm, or compute selector.
 
 #### Scenario: User reviews a card
-- **WHEN** a tenant selects G1 Rough Terrain
-- **THEN** the review identifies MJX/JAX PPO and the accepted hardware but offers no SB3 toggle
+- **WHEN** any visitor opens G1 Rough Terrain
+- **THEN** the detail identifies MJX/JAX PPO and the hardware its curated run used, with no SB3
+  toggle and no way to re-run it
 
 #### Scenario: Client attempts backend override
-- **WHEN** a client submits a gallery ID with a different algorithm or backend
-- **THEN** the server returns 422 and creates neither a SaaS job nor a remote resource
+- **WHEN** a client sends an algorithm, backend, or hardware value to a showcase route
+- **THEN** the value is rejected or ignored and no SaaS job or remote resource is created
 
-### Requirement: Bring Your Robot remains isolated
-Validated custom robots and environment drafts SHALL remain in the Bring Your Robot beta and SHALL
-NOT appear as trainable gallery entries or be accepted by `POST /jobs`. Completing model or setup
-validation SHALL NOT schedule a hidden GPU validation or automatically change the custom asset to
-trainable.
-
-#### Scenario: Validated custom setup exists
-- **WHEN** a tenant has a `Validated setup` in My Robots and opens the training gallery
-- **THEN** the setup is absent from the seven trainable examples and has no active Start Training
-  action
-
-#### Scenario: Validation completes without a training transition
-- **WHEN** a tenant saves a valid custom robot setup
-- **THEN** the setup remains validation-only until a separate accepted custom adapter capability
-  exists, and no local or remote training job is created

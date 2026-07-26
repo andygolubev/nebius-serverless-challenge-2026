@@ -170,7 +170,9 @@ class ShowcaseSettings:
         orchestration_backend: str = "mock",
     ) -> ShowcaseSettings:
         env = os.environ if env is None else env
-        # `SAAS_GALLERY_ENABLED` is still honoured so an existing deployment that set
-        # it does not silently change behaviour on upgrade.
-        raw = env.get("SAAS_SHOWCASE_ENABLED", env.get("SAAS_GALLERY_ENABLED", "true"))
+        # `SAAS_GALLERY_ENABLED` is deliberately NOT honoured here. It meant "do not
+        # let tenants spend GPU budget on gallery training" — a safety choice that
+        # must not silently translate into "hide the public evidence page", which is
+        # what reusing it would do to any deployment that set it to false.
+        raw = env.get("SAAS_SHOWCASE_ENABLED", "true")
         return cls(enabled=raw.strip().lower() in _TRUE_VALUES)

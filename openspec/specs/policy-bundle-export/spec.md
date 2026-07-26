@@ -5,18 +5,22 @@ Package and deliver a deterministic, tenant-authorized policy bundle for complet
 training jobs so a user can understand and reproduce a result without inspecting raw diagnostics,
 while keeping the checkpoint clearly scoped to its simulator and not implying physical-robot
 readiness.
-
 ## Requirements
 ### Requirement: Browser-first training outcome
-A completed gallery job SHALL present enough validated information in the browser to understand
-the outcome without downloading a file: example identity, primary task KPI, evaluation summary,
-runtime, cost, final rollout, checkpoint identity, resolved configuration, and runtime versions.
-Raw nested diagnostics SHALL be secondary to this summary.
+A published showcase entry and a completed custom job SHALL each present enough validated information
+in the browser to understand the outcome without downloading a file: identity, primary task KPI,
+evaluation summary, runtime, cost, final rollout, checkpoint identity, resolved configuration, and
+runtime versions. For a showcase entry this SHALL be available to an unauthenticated visitor. Raw
+nested diagnostics SHALL be secondary to this summary.
 
-#### Scenario: User reviews a completed run
-- **WHEN** the owner opens a completed gallery job
-- **THEN** the result view answers what trained, whether it met its evaluation criterion, how long
-  it ran, what it cost, and which checkpoint/runtime produced the rollout without requiring a
+#### Scenario: Visitor reviews a showcase run
+- **WHEN** an anonymous visitor opens a published showcase entry
+- **THEN** the view answers what trained, whether it met its evaluation criterion, how long it ran, what
+  it cost, and which checkpoint/runtime produced the rollout without requiring a download or an account
+
+#### Scenario: Owner reviews a completed custom run
+- **WHEN** the owner opens a completed custom job
+- **THEN** the result view answers the same questions from its validated manifest without requiring a
   download
 
 ### Requirement: Deterministic policy bundle
@@ -57,47 +61,46 @@ a physical robot without separate adaptation and safety validation.
 - **THEN** the original checkpoint format is preserved and the manifest names the matching loader
   rather than claiming a universal model format
 
-### Requirement: Bundle-gated completion for new gallery jobs
-A new gallery job SHALL NOT become `completed` until its bundle is readable, its outer digest is
-known, and its internal manifest and member digests validate. Historical non-gallery jobs MAY
-remain completed without a bundle.
-
-#### Scenario: Bundle is ready
-- **WHEN** all other required artifacts and a valid policy bundle are readable
-- **THEN** the gallery job may transition from finalization to completed
-
-#### Scenario: Bundle finalization fails
-- **WHEN** the bundle cannot be created or validated within the bounded finalization deadline
-- **THEN** the job becomes failed with phase `finalization` and a sanitized reason rather than
-  exposing a broken Download policy bundle action
-
-#### Scenario: Historical result is opened
-- **WHEN** a completed job created before the gallery change has no policy bundle
-- **THEN** its existing result remains readable and the UI omits the bundle action without error
-
 ### Requirement: Optional tenant-authorized bundle download
-The completed result SHALL offer a primary **Download policy bundle** action to the owning tenant,
-but downloading SHALL NOT be required to view or replay the result. Delivery SHALL use the validated
-artifact manifest and existing tenant-authorized streaming or short-lived redirect boundary with a
-safe filename.
+A completed custom job's result SHALL offer a primary **Download policy bundle** action to the owning
+tenant, and a published showcase entry SHALL offer the same action to any visitor through the public
+showcase artifact route. Downloading SHALL NOT be required to view or replay either result. Delivery
+SHALL use the validated artifact manifest and the streaming or short-lived-redirect boundary appropriate
+to its surface — tenant-authorized for an owned job, pinned-run-allowlisted for a showcase entry — with
+a safe filename and no bucket key or credential exposure. The simulator-only disclosure SHALL be shown
+before download on both surfaces.
 
 #### Scenario: Owner downloads the bundle
-- **WHEN** the owning tenant selects Download policy bundle
-- **THEN** the browser receives the exact validated archive with a safe content disposition and no
-  bucket key or credential exposure
+- **WHEN** the owning tenant selects Download policy bundle on a custom job
+- **THEN** the browser receives the exact validated archive with a safe content disposition and no bucket
+  key or credential exposure
+
+#### Scenario: Visitor downloads a showcase bundle
+- **WHEN** an anonymous visitor selects Download policy bundle on a published showcase entry
+- **THEN** the UI first states that the checkpoint is simulator-only and then delivers the exact
+  validated archive through the public showcase artifact route
 
 #### Scenario: Another tenant requests the bundle
-- **WHEN** a different authenticated tenant requests that artifact identifier
+- **WHEN** a different authenticated tenant requests an owned custom job's artifact identifier
 - **THEN** the service returns 404 without revealing whether the job or bundle exists
 
+#### Scenario: Unpublished showcase bundle is requested
+- **WHEN** a visitor requests a bundle for an example whose pinned run is unpublished or whose bundle
+  failed validation
+- **THEN** the service returns 404 and the UI omits the action rather than offering a broken download
+
 ### Requirement: Individual artifacts remain secondary
-Validated reports, JSON metrics, checkpoints, and videos SHALL remain available as individual
-secondary files when present. The final rollout SHALL remain streamable independently of the
-policy bundle.
+Validated reports, JSON metrics, checkpoints, and videos SHALL remain available as individual secondary
+files when present, on both the tenant-authorized and public showcase surfaces. The final rollout SHALL
+remain streamable independently of the policy bundle.
 
 #### Scenario: User needs only the rollout
-- **WHEN** a completed job has final MP4 media
+- **WHEN** a completed custom job or published showcase entry has final MP4 media
 - **THEN** the user can play or download it without downloading the policy archive
+
+#### Scenario: Visitor opens secondary showcase files
+- **WHEN** an anonymous visitor expands a published entry's secondary files
+- **THEN** each manifest-declared artifact is listed with a human-readable name and a public access URL
 
 ### Requirement: Policy bundle artifact delivery
 The artifact API SHALL represent a finalized `policy-bundle.zip` as a manifest-declared artifact
@@ -139,3 +142,4 @@ untrusted archive.
 - **WHEN** an archive is corrupt, missing a required file, contains an unsafe path, or disagrees
   with its declared digest
 - **THEN** it is not returned to the tenant and finalization records a sanitized validation failure
+
