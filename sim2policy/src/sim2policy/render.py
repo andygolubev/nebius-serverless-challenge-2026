@@ -157,18 +157,28 @@ def render_with_fallback(args: list[str]) -> str:
     raise RuntimeError("headless rendering failed: " + "; ".join(errors))
 
 
-def montage_command(videos: list[Path], output: Path) -> list[str]:
+def montage_command(
+    videos: list[Path], output: Path, labels: list[str] | None = None
+) -> list[str]:
+    if len(videos) < 2:
+        raise ValueError("a progression montage requires at least two videos")
+    labels = labels or ["initial", "25pct", "final"]
+    if len(labels) != len(videos):
+        raise ValueError("each progression video needs one provenance label")
     inputs = [part for video in videos for part in ("-i", str(video))]
-    labels = ["initial", "25pct", "final"]
     filters = ";".join(
         f"[{i}:v]drawtext=text='{label}':x=20:y=20:fontsize=28:fontcolor=white[v{i}]"
         for i, label in enumerate(labels)
     )
-    filters += ";[v0][v1][v2]hstack=inputs=3[out]"
+    stacked = "".join(f"[v{i}]" for i in range(len(videos)))
+    filters += f";{stacked}hstack=inputs={len(videos)}[out]"
     return ["ffmpeg", "-y", *inputs, "-filter_complex", filters, "-map", "[out]", str(output)]
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("render")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", type=Path)

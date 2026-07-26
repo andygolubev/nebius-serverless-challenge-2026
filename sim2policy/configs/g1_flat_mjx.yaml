@@ -1,8 +1,8 @@
 backend: mjx
-environment: G1JoystickRoughTerrain
+environment: G1JoystickFlatTerrain
 seed: 0
 training:
-  total_steps: 450000000
+  total_steps: 200000000
   n_envs: 8192
   device: gpu
   hyperparameters:

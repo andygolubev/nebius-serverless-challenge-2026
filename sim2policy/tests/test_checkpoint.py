@@ -6,6 +6,7 @@ from sim2policy.checkpoint import (
     CheckpointError,
     checkpoint_path,
     latest_checkpoint,
+    nearest_checkpoint,
     progression_checkpoints,
     validate_checkpoint,
     write_checkpoint_metadata,
@@ -45,3 +46,13 @@ def test_progression_uses_nearest_quarter(tmp_path: Path) -> None:
     near_quarter = make_checkpoint(tmp_path, "step", 30)
     final = make_checkpoint(tmp_path, "final", 100)
     assert progression_checkpoints(tmp_path, 100) == (initial, near_quarter, final)
+
+
+def test_nearest_checkpoint_picks_closest_step_and_breaks_ties_earlier(tmp_path: Path) -> None:
+    near_gate = make_checkpoint(tmp_path / "closest", "step", 98)
+    make_checkpoint(tmp_path / "closest", "step", 150)
+    assert nearest_checkpoint(tmp_path / "closest", 100) == near_gate
+
+    tie_low = make_checkpoint(tmp_path / "tie", "step", 90)
+    make_checkpoint(tmp_path / "tie", "step", 110)
+    assert nearest_checkpoint(tmp_path / "tie", 100) == tie_low

@@ -66,12 +66,39 @@ def _bundle(*, tamper: bool = False) -> bytes:
 
 
 SHOWCASE_METRICS = {
-    "aggregate": {"episodes": 20, "mean_reward": 1234.5, "success": True},
-    "benchmark": {"estimated_cost": 0.12, "currency": "USD"},
+    "aggregate": {"episodes": 20, "mean_reward": 1234.5, "mean_episode_length": 900},
+    "benchmark": {"estimated_cost": 0.12, "currency": "USD", "rate_date": "2026-07-26"},
     "checkpoint": "final-000001000000.zip",
-    "environment": "hopper",
+    "environment": "Hopper-v5",
     "backend": "sb3",
     "runtime_seconds": 613.2,
+    "success": {"met": True, "criterion": "mean_reward >= 1000"},
+    "matrix_digest": "a" * 64,
+    "resolved_config": {
+        "runtime_image": "registry.example/sim2policy-sb3@sha256:" + "b" * 64,
+        "training": {"total_steps": 8000000},
+        "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb"},
+    },
+    "selected_checkpoint": {"effective_step": 5000000, "sha256": "c" * 64},
+    "progression": [
+        {"stage": "untrained", "selected": False, "checkpoint": {"effective_step": 0, "sha256": "d" * 64}},
+        {"stage": "selected", "selected": True, "checkpoint": {"effective_step": 5000000, "sha256": "c" * 64}},
+        {"stage": "final-step", "selected": False, "regression": True, "checkpoint": {"effective_step": 8000000, "sha256": "e" * 64}},
+    ],
+}
+
+# A completed diagnostic G1 run is useful as a public-gate regression fixture:
+# it has complete provenance but must never be promoted because final success is false.
+G1_COMPLETED_FAILED_METRICS = {
+    **SHOWCASE_METRICS,
+    "environment": "G1JoystickRoughTerrain",
+    "backend": "mjx",
+    "aggregate": {"episodes": 20, "mean_velocity": 0.31, "mean_episode_length": 442},
+    "success": {"met": False, "criterion": "velocity >= 0.4 and not fallen"},
+    "phase_lineage": {
+        "flat": {"environment": "G1JoystickFlatTerrain", "selected_step": 150000000},
+        "rough": {"environment": "G1JoystickRoughTerrain", "effective_total_steps": 450000000},
+    },
 }
 
 
@@ -94,6 +121,8 @@ class MemoryS3:
             "metrics_json": "report/metrics.json",
             "report_md": "report/report.md",
             "video_final": "videos/final.mp4",
+            "video_selected": "videos/selected.mp4",
+            "video_final_step": "videos/final-step.mp4",
             "resolved_config": "report/resolved-config.json",
             "runtime_versions": "report/runtime-versions.json",
             "policy_bundle": "bundle/policy-bundle.zip",
@@ -109,6 +138,8 @@ class MemoryS3:
             "metrics_json": _json(SHOWCASE_METRICS if metrics is None else metrics),
             "report_md": b"result\n",
             "video_final": b"mp4-placeholder",
+            "video_selected": b"mp4-selected-placeholder",
+            "video_final_step": b"mp4-final-step-placeholder",
             "resolved_config": _json({"gallery_example_id": "hopper-balance"}),
             "runtime_versions": b"{}\n",
             "policy_bundle": _bundle(tamper=tamper_bundle),
@@ -213,6 +244,8 @@ def test_published_entry_exposes_allowlisted_artifacts_with_opaque_urls(
         "metrics_json",
         "report_md",
         "video_final",
+        "video_selected",
+        "video_final_step",
         "resolved_config",
         "runtime_versions",
         "policy_bundle",
@@ -290,14 +323,14 @@ def test_entry_is_withheld_when_the_declaration_disagrees_with_the_run(
 def test_evaluation_state_is_separate_from_infrastructure_completion(
     store, pinned
 ) -> None:
-    metrics = {**SHOWCASE_METRICS, "aggregate": {"mean_reward": 3.0, "success": False}}
+    metrics = {
+        **SHOWCASE_METRICS,
+        "aggregate": {"mean_reward": 3.0},
+        "success": {"met": False, "criterion": "mean_reward >= 1000"},
+    }
     service = _showcase_service(MemoryS3(metrics=metrics), store)
-    detail = service.detail("hopper-balance")
-    assert detail is not None
-    # Completed run, unmet threshold — not a failed job.
-    assert detail["status"] == "completed"
-    assert detail["evaluation"]["success"] is False
-    assert detail["evaluation"]["criterion"]
+    # A completed infrastructure run that misses acceptance remains unpublished.
+    assert service.detail("hopper-balance") is None
 
 
 def test_disabled_showcase_publishes_nothing(store, pinned) -> None:

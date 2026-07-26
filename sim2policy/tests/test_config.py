@@ -80,14 +80,15 @@ def test_rejects_incompatible_mjx_batch_geometry() -> None:
 def test_g1_uses_pinned_playground_tuned_profile() -> None:
     config = load_config(ROOT / "configs/g1_mjx.yaml")
 
-    assert config.training.total_steps == 200_000_000
+    assert config.training.total_steps == 450_000_000
     assert config.training.n_envs == 8192
-    assert config.checkpoint.every_steps == 11_000_000
+    assert config.checkpoint.every_steps == 25_000_000
     assert config.checkpoint.keep == 20
     assert config.training.hyperparameters == {
         "impl": "jax",
         "playground_config_overrides": {"push_config.enable": False},
         "num_eval_envs": 128,
+        "num_evals": 20,
         "batch_size": 256,
         "num_minibatches": 32,
         "num_updates_per_batch": 4,

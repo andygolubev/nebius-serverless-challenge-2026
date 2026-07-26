@@ -17,6 +17,20 @@ def test_seed_schedule_and_aggregates() -> None:
     aggregate = aggregate_episodes([{"reward": 1, "length": 2}, {"reward": 3, "length": 4}])
     assert aggregate["mean_reward"] == 2
     assert aggregate["std_reward"] == 1
+    assert aggregate["mean_episode_length"] == 3
+    assert "no_fall_count" not in aggregate
+
+
+def test_aggregate_episodes_adds_locomotion_fields_when_present() -> None:
+    aggregate = aggregate_episodes(
+        [
+            {"reward": 1, "length": 1000, "mean_velocity": 0.5, "fell": False},
+            {"reward": 2, "length": 1000, "mean_velocity": 0.7, "fell": True},
+        ]
+    )
+    assert aggregate["mean_velocity"] == 0.6
+    assert aggregate["min_velocity"] == 0.5
+    assert aggregate["no_fall_count"] == 1
 
 
 def test_cost_and_unavailable_comparison() -> None:
@@ -70,6 +84,32 @@ def test_success_and_no_success_reports(tmp_path: Path) -> None:
     summary = write_markdown_report(base, tmp_path / "summary-fail.md").read_text()
     assert "Threshold was not reached" in summary
     assert "unavailable" in summary
+
+
+def test_report_includes_curation_evidence_when_present(tmp_path: Path) -> None:
+    base = {
+        "run_id": "curated",
+        "backend": "mjx",
+        "environment": "G1JoystickRoughTerrain",
+        "checkpoint": "final.zip",
+        "seeds": [0, 1],
+        "episodes": [{"seed": 0, "reward": 1.0, "length": 1000}],
+        "aggregate": {"mean_reward": 1.0, "std_reward": 0.0, "episodes": 1},
+        "success": {"met": True, "criterion": "locomotion"},
+        "runtime_seconds": 3.0,
+        "benchmark": {"estimated_cost": 1.23},
+        "threshold_crossing": None,
+        "matrix_digest": "a" * 64,
+        "selected_checkpoint": {"effective_step": 25_000_000, "sha256": "b" * 64},
+        "seed_roles": {"selection": [101], "final": [0]},
+        "ranking_explanation": {"kind": "locomotion", "fields": ["no_fall_count"]},
+        "acceptance": {"hard": {"passed": True}, "preferred": {"passed": False}},
+    }
+    summary = write_markdown_report(base, tmp_path / "curated.md").read_text()
+    assert "Campaign matrix digest: `" + "a" * 64 + "`" in summary
+    assert "step 25000000" in summary
+    assert "Selection seeds: [101]; final seeds: [0]" in summary
+    assert "Hard floor passed: **True**; preferred target passed: **False**" in summary
 
 
 def test_metrics_schema_required_fields_are_present() -> None:

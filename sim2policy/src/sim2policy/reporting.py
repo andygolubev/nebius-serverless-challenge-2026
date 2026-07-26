@@ -11,12 +11,21 @@ METRICS_SCHEMA_VERSION = 1
 def aggregate_episodes(episodes: list[dict[str, Any]]) -> dict[str, Any]:
     rewards = [float(item["reward"]) for item in episodes]
     lengths = [int(item["length"]) for item in episodes]
-    return {
+    aggregate: dict[str, Any] = {
         "mean_reward": statistics.fmean(rewards),
         "std_reward": statistics.pstdev(rewards) if len(rewards) > 1 else 0.0,
-        "mean_length": statistics.fmean(lengths),
+        "mean_episode_length": statistics.fmean(lengths),
         "episodes": len(episodes),
     }
+    # Locomotion episodes (MJX) additionally carry `mean_velocity`/`fell`; add the
+    # same stability fields `checkpoint_selection.EvaluationEvidence` computes so
+    # final-acceptance hard/preferred gates can be evaluated from this aggregate.
+    if episodes and all("mean_velocity" in item for item in episodes):
+        velocities = [float(item["mean_velocity"]) for item in episodes]
+        aggregate["mean_velocity"] = statistics.fmean(velocities)
+        aggregate["min_velocity"] = min(velocities)
+        aggregate["no_fall_count"] = sum(not bool(item.get("fell", False)) for item in episodes)
+    return aggregate
 
 
 def calculate_cost(runtime_seconds: float, hourly_rate: float | None) -> float | None:
@@ -108,6 +117,37 @@ def write_markdown_report(metrics: dict[str, Any], output: Path) -> Path:
         f"- Estimated cost: {available(benchmark.get('estimated_cost'))}",
         "",
     ]
+    matrix_digest = metrics.get("matrix_digest")
+    if matrix_digest:
+        lines.append(f"- Campaign matrix digest: `{matrix_digest}`")
+    selected_checkpoint = metrics.get("selected_checkpoint")
+    if isinstance(selected_checkpoint, dict):
+        lines.append(
+            f"- Selected checkpoint: step {selected_checkpoint.get('effective_step')} "
+            f"(`{selected_checkpoint.get('sha256')}`)"
+        )
+    seed_roles = metrics.get("seed_roles")
+    if isinstance(seed_roles, dict):
+        lines.append(
+            f"- Selection seeds: {seed_roles.get('selection')}; "
+            f"final seeds: {seed_roles.get('final')}"
+        )
+    ranking_explanation = metrics.get("ranking_explanation")
+    if isinstance(ranking_explanation, dict):
+        lines.append(
+            f"- Ranking rule: `{ranking_explanation.get('kind')}` "
+            f"over {ranking_explanation.get('fields')}"
+        )
+    acceptance = metrics.get("acceptance")
+    if isinstance(acceptance, dict):
+        hard = acceptance.get("hard", {})
+        preferred = acceptance.get("preferred", {})
+        lines.append(
+            f"- Hard floor passed: **{hard.get('passed')}**; "
+            f"preferred target passed: **{preferred.get('passed')}**"
+        )
+    if len(lines) > 1 and lines[-1] != "":
+        lines.append("")
     threshold = metrics.get("threshold_crossing")
     lines.append(
         "Threshold was not reached within the training budget."

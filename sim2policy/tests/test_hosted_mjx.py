@@ -30,4 +30,6 @@ def test_run_trains_then_finalizes_in_separate_processes() -> None:
 
     run(["--config", "c.yaml", "--run-id", "r1"], runner=runner)
     assert [call[0][2] for call in calls] == ["sim2policy.train_mjx", "sim2policy.finalize"]
-    assert all(call[1] == {"check": True, "text": True} for call in calls)
+    assert calls[0][1] == {"check": True, "text": True}
+    assert calls[1][1]["check"] is True and calls[1][1]["text"] is True
+    assert calls[1][1]["env"]["SIM2POLICY_COMMAND_CLASS"] == "finalization"

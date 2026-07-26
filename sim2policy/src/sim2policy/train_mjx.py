@@ -579,18 +579,20 @@ def train_mjx(
         raise
 
 
-def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
+def evaluate_mjx(
+    checkpoint: Path, config: RunConfig, *, seeds: list[int] | None = None
+) -> tuple[list[dict[str, Any]], float]:
     episodes: list[dict[str, Any]] = []
     started = time.monotonic()
     episode_length = int(config.training.hyperparameters.get("episode_length", 1000))
-    seeds = [
+    schedule = seeds or [
         config.evaluation.seeds[index % len(config.evaluation.seeds)]
         for index in range(config.evaluation.episodes)
     ]
     with mjx_policy_session(checkpoint, config) as (jax, environment, policy):
         reset = jax.jit(environment.reset)
         step = jax.jit(environment.step)
-        for index, seed in enumerate(seeds):
+        for index, seed in enumerate(schedule):
             key = jax.random.PRNGKey(seed)
             state = fixed_forward_command_state(
                 reset(key),
@@ -623,9 +625,12 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
                     "seed": seed,
                     "reward": reward_sum,
                     "length": length,
+                    "horizon": episode_length,
                     "command_velocity": config.success.target_velocity,
+                    "forward_velocity": velocities[-1],
                     "mean_velocity": mean_velocity,
                     "fell": fell,
+                    "termination_reason": "fall" if fell else "horizon",
                     "success": success,
                 }
             )
@@ -647,6 +652,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("training")
     raw_args = list(sys.argv[1:] if argv is None else argv)
     if "--initial-worker" in raw_args:
         worker = argparse.ArgumentParser()

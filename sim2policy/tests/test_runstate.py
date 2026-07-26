@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -85,3 +86,18 @@ def test_manifest_and_artifact_urls(tmp_path: Path) -> None:
 def test_read_missing_returns_none(tmp_path: Path) -> None:
     assert store(tmp_path).read_status() is None
     assert store(tmp_path).read_manifest() == {}
+
+
+def test_manifest_carries_curation_evidence_without_changing_read_manifest(tmp_path: Path) -> None:
+    state = store(tmp_path)
+    (state.run_root / "checkpoints").mkdir(parents=True)
+    (state.run_root / "checkpoints" / "final.zip").write_bytes(b"policy")
+    discovered = state.discover_artifacts()
+    state.write_manifest(
+        discovered, evidence={"matrix_digest": "a" * 64, "seed_roles": {"selection": [101]}}
+    )
+    # `read_manifest()` remains the stable, evidence-free artifact-name mapping.
+    assert state.read_manifest() == discovered
+    raw = json.loads((state.run_root / "report" / "artifacts.json").read_text())
+    assert raw["curation_evidence"]["matrix_digest"] == "a" * 64
+    assert raw["curation_evidence"]["seed_roles"] == {"selection": [101]}

@@ -15,6 +15,7 @@ a normal state, not an error, because the curated runs are performed separately.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from typing import Any
@@ -31,6 +32,8 @@ PUBLIC_ARTIFACT_IDS = frozenset(
     {
         # media
         "video_final",
+        "video_selected",
+        "video_final_step",
         "video_mid",
         "video_untrained",
         "progression_montage",
@@ -61,8 +64,26 @@ REQUIRED_ARTIFACT_IDS = frozenset(
         "resolved_config",
         "runtime_versions",
         "policy_bundle",
+        "video_selected",
+        "video_final_step",
     }
 )
+
+# These are runtime identities, never friendly card labels.  A public run may
+# not choose an environment string: it must exactly match this server-owned map.
+CANONICAL_ENVIRONMENTS = {
+    "reacher-target": "Reacher-v5",
+    "halfcheetah-sprint": "HalfCheetah-v5",
+    "ant-explorer": "Ant-v5",
+    "hopper-balance": "Hopper-v5",
+    "walker2d-stride": "Walker2d-v5",
+    "go1-walker": "Go1JoystickFlatTerrain",
+    "g1-rough-terrain": "G1JoystickRoughTerrain",
+}
+_UNSAFE_EVIDENCE_KEYS = frozenset(
+    {"run_id", "job_id", "tenant_id", "email", "bucket", "key", "endpoint_url", "secret", "token"}
+)
+_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 # How long a failed or absent pinned run is remembered as unpublished. Keeps a
 # permanently-missing run (the normal state until the curated runs land) from
@@ -221,7 +242,7 @@ class ShowcaseService:
         # Declared identity must match what the run actually recorded, so a stale
         # card cannot advertise a configuration its pinned run did not execute.
         recorded_env = manifest.metrics.get("environment")
-        if isinstance(recorded_env, str) and recorded_env != example.environment:
+        if recorded_env != CANONICAL_ENVIRONMENTS[example_id]:
             self._mark_unpublished(
                 example_id, "declared environment disagrees with the recorded run"
             )
@@ -233,18 +254,50 @@ class ShowcaseService:
                 example_id, "declared backend disagrees with the recorded run"
             )
             return False
+        evaluation = self._normalized_success(manifest.metrics)
+        if evaluation is None or not evaluation["success"]:
+            self._mark_unpublished(example_id, "curated run did not record a passing success.met")
+            return False
+        selected = manifest.metrics.get("selected_checkpoint")
+        progression = manifest.metrics.get("progression")
+        if not isinstance(selected, dict) or not isinstance(selected.get("sha256"), str):
+            self._mark_unpublished(example_id, "selected checkpoint evidence is missing")
+            return False
+        if not isinstance(progression, list) or not progression:
+            self._mark_unpublished(example_id, "progression evidence is missing")
+            return False
+        if not any(isinstance(item, dict) and item.get("selected") is True for item in progression):
+            self._mark_unpublished(example_id, "progression does not identify selected policy")
+            return False
+        if not _SHA256.fullmatch(str(selected.get("sha256", ""))):
+            self._mark_unpublished(example_id, "selected checkpoint digest is invalid")
+            return False
+        if not _SHA256.fullmatch(str(manifest.metrics.get("matrix_digest", ""))):
+            self._mark_unpublished(example_id, "matrix digest is missing or invalid")
+            return False
+        resolved = manifest.metrics.get("resolved_config")
+        image = resolved.get("runtime_image") if isinstance(resolved, dict) else None
+        if not isinstance(image, str) or "@sha256:" not in image:
+            self._mark_unpublished(example_id, "runtime image is not an immutable digest")
+            return False
+        benchmark = manifest.metrics.get("benchmark")
+        if not isinstance(benchmark, dict) or not isinstance(benchmark.get("estimated_cost"), int | float):
+            self._mark_unpublished(example_id, "measured cost evidence is missing")
+            return False
         return True
 
     # -- serialization --
 
-    def _display(self, example_id: str) -> dict[str, Any]:
+    def _display(self, example_id: str, metrics: dict[str, Any]) -> dict[str, Any]:
         """Display metadata for an entry.
 
         Contains no tenant identity, job ID, bucket name, object key, credential, or
         presigned URL — only the server-owned description of what ran.
         """
         example = catalog.GALLERY_EXAMPLES[example_id]
-        spec = catalog.job_spec(example.environment, example.algorithm)
+        benchmark = metrics.get("benchmark") if isinstance(metrics.get("benchmark"), dict) else {}
+        selected = metrics.get("selected_checkpoint") if isinstance(metrics.get("selected_checkpoint"), dict) else {}
+        resolved = metrics.get("resolved_config") if isinstance(metrics.get("resolved_config"), dict) else {}
         return {
             "id": example.id,
             "label": example.label,
@@ -252,20 +305,24 @@ class ShowcaseService:
             "description": example.description,
             "avatar": example.avatar,
             "expected_result": example.expected_result,
-            "backend_label": example.backend_label,
-            "hardware_label": example.hardware_label,
-            "observed_duration": example.observed_duration,
-            "observed_cost": example.observed_cost,
+            "backend_label": str(metrics.get("backend", example.backend_label)),
+            "hardware_label": str(resolved.get("hardware_label", "measured Nebius run")),
+            "observed_duration": metrics.get("runtime_seconds"),
+            "observed_cost": benchmark.get("estimated_cost"),
+            "rate_date": benchmark.get("rate_date"),
             "acceptance_revision": example.acceptance_revision,
             # What the curated run executed, for display only. No submittable
             # environment, algorithm, preset, profile, or parameter contract.
             "executed_config": {
-                "environment": example.environment,
-                "environment_label": catalog.ENVIRONMENTS[example.environment].label,
-                "algorithm_label": example.backend_label,
-                "total_timesteps": example.recommended_params.get("total_timesteps"),
-                "platform": spec.platform if spec else None,
-                "preset": spec.preset if spec else None,
+                "environment": metrics.get("environment"),
+                "algorithm_label": str(metrics.get("backend", example.backend_label)),
+                "total_timesteps": resolved.get("training", {}).get("total_steps") if isinstance(resolved.get("training"), dict) else None,
+                "platform": resolved.get("hardware", {}).get("platform") if isinstance(resolved.get("hardware"), dict) else None,
+                "preset": resolved.get("hardware", {}).get("preset") if isinstance(resolved.get("hardware"), dict) else None,
+            },
+            "selected_checkpoint": {
+                "step": selected.get("effective_step"),
+                "sha256": selected.get("sha256"),
             },
         }
 
@@ -297,26 +354,41 @@ class ShowcaseService:
             )
         return items
 
+    def _normalized_success(self, metrics: dict[str, Any]) -> dict[str, Any] | None:
+        success = metrics.get("success")
+        if not isinstance(success, dict) or set(success) - {"met", "criterion"}:
+            return None
+        if not isinstance(success.get("met"), bool) or not isinstance(success.get("criterion"), str):
+            return None
+        return {"success": success["met"], "criterion": success["criterion"]}
+
     def _evaluation(self, manifest: ArtifactManifest, example_id: str) -> dict[str, Any]:
         """Evaluation outcome, kept separate from infrastructure completion.
 
         A run that produced every artifact but missed its task threshold is a
         completed run with an unmet evaluation, not a failed job.
         """
-        example = catalog.GALLERY_EXAMPLES[example_id]
         metrics = manifest.metrics if isinstance(manifest.metrics, dict) else {}
-        aggregate = metrics.get("aggregate")
-        success: bool | None = None
-        for source in (aggregate if isinstance(aggregate, dict) else {}, metrics):
-            value = source.get("success")
-            if isinstance(value, bool):
-                success = value
-                break
+        normalized = self._normalized_success(metrics)
+        if normalized is None:
+            return {"success": None, "criterion": None, "primary_metric": None}
+        aggregate = metrics.get("aggregate") if isinstance(metrics.get("aggregate"), dict) else {}
         return {
-            "success": success,
-            "criterion": example.success_criterion,
-            "primary_metric": example.primary_metric,
+            "success": normalized["success"],
+            "criterion": normalized["criterion"],
+            "primary_metric": aggregate.get("mean_velocity", aggregate.get("mean_reward")),
         }
+
+    def _public_metrics(self, value: Any) -> Any:
+        if isinstance(value, dict):
+            return {
+                str(key): self._public_metrics(item)
+                for key, item in value.items()
+                if str(key).lower() not in _UNSAFE_EVIDENCE_KEYS
+            }
+        if isinstance(value, list):
+            return [self._public_metrics(item) for item in value]
+        return value
 
     # -- public reads --
 
@@ -327,7 +399,7 @@ class ShowcaseService:
             manifest = self._manifest(example_id)
             if manifest is None:
                 continue
-            entry = self._display(example_id)
+            entry = self._display(example_id, manifest.metrics)
             entry["evaluation"] = self._evaluation(manifest, example_id)
             entry["has_media"] = any(
                 item.kind == "video"
@@ -348,11 +420,12 @@ class ShowcaseService:
         manifest = self._manifest(example_id)
         if manifest is None:
             return None
-        detail = self._display(example_id)
+        detail = self._display(example_id, manifest.metrics)
         detail["evaluation"] = self._evaluation(manifest, example_id)
         # Infrastructure completion, reported separately from the evaluation above.
         detail["status"] = manifest.status
-        detail["metrics"] = manifest.metrics
+        detail["metrics"] = self._public_metrics(manifest.metrics)
+        detail["progression"] = self._public_metrics(manifest.metrics.get("progression", []))
         detail["artifacts"] = self._public_artifacts(example_id, manifest)
         return detail
 

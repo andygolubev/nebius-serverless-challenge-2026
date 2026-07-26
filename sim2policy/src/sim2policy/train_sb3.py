@@ -240,6 +240,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("training")
     args = build_parser().parse_args(argv)
     config = load_config(args.config, dict(args.overrides))
     if config.backend != "sb3":

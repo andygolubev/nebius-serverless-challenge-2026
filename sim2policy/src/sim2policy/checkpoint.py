@@ -27,6 +27,23 @@ class CheckpointMetadata:
     sha256: str
 
 
+@dataclass(frozen=True)
+class CheckpointInventory:
+    """One immutable checkpoint record used by selection and finalization."""
+
+    backend: str
+    run_lineage: str
+    effective_step: int
+    native_path: str
+    sha256: str
+    phase: str
+    environment: str
+    load_compatible: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -99,6 +116,18 @@ def latest_checkpoint(directory: Path) -> Path:
     return checkpoints[-1][1]
 
 
+def nearest_checkpoint(directory: Path, target_step: int) -> Path:
+    """Return the retained checkpoint closest to `target_step`.
+
+    Used for milestone gates (e.g. the G1 flat gate schedule) where training
+    cadence may not land on the exact nominal step.
+    """
+    checkpoints = list_step_checkpoints(directory)
+    if not checkpoints:
+        raise CheckpointError(f"no completed checkpoints in {directory}")
+    return min(checkpoints, key=lambda item: (abs(item[0] - target_step), item[0]))[1]
+
+
 def progression_checkpoints(directory: Path, total_steps: int) -> tuple[Path, Path, Path]:
     checkpoints = list_step_checkpoints(directory)
     if not checkpoints:
@@ -107,3 +136,36 @@ def progression_checkpoints(directory: Path, total_steps: int) -> tuple[Path, Pa
     final = max(checkpoints, key=lambda item: item[0])
     quarter = min(checkpoints, key=lambda item: (abs(item[0] - total_steps * 0.25), item[0]))
     return initial[1], quarter[1], final[1]
+
+
+def checkpoint_inventory(
+    checkpoint: Path,
+    config: RunConfig,
+    *,
+    run_lineage: str,
+    phase: str = "training",
+) -> CheckpointInventory:
+    """Load and attest a checkpoint before it can enter curated evidence."""
+    metadata = validate_checkpoint(checkpoint, config)
+    return CheckpointInventory(
+        backend=metadata.backend,
+        run_lineage=run_lineage,
+        effective_step=metadata.step,
+        native_path=checkpoint.name,
+        sha256=metadata.sha256,
+        phase=phase,
+        environment=metadata.environment,
+        load_compatible=True,
+    )
+
+
+def checkpoint_by_digest(directory: Path, digest: str) -> Path:
+    """Resolve exactly one local checkpoint by verified digest, never by a UI label."""
+    matches = [
+        path
+        for _, path in list_step_checkpoints(directory)
+        if load_checkpoint_metadata(path).sha256 == digest
+    ]
+    if len(matches) != 1:
+        raise CheckpointError("selected checkpoint digest does not resolve uniquely")
+    return matches[0]

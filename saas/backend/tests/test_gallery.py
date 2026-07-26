@@ -15,7 +15,7 @@ from app.models import STATUS_QUEUED, ArtifactManifest, Job
 from app.settings import ShowcaseSettings
 from app.showcase import ShowcaseService
 from app.store import JobStore
-from tests.test_gallery_artifacts import MemoryS3
+from tests.test_gallery_artifacts import MemoryS3, SHOWCASE_METRICS
 
 GALLERY_ORDER = [
     "go1-walker",
@@ -86,7 +86,7 @@ def test_published_entry_carries_display_and_evidence_metadata(client, published
     entry = client.get("/showcase").json()["examples"][0]
     assert entry["label"] == "Hopper Balance"
     assert entry["avatar"] == "/avatars/hopper-balance.svg"
-    assert entry["backend_label"] == "SB3 PPO"
+    assert entry["backend_label"] == "sb3"
     assert entry["observed_duration"] and entry["observed_cost"]
     assert entry["evaluation"]["criterion"]
     assert entry["has_media"] is True
@@ -119,7 +119,9 @@ def test_entries_follow_documented_gallery_order(client, monkeypatch, store):
         example_id: MemoryS3(
             run=f"sim2policy/run-{example_id}",
             metrics={
-                "aggregate": {"mean_reward": 1.0, "success": True},
+                **SHOWCASE_METRICS,
+                "environment": showcase.CANONICAL_ENVIRONMENTS[example_id],
+                "backend": "mjx" if example_id in {"go1-walker", "g1-rough-terrain"} else "sb3",
                 "runtime_seconds": 1.0,
             },
         )
