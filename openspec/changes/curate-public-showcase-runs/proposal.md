@@ -24,6 +24,13 @@ conditions—not prose that asks the operator to “monitor and decide.”
   state, makes submission idempotent, verifies durable artifacts, selects checkpoints, classifies
   failures, performs cloud cleanup audits, and stops with `NEEDS_HUMAN` whenever the declared matrix
   cannot decide the next action.
+- Make the shared host a control-and-edit terminal only. All executable preparation and workload
+  activity—including dependency installation, tests, builds, container health/import checks,
+  environment construction, smoke runs, artifact verification, evaluation, rendering, training,
+  finalization, and campaign-runner execution—must occur on Nebius Cloud compute. The host may edit
+  source/planning files, run non-executing Git/OpenSpec inspection, and issue authenticated control-
+  plane or SSH commands that cause work to execute in Nebius; it may not execute project workload
+  code or use local CPU/GPU for the campaign.
 - Train the five SB3 examples on the validated CPU profile. Run three independent seeds, select the
   best checkpoint across seeds, and extend only the best seed once when the hard floor is met but the
   preferred showcase target is missed.
@@ -61,14 +68,16 @@ conditions—not prose that asks the operator to “monitor and decide.”
 
 - **Planning and operations**: adds a detailed execution runbook, campaign matrix, resumable journal,
   exact robot run cards, retry/extension rules, cost/time envelopes, and handoff templates suitable
-  for a lightweight execution agent.
+  for a lightweight execution agent. The runbook has an explicit Nebius execution-location gate.
 - **Runtime** (`sim2policy/configs/`, `sim2policy/src/sim2policy/`, `sim2policy/jobs/`): will add
   server-owned result profiles, checkpoint selection/finalization, the G1 curriculum entry point, and
   a campaign CLI. These are implementation tasks; this proposal launches no jobs and changes no
   cloud resources.
 - **Backend/frontend**: will replace placeholders only with independently accepted non-tenant runs
   and will expose measured progression evidence without restoring any public training action.
-- **Cloud**: SB3 uses the validated `cpu-d3` profile; Go1 and G1 use the single-H100 profile because
+- **Cloud**: a reusable Nebius CPU D3 orchestration/builder machine performs every preparation,
+  executable test, build, campaign command, and CPU workload; SB3 uses the validated `cpu-d3`
+  profile; Go1 and G1 use the single-H100 profile because
   the operator explicitly prioritizes result and predictable wall time over minimum spend. Jobs are
   serialized and chargeable compute is stopped or deleted after durable evidence verification.
 - **Compatibility/security**: public routes stay read-only, the artifact bucket stays private,

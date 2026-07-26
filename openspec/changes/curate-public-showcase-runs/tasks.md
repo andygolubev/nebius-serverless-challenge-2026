@@ -3,9 +3,11 @@
 - [ ] 1.1 Read `AGENTS.md`, `ARCHITECTURE.md`, this change's proposal/design/specs/runbook, the archived gallery/showcase changes, `saas/API_RUNBOOK.md`, and `IMPLEMENTATION_LOG.MD`; record branch, revision, active change, observed source state, and safe next action without secrets
 - [ ] 1.2 Confirm `debug-portal` is checked out, run `openspec list`, preserve unrelated worktree changes, and stop if planned implementation overlaps dirty user files
 - [ ] 1.3 Inventory the current SB3/MJX configs, hosted entry points, submitter, finalizer, checkpoint loaders, artifact schemas, public evidence adapter, infrastructure outputs, and tests; map every runbook dependency to an existing or missing implementation
-- [ ] 1.4 Re-verify sanitized historical baselines for all seven examples and save only non-tenant metrics/digests needed for regression tests; historical results remain comparison/rollback evidence, not fresh campaign pins
+- [ ] 1.4 Re-verify sanitized historical baselines for all seven examples using a Nebius CPU verifier job/VM and save only non-tenant metrics/digests needed for regression tests; do not download/process run artifacts on the shared host, and keep historical results as comparison/rollback evidence rather than fresh campaign pins
 - [ ] 1.5 Add fixtures for real canonical environment identities, nested `success.met`, selected-checkpoint evidence, a completed-but-failed G1, and measured runtime/cost fields; exclude tenant email, bearer tokens, secret selectors, storage credentials, and raw private keys
 - [ ] 1.6 Convert every unresolved implementation dependency into an explicit task below; do not launch a paid job while the runbook implementation-complete gate is unavailable
+- [ ] 1.7 Add an execution-location policy and wrapper that allow the shared host only source/planning edits, static Git/OpenSpec inspection, and Nebius/GitHub control-plane or SSH invocation; make every project test/build/import/smoke/campaign/verification/evaluation/render/training/finalization command fail before start unless Nebius instance/job metadata matches an approved resource
+- [ ] 1.8 Define the sanitized Nebius location-attestation schema with instance/job ID, region, immutable revision/image, command class, and timestamps; add it to every preparation and workload evidence record without credentials
 
 ## 2. Define and validate the campaign matrix
 
@@ -19,7 +21,7 @@
 - [ ] 2.8 Encode G1 seed 0, H100 preset, 100 GiB disk, five-hour timeout, fixed 450M curriculum total, flat gates at 100M/150M/200M, 25M candidate cadence, no extension, hard 20/20 no-fall with per-episode 0.4 m/s, and preferred mean 0.6 m/s
 - [ ] 2.9 Encode selection seeds `[101,151,211,271,331]`, final seeds `[0,1,2,3,4]`, two selection episodes and four final episodes per seed; reject overlapping sets and role ambiguity
 - [ ] 2.10 Add typed schema/loading/normalization code that rejects runtime overrides, mutable image tags, preemptible capacity, missing digests, nonpositive steps, invalid extension totals, wrong preset/backend combinations, and changes after campaign initialization
-- [ ] 2.11 Add snapshot tests for the normalized matrix and digest plus negative tests for every prohibited override and matrix invariant
+- [ ] 2.11 On the Nebius CPU orchestration VM, run snapshot tests for the normalized matrix and digest plus negative tests for every prohibited override and matrix invariant; retain the location attestation with the result
 
 ## 3. Implement checkpoint evaluation and explicit finalization
 
@@ -32,7 +34,7 @@
 - [ ] 3.7 Change hosted finalization to accept one explicit selected checkpoint digest and evaluate/render that checkpoint while preserving the final-step checkpoint as labeled progression evidence
 - [ ] 3.8 Emit initial, representative intermediate, selected, and final-step videos linked to exact checkpoint steps/digests and metrics; retain regressions rather than silently substituting media
 - [ ] 3.9 Extend `metrics.json`, resolved config, report, manifest, and policy bundle with matrix digest, phase lineage, selected checkpoint, ranking explanation, seed roles, hard/preferred results, and measured runtime/cost
-- [ ] 3.10 Add tests for earlier-best selection, ties, regression, missing candidates, corrupt checkpoints, incompatible resume, explicit finalization, deterministic videos, manifest checksums, and bundle inventory
+- [ ] 3.10 On Nebius CPU compute, run tests for earlier-best selection, ties, regression, missing candidates, corrupt checkpoints, incompatible resume, explicit finalization, deterministic videos, manifest checksums, and bundle inventory; execute any simulator/render test only inside the immutable Nebius image
 
 ## 4. Implement the G1 450M curriculum
 
@@ -45,23 +47,23 @@
 - [ ] 4.7 Record both phase configs, image/config/matrix digests, input/output checkpoint digests, effective-step accounting, JIT/train/eval/render/upload timings, and phase outcomes in one immutable provenance chain
 - [ ] 4.8 Ensure rough training does not cancel because an intermediate checkpoint looks weak; only numerical failure, provider failure, or timeout may terminate after rough start
 - [ ] 4.9 Prohibit automatic second G1 seed, steps above 450M, L40S comparison, reward mutation, threshold relaxation, or final-set reselection
-- [ ] 4.10 Add unit/integration tests for flat pass at 100M/150M/200M, flat failure, correct remainder arithmetic, cross-phase resume, earlier-best rough selection, 450M ceiling, final hard/preferred outcomes, and diagnostic finalization
+- [ ] 4.10 On Nebius CPU/GPU compute as appropriate, run unit/integration tests for flat pass at 100M/150M/200M, flat failure, correct remainder arithmetic, cross-phase resume, earlier-best rough selection, 450M ceiling, final hard/preferred outcomes, and diagnostic finalization; no G1/JAX/MuJoCo import or test may run on the shared host
 
 ## 5. Implement the resumable campaign CLI
 
-- [ ] 5.1 Implement `init` with campaign-ID validation, normalized matrix digest, atomic non-secret state, append-only journal, campaign lock, ordered examples, and refusal to reuse an ID for a different digest
+- [ ] 5.1 Implement `init` with campaign-ID validation, normalized matrix digest, atomic non-secret state on the Nebius orchestration VM's managed disk, append-only journal, campaign lock, ordered examples, location attestation, and refusal to reuse an ID for a different digest
 - [ ] 5.2 Implement states `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`, `ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, and `CLEANED` with validated transitions and one active remote job invariant
 - [ ] 5.3 Implement stable exit codes 0/10/20/30/40 and a redacted structured envelope with exact `next_command`; ensure raw environment/provider errors cannot leak credentials
-- [ ] 5.4 Implement `implementation-gate` that proves matrix, runner, finalizer, curriculum, artifact verifier, cloud auditor, immutable images, smoke tests, local suites, and stopped builder before paid work
-- [ ] 5.5 Implement `preflight` for branch/revision, tracked overlap, immutable image digest, GitHub Actions status, infrastructure outputs, credential availability without value disclosure, preset/quota, disk/timeout, non-preemptible flag, and cloud baseline
+- [ ] 5.4 Implement `implementation-gate` that proves an approved Nebius execution location, matrix, runner, finalizer, curriculum, artifact verifier, cloud auditor, immutable images, Nebius smoke tests, Nebius-executed suites, and stopped/in-use-accounted builder before paid work
+- [ ] 5.5 Implement `preflight` for branch/revision, tracked overlap, immutable image digest, Nebius quality-gate attestations, informational GitHub Actions/deployment status, infrastructure outputs, credential availability without value disclosure, preset/quota, disk/timeout, non-preemptible flag, and cloud baseline; never accept a GitHub-hosted workload check in place of Nebius evidence
 - [ ] 5.6 Implement `plan` with exact run ID/prefix, backend/module, image/config/matrix digests, steps/cadence/seeds, hardware/timeout, parent lineage, required artifacts/gates, retry allowance, cleanup action, and redacted provider preview
 - [ ] 5.7 Implement plan-digest confirmation and reject any submission whose normalized plan differs from the reviewed plan
 - [ ] 5.8 Implement `submit` with deterministic non-tenant run IDs, idempotency key, exact immutable tag/digest, existing infrastructure/secret selectors, no secret output, and no direct mutable CLI overrides
 - [ ] 5.9 Implement `watch` with 60-second polling, heartbeats, effective-step/last-checkpoint/finalization progress, terminal recognition, safe re-entry, and needs-human after five minutes of missing heartbeat while provider state remains active
-- [ ] 5.10 Implement `verify`, `select`, `extend`, `accept`, `cleanup`, `audit-cloud`, `status`, and `handoff` according to the runbook, with every command idempotent
-- [ ] 5.11 Implement stale-lock recovery that proves no live local process and changes no remote state; prohibit force-clearing an active campaign lock
-- [ ] 5.12 Add state-machine tests for interruption/resume, duplicate command, concurrent invocation, duplicate remote name with matching/mismatching digest, unknown provider state, finalization-only retry, compatible/incompatible resume, and cleanup blocking
-- [ ] 5.13 Add redaction tests using sentinel secrets across stdout/stderr/state/journal/plans/audits/handoff and fail the suite if any sentinel appears
+- [ ] 5.10 Implement `verify`, `select`, `extend`, `accept`, `cleanup`, `audit-cloud`, `status`, and `handoff` according to the runbook, with every command idempotent and executable only on the approved Nebius orchestration VM
+- [ ] 5.11 Implement stale-lock recovery that proves no live campaign process on the Nebius orchestration VM and changes no remote state; prohibit force-clearing an active campaign lock
+- [ ] 5.12 On the Nebius CPU VM, run state-machine tests for interruption/resume, duplicate command, concurrent invocation, duplicate remote name with matching/mismatching digest, unknown provider state, finalization-only retry, compatible/incompatible resume, cleanup blocking, and host-location rejection
+- [ ] 5.13 On the Nebius CPU VM, run redaction tests using sentinel secrets across stdout/stderr/state/journal/plans/audits/handoff/location attestations and fail the suite if any sentinel appears
 
 ## 6. Implement immutable acceptance and public evidence handling
 
@@ -73,22 +75,23 @@
 - [ ] 6.6 Keep historical accepted runs available only as named baselines/rollback targets; require an explicit reviewed decision before using one instead of a fresh accepted run
 - [ ] 6.7 Refactor public serialization to use measured curated evidence rather than catalog defaults for executed config, hardware, duration, cost, versions, checkpoint, success, and progress
 - [ ] 6.8 Keep the public resolver structurally separate from tenant lookup and prove headers, tenant IDs/run IDs, object keys, query overrides, and write methods cannot influence evidence resolution or start work
-- [ ] 6.9 Add backend/frontend fixtures and tests for all fresh accepted shapes, completed failure, hard-only/preferred-fail, partial publication, stable order, selected-versus-final progress, regressions, anonymous equality, media/downloads, 404 isolation, and no training actions
+- [ ] 6.9 On Nebius CPU compute, run backend/frontend fixture suites for all fresh accepted shapes, completed failure, hard-only/preferred-fail, partial publication, stable order, selected-versus-final progress, regressions, anonymous equality, media/downloads, 404 isolation, no training actions, and location-attestation enforcement
 
-## 7. Build immutable images and pass increasing-cost gates
+## 7. Prepare, test, and build exclusively on Nebius Cloud
 
-- [ ] 7.1 Run local lint, type, unit, integration, frontend, production-build, `git diff --check`, secret scan, large-file scan, and `openspec validate curate-public-showcase-runs --strict`; resolve failures before image work
-- [ ] 7.2 Start or reuse the approved `cpu-d3` builder with its cached disk, verify ownership/scope, and record non-secret instance state in `IMPLEMENTATION_LOG.MD`
-- [ ] 7.3 Build SB3 and MJX images with BuildKit from the exact reviewed commit, tag with immutable commit SHA, run health/import/config/matrix/CLI tests, and push without replacing any tag used by an active job
-- [ ] 7.4 Resolve and record registry digests; prove planned configs/modules are present and no secret or generated training artifact is baked into either image
-- [ ] 7.5 Run a short bounded CPU SB3 smoke with explicit timeout through the campaign path; verify one update, checkpoint, explicit finalization, durable upload, artifact read, cleanup, and idempotent re-entry
-- [ ] 7.6 Run a short bounded single-H100 MJX smoke with explicit timeout; verify CUDA/JAX device discovery, compile, flat/rough environment construction, one update per path, checkpoint resume, selection evaluation, render, bundle, upload, and cleanup
-- [ ] 7.7 Stop the CPU builder after images are durable; stop/delete smoke compute; audit jobs, instances, disks, IPs, and temporary rules; do not proceed until audit passes
-- [ ] 7.8 Re-run `implementation-gate` and archive its sanitized output/digests in the gitignored campaign evidence location
+- [ ] 7.1 On the shared host run only static source/plan inspection (`git diff --check`, `git status`, `rg`, and `openspec validate curate-public-showcase-runs --strict`); do not install dependencies or run project Python/Node/Docker/test/build/import/simulation commands there
+- [ ] 7.2 Start or reuse the approved Nebius `cpu-d3` `8vcpu-32gb` orchestration/builder VM with a 300–500 GiB cached managed SSD, verify ownership/scope/region, attest its instance identity, check out the exact `debug-portal` revision, and record only non-secret instance state in `IMPLEMENTATION_LOG.MD`
+- [ ] 7.3 On that Nebius VM install dependencies and run lint, type, unit, integration, backend/frontend, production-build, secret-scan, and large-file gates; store sanitized results plus location/revision attestations and resolve failures before image work
+- [ ] 7.4 On that Nebius VM build SB3 and MJX images with BuildKit from the exact reviewed commit, tag with immutable commit SHA, run health/import/config/matrix/CLI tests, and push without replacing any tag used by an active job
+- [ ] 7.5 From the Nebius VM resolve and record registry digests; prove planned configs/modules are present and no secret or generated training artifact is baked into either image
+- [ ] 7.6 Run a short bounded Nebius CPU SB3 smoke with explicit timeout through the campaign path; verify one update, checkpoint, explicit finalization, durable upload, cloud-side artifact read, cleanup, idempotent re-entry, and location attestation
+- [ ] 7.7 Run a short bounded Nebius single-H100 MJX smoke with explicit timeout; verify CUDA/JAX device discovery, compile, flat/rough environment construction, one update per path, checkpoint resume, selection evaluation, render, bundle, upload, cleanup, and location attestation
+- [ ] 7.8 Stop/delete smoke compute; stop the CPU orchestration/builder whenever no active preparation/control/verification process needs it; audit jobs, instances, disks, IPs, and temporary rules and do not proceed until audit passes
+- [ ] 7.9 Restart/attest the Nebius orchestration VM only when needed, re-run `implementation-gate` there, and archive its sanitized output/digests on the VM's gitignored campaign state plus the approved durable evidence location
 
 ## 8. Execute fresh SB3 campaigns sequentially
 
-- [ ] 8.1 Initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff
+- [ ] 8.1 From the attested Nebius orchestration VM, initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff; the shared host only invokes/observes the cloud command
 - [ ] 8.2 Execute Reacher seed 0 through plan/submit/watch/verify/cleanup; record exact state/evidence/cleanup and run no other campaign job concurrently
 - [ ] 8.3 Execute Reacher seeds 7 and 42 with the identical matrix contract, verifying and cleaning each before the next
 - [ ] 8.4 Run Reacher selection; if required by structured `next_command`, extend only the winning seed to 1.5M; final-accept once and emit accepted/rejected/needs-human without improvisation
@@ -126,7 +129,7 @@
 - [ ] 11.1 For each accepted example, run the curator against the exact fresh non-tenant run and produce a deterministic acceptance record with hard/preferred pass, immutable digests, selected checkpoint, public fixture, and cleanup proof
 - [ ] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
 - [ ] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
-- [ ] 11.4 Run complete runtime/backend/frontend suites, production builds, `git diff --check`, secret/large-file scans, and strict OpenSpec validation for each promotion batch
+- [ ] 11.4 For each promotion batch run complete runtime/backend/frontend suites, production builds, and executable secret/large-file scans on Nebius CPU compute with location attestations; run only static `git diff --check` and strict OpenSpec validation on the shared host
 - [ ] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
 - [ ] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
 - [ ] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
@@ -138,4 +141,4 @@
 - [ ] 12.2 Produce a final campaign table for all seven examples with state, selected run/checkpoint, base/extension steps, hard/preferred metrics, measured duration/cost, retry/extension use, public pin state, and cleanup result
 - [ ] 12.3 Record accepted pins, unpublished examples, exact blockers, commands/results, and safe next actions in `IMPLEMENTATION_LOG.MD` without credentials or secret selectors
 - [ ] 12.4 Update architecture/operator documentation for the campaign matrix, state machine, explicit checkpoint finalization, G1 curriculum, recovery, cleanup, and public acceptance flow
-- [ ] 12.5 Re-run all local gates and `openspec validate curate-public-showcase-runs --strict`; check off tasks only after their evidence exists and archive the change only after implementation and production verification are complete
+- [ ] 12.5 Re-run all executable gates on Nebius Cloud and retain their location attestations; on the shared host run only static Git/OpenSpec checks including `openspec validate curate-public-showcase-runs --strict`; check off tasks only after evidence exists and archive only after implementation and production verification are complete

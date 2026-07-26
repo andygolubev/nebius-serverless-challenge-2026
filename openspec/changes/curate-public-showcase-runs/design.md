@@ -25,7 +25,11 @@ operator. Implementation must precede paid execution.
 Constraints are unchanged: work remains on `debug-portal`; public routes are anonymous and read-only;
 tenant identities cannot be pinned; images/configs are immutable; bucket and registry secrets are
 resolved from existing infrastructure; Serverless AI provider history is retained unless explicitly
-reversed; every chargeable VM is stopped or deleted when its work ends.
+reversed; every chargeable VM is stopped or deleted when its work ends. The shared host is not an
+execution target: every executable preparation, test, build, import, smoke run, environment load,
+artifact verifier, evaluator, renderer, trainer, finalizer, and campaign-runner process runs on
+Nebius Cloud compute. The host is limited to source/planning edits, non-executing Git/OpenSpec
+inspection, and authenticated control-plane/SSH commands whose payload executes in Nebius.
 
 ## Goals / Non-Goals
 
@@ -38,6 +42,8 @@ reversed; every chargeable VM is stopped or deleted when its work ends.
 - Select the best evaluated checkpoint across steps and seeds, not merely the latest checkpoint.
 - Preserve honest initial/intermediate/selected/final progression and immutable provenance.
 - End every branch in `ACCEPTED`, `REJECTED`, or `NEEDS_HUMAN`, with chargeable resources audited.
+- Prove the execution location before every executable preparation or campaign transition and reject
+  any attempt to run project workload code on the shared host.
 
 **Non-goals**
 
@@ -49,6 +55,34 @@ reversed; every chargeable VM is stopped or deleted when its work ends.
 - Publishing the failed tenant G1 run or the unrelated custom-biped Stand Balance result.
 
 ## Decisions
+
+### 0. Nebius Cloud is the only workload and preparation execution environment
+
+The shared host is a control terminal, not a runner. It may edit files, inspect diffs/status, run the
+OpenSpec CLI for planning validation, query GitHub/Nebius control planes, and establish SSH sessions.
+It SHALL NOT install project dependencies or execute Python/Node training modules, lint/type/unit/
+integration suites, frontend builds, Docker/BuildKit, image imports, MuJoCo/JAX/SB3 environments,
+smoke tests, checkpoint evaluation, rendering, artifact verification, finalization, or campaign state
+transitions.
+
+Implementation creates or reuses the approved Nebius `cpu-d3` orchestration/builder VM in
+`eu-north1`, normally `8vcpu-32gb` with a 300–500 GiB managed SSD. The exact `debug-portal` revision is
+checked out there. It runs dependency setup, all CPU validation/test/build work, immutable image
+construction, the campaign CLI, artifact verification, and cloud audits. GPU smoke/training executes
+only in bounded Nebius Serverless AI jobs using the immutable image. The orchestration VM persists
+the gitignored campaign state on its managed disk, uploads sanitized handoffs/evidence digests to the
+approved durable location when required, and is stopped whenever no active preparation, campaign
+control, or verification process needs it.
+
+Every cloud-executed command records a location attestation containing provider instance/job ID,
+region, image or host revision, start/end time, and command class, but no credentials. The campaign
+preflight refuses an absent, local, ambiguous, or mismatched attestation. Results copied back to the
+host are reports/digests only; native checkpoints, generated media, containers, and run artifacts
+remain in the registry/private artifact bucket.
+
+Alternative: run fast tests and campaign commands locally while reserving only training for Nebius.
+Rejected because the operator explicitly requires all job preparation and execution to occur in
+Nebius and because local dependency/runtime drift would weaken reproducibility.
 
 ### 1. A versioned campaign matrix is the sole source of execution choices
 
@@ -85,8 +119,8 @@ could silently drift the experiment and make retries incomparable.
 
 ### 2. The campaign is a persisted, serialized state machine
 
-The campaign CLI writes only non-secret metadata beneath gitignored
-`.showcase-campaigns/<campaign-id>/`: normalized matrix digest, state JSON, append-only JSONL journal,
+The campaign CLI runs on the Nebius orchestration VM and writes only non-secret metadata beneath its
+gitignored `.showcase-campaigns/<campaign-id>/`: normalized matrix digest, state JSON, append-only JSONL journal,
 redacted plans, remote IDs, evidence digests, decisions, cleanup audits, and a handoff summary. Atomic
 file replacement and a campaign lock prevent two operators from advancing the same campaign.
 
@@ -95,8 +129,9 @@ Per-attempt states are `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALI
 be active for this campaign. Re-running a command reads state and either performs the one missing
 transition or reports that the transition already completed.
 
-The CLI owns polling, redaction, artifact verification, deterministic selection, extension choice,
-and cleanup checks. A lightweight agent runs documented commands and reports exit status. It never
+The cloud-resident CLI owns polling, redaction, artifact verification, deterministic selection,
+extension choice, and cleanup checks. A lightweight agent invokes documented commands through the
+approved Nebius session and reports exit status. It never
 parses live logs to invent a decision. Exit codes are stable: 0 completed requested transition; 10
 remote work still active; 20 deterministic rejection recorded and campaign may advance; 30 human
 decision required; 40 invariant/security/cleanup failure.
@@ -222,12 +257,14 @@ blocked until the cleanup audit passes.
 
 ## Migration Plan
 
-1. Implement and test the matrix schema, campaign CLI/state machine, explicit-checkpoint finalizer,
-   typed curation evidence, and G1 curriculum locally; launch nothing.
-2. Build immutable SB3/MJX images on the CPU builder, run increasing-cost image/smoke gates, push exact
+1. Edit the matrix schema, campaign CLI/state machine, explicit-checkpoint finalizer, typed curation
+   evidence, and G1 curriculum source without executing project code on the shared host.
+2. Provision/start the Nebius CPU orchestration/builder VM; there, check out the exact revision,
+   install dependencies, run all lint/type/unit/integration/frontend/build validation, build immutable
+   SB3/MJX images, and push exact
    commit tags/digests, and stop the builder.
-3. Execute the detailed runbook sequentially. Each job must verify artifacts and cleanup before the
-   next submission.
+3. Run bounded CPU and GPU smoke jobs in Nebius, then execute the detailed runbook from the Nebius
+   orchestration VM. Each job must verify artifacts and cleanup before the next submission.
 4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
    fixtures, and provenance checks pass.
 5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production

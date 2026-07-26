@@ -1,5 +1,36 @@
 ## ADDED Requirements
 
+### Requirement: Nebius-only preparation and workload execution
+The system and operator workflow SHALL execute every project preparation and workload process on
+Nebius Cloud compute. This includes dependency installation, lint/type/unit/integration tests,
+frontend production builds, Docker/BuildKit work, container health/import checks, simulation
+environment construction, smoke runs, campaign-runner state transitions, artifact verification,
+checkpoint selection/evaluation, rendering, training, and finalization. The shared host SHALL be
+limited to source/planning edits, non-executing Git/OpenSpec inspection, and authenticated control-
+plane or SSH invocation whose payload executes on Nebius. Each executable result SHALL carry a
+sanitized Nebius location attestation. A GitHub, SaaS, or other control plane MAY dispatch or report
+work, but a check used as campaign preparation evidence SHALL attest that its workload executed on
+Nebius rather than on the shared host or a third-party hosted runner.
+
+#### Scenario: Project command is invoked on the shared host
+- **WHEN** preflight detects that a project test, build, import, simulation, campaign transition,
+  evaluation, rendering, training, finalization, or artifact verifier would execute on the host
+- **THEN** it fails before the command starts and reports `NEEDS_HUMAN: EXECUTION_LOCATION_INVALID`
+
+#### Scenario: Nebius preparation result is accepted
+- **WHEN** a test/build/smoke/verification result is used to advance the campaign
+- **THEN** its evidence records a Nebius instance or job identity, region, immutable revision/image,
+  command class, and timestamps without credentials
+
+#### Scenario: Location attestation is absent or ambiguous
+- **WHEN** the workflow cannot prove that executable preparation or workload ran in Nebius
+- **THEN** the result is invalid and cannot satisfy preflight, acceptance, or promotion
+
+#### Scenario: Third-party CI reports a passing workload check
+- **WHEN** a GitHub-hosted or other non-Nebius runner reports a test, build, smoke, or artifact-
+  verification success
+- **THEN** that result may be informational but cannot satisfy a campaign preparation gate
+
 ### Requirement: Versioned result-first campaign matrix
 The system SHALL maintain a server-owned, schema-validated campaign matrix for all seven showcase
 examples. The matrix SHALL declare immutable config/image identity, training algorithm, effective-step
@@ -165,8 +196,9 @@ and undeclared fallback hardware SHALL be prohibited.
 - **THEN** it submits nothing further and records a needs-human blocker
 
 ### Requirement: Cloud preflight, budget, and cleanup
-Before every paid attempt the workflow SHALL verify `debug-portal`, local quality gates, immutable
-images, infrastructure outputs, registry/artifact access, quota, exact redacted command, timeout,
+Before every paid attempt the workflow SHALL verify `debug-portal`, Nebius-executed quality-gate
+attestations, immutable images, infrastructure outputs, registry/artifact access, quota, exact
+redacted command, timeout,
 expected durable prefix, and absence of unintended active campaign compute. After terminal evidence
 is durable it SHALL stop or delete every chargeable VM and audit jobs, instances, disks, public IPs,
 temporary security rules, and builder state. Provider history, SaaS rows, and S3 evidence SHALL be

@@ -11,6 +11,37 @@ until the implementation sections of `tasks.md` are complete and verified. **Do 
 by translating this plan into ad-hoc shell commands.** If the named command, schema, test, or state
 transition is missing, stop with `NEEDS_HUMAN: IMPLEMENTATION_INCOMPLETE`.
 
+### Absolute execution-location boundary
+
+The shared host is a control-and-edit terminal only. No training job, preparation job, project test,
+dependency installation, build, container execution, import/health check, simulator/environment load,
+smoke run, campaign state transition, artifact verifier, checkpoint evaluation/selection, renderer,
+finalizer, or project Python/Node module may execute on it. All such commands must execute on Nebius
+Cloud compute.
+
+Allowed on the shared host:
+
+- edit and inspect source, OpenSpec, and documentation files;
+- run `git status`, `git diff`, `git log`, `rg`, and static OpenSpec planning inspection/validation;
+- use `gh`, Nebius control-plane commands, or SSH solely to inspect status or cause a command to run
+  on Nebius;
+- read sanitized reports, digests, and handoffs returned by Nebius.
+
+Forbidden on the shared host:
+
+- `uv run`, project Python modules, `pytest`, linters/type checkers that import project code, Node/npm
+  tests/builds, Docker/BuildKit, MuJoCo/JAX/SB3 imports, simulation, rendering, artifact processing,
+  campaign CLI execution, and any smoke/training/finalization command;
+- downloading native checkpoints, generated media, container layers, or complete private run
+  artifacts for local processing.
+
+Before every executable command, the operator must already be inside the approved Nebius CPU
+orchestration/builder VM or be submitting a Nebius Serverless AI job. Prompt appearance is not proof.
+The command wrapper SHALL obtain a provider instance/job ID and region from instance metadata or the
+provider response, compare it with the campaign's approved resource identity, and write a sanitized
+location attestation. Missing/ambiguous/local identity returns exit 40 with
+`NEEDS_HUMAN: EXECUTION_LOCATION_INVALID` before workload code starts.
+
 The campaign does not authorize:
 
 - editing the matrix during execution;
@@ -31,8 +62,9 @@ The execution agent SHALL follow these invariants for every invocation:
 
 1. Work from the repository root on `debug-portal`.
 2. Read `IMPLEMENTATION_LOG.MD` before acting and append a sanitized handoff after each state change.
-3. Run only the campaign CLI for submission, watching, verification, selection, extension, cleanup,
-   and promotion preparation. Direct `nebius ai job create` is prohibited during the campaign.
+3. Execute the campaign CLI only on the approved Nebius orchestration VM for submission, watching,
+   verification, selection, extension, cleanup, and promotion preparation. Direct
+   `nebius ai job create` and local campaign CLI execution are prohibited during the campaign.
 4. Allow at most one active remote campaign job at a time.
 5. Use immutable commit-SHA image tags and record their resolved digests.
 6. Use non-preemptible capacity.
@@ -42,10 +74,14 @@ The execution agent SHALL follow these invariants for every invocation:
 10. Finish artifact verification and cleanup before advancing to another seed/example.
 11. When a command returns exit code 30 or 40, stop. Do not attempt a workaround.
 12. When the task says “record,” store only the CLI's sanitized output and non-secret identifiers.
+13. Require a Nebius location attestation for every test, build, smoke, campaign, verification,
+    evaluation, render, training, finalization, and cleanup command.
 
 ## 2. Planned campaign CLI contract
 
-Implementation SHALL provide the following module and commands:
+Implementation SHALL provide the following module and commands. **Every command in this section is
+run in the repository checkout on the approved Nebius orchestration VM, never on the shared host.**
+The host may establish the SSH session and copy back the sanitized output only.
 
 ```bash
 uv run python -m sim2policy.showcase_campaign init \
@@ -104,7 +140,7 @@ uv run python -m sim2policy.showcase_campaign handoff \
   --format markdown
 ```
 
-`PLAN_DIGEST_FROM_PLAN` is a literal digest printed by the preceding command. The agent copies it
+`PLAN_DIGEST_FROM_PLAN` is a literal digest printed by the preceding cloud-executed command. The agent copies it
 unchanged. It is not a placeholder to invent.
 
 The CLI exit-code contract is:
@@ -123,7 +159,8 @@ The CLI SHALL print a structured envelope with `campaign_id`, `example`, `attemp
 
 ## 3. Persistent state contract
 
-`init` creates the following gitignored tree:
+`init` creates the following gitignored tree on the managed disk attached to the Nebius
+orchestration VM:
 
 ```text
 .showcase-campaigns/gallery-result-2026-01/
@@ -149,13 +186,15 @@ prefix, and credentials from local config files.
 State writes SHALL be atomic. The append-only journal records command name, prior state, resulting
 state, exit code, and sanitized evidence digest. The campaign lock SHALL fail rather than wait
 indefinitely. A stale lock can be cleared only by a dedicated CLI recovery command that first proves
-there is no live local process and changes no remote state.
+there is no live campaign process on the Nebius orchestration VM and changes no remote state.
 
 ## 4. One-time implementation-complete gate
 
 Before `init`, all items below must be true. If any is false, no paid job is allowed.
 
-- The campaign matrix exists and passes its schema/unit tests.
+- A Nebius CPU orchestration/builder VM is identified, its managed disk is mounted, its exact
+  `debug-portal` revision is recorded, and its execution-location attestation passes.
+- The campaign matrix exists and passes its schema/unit tests executed on that Nebius VM.
 - The hosted SB3 and MJX paths accept an explicit selected checkpoint for finalization.
 - The G1 curriculum module passes flat-to-rough resume and provenance tests.
 - The campaign CLI passes idempotency, lock, redaction, duplicate-submission, resume, and state-
@@ -167,10 +206,14 @@ Before `init`, all items below must be true. If any is false, no paid job is all
   immutable tag, resolved to digests, and pass image health/import tests.
 - A bounded smoke test has proven CUDA/JAX discovery, environment construction, one update,
   checkpoint upload, finalization, and durable artifact reading for the MJX image.
-- Local runtime/backend/frontend quality gates and strict OpenSpec validation pass.
-- The CPU builder is stopped after image construction.
+- Runtime/backend/frontend quality gates and production builds executed on Nebius pass; static
+  OpenSpec validation may also be run on the host because it executes no project workload code.
+- A GitHub or other third-party runner has not been used as a substitute for any Nebius preparation
+  attestation; external CI is informational unless it dispatches the workload to Nebius.
+- The CPU orchestration/builder is stopped whenever no active build, campaign-control, or verification
+  process needs it.
 
-The command is:
+The command is executed on the Nebius orchestration VM:
 
 ```bash
 uv run python -m sim2policy.showcase_campaign implementation-gate \
@@ -184,11 +227,12 @@ mutable image tag is a failure.
 
 1. Read `ARCHITECTURE.md`, `AGENTS.md`, this change's proposal/design/specs/tasks/runbook,
    `saas/API_RUNBOOK.md`, and the latest `IMPLEMENTATION_LOG.MD`.
-2. Run `git status --short --branch`. Confirm branch is exactly `debug-portal`. Unrelated tracked or
-   untracked user work is not removed or overwritten. If overlapping implementation files are dirty,
-   stop with `NEEDS_HUMAN: DIRTY_OVERLAP`.
-3. Run `openspec list` and confirm this change is the execution source.
-4. Run the implementation-complete gate.
+2. On the host, use static Git/OpenSpec inspection to confirm the intended revision and preserve
+   unrelated user work. Execute no project code.
+3. Start the approved Nebius CPU orchestration VM, connect to it, and attest its instance ID/region.
+   In its clean repository checkout run `git status --short --branch`; confirm `debug-portal` and the
+   intended immutable revision. Stop on any dirty overlap or revision mismatch.
+4. On the Nebius VM, inspect `openspec list` and run the implementation-complete gate.
 5. Choose the campaign ID once. Use `gallery-result-YYYYMMDD-01`; increment the suffix only if that
    exact ID already belongs to a different matrix digest. Never reuse an ID for a changed plan.
 6. Run `init`, then `status --format json`.
@@ -203,9 +247,11 @@ Run `preflight` immediately before `plan`. It SHALL fail closed unless all check
 ### Repository and revision
 
 - branch is `debug-portal`;
-- tracked worktree matches the intended reviewed revision;
-- local source commit equals the immutable image revision expected by the matrix;
-- required local tests and GitHub Actions for that revision are successful;
+- Nebius orchestration checkout matches the intended reviewed revision and is clean;
+- Nebius source commit equals the immutable image revision expected by the matrix;
+- required Nebius-executed tests are successful; existing GitHub Actions status is inspected for
+  repository/deployment health only and cannot replace a Nebius execution attestation;
+- current instance metadata matches the approved Nebius orchestration VM and region;
 - no command targets `main`.
 
 ### Infrastructure and credentials
@@ -294,7 +340,9 @@ A retry never changes the planned total steps.
 
 ## 9. Artifact verification contract
 
-`verify` SHALL check the exact curated prefix and reject cross-run fallback. Required evidence is:
+The `verify` command and every artifact parser it invokes execute on Nebius compute. The host receives
+only the sanitized result envelope. `verify` SHALL check the exact curated prefix and reject
+cross-run fallback. Required evidence is:
 
 - terminal `status.json` with normalized success state;
 - resolved configuration and its digest;
@@ -507,8 +555,8 @@ For an accepted example:
 1. Generate a deterministic acceptance record containing safe IDs/digests and measured evidence.
 2. Verify the run ID is non-tenant and unique across cards.
 3. Prepare a source diff replacing exactly that example's placeholder/current pin.
-4. Run runtime/backend/frontend tests, production builds, `git diff --check`, secret/large-file scans,
-   and strict OpenSpec validation.
+4. Run runtime/backend/frontend tests, production builds, and executable secret/large-file scanners
+   on the Nebius CPU VM. The host may run only static `git diff --check` and OpenSpec validation.
 5. Commit/push only on `debug-portal` after human review of the pin diff.
 6. Use `gh` to inspect the relevant GitHub Actions run and failed logs.
 7. Verify deployment health, then anonymous catalog/detail/media/download behavior on desktop and
@@ -526,6 +574,8 @@ After every attempt, the CLI and agent must report each item explicitly:
 - no active campaign job other than the one represented in state;
 - campaign-owned VM stopped or deleted;
 - CPU builder stopped when inactive;
+- no campaign preparation or workload process executed on the shared host;
+- every accepted executable result has a matching Nebius location attestation;
 - no unaccounted H100/L40S/CPU VM running;
 - no orphan campaign disk;
 - no campaign-created public IP;
