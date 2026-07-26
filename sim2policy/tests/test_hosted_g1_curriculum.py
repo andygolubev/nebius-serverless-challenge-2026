@@ -101,6 +101,77 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
     assert "gallery_example_id" not in finalize_calls[0]
 
 
+def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_path: Path) -> None:
+    """The 100M gate fails, 150M passes: rough gets 450M - 150M, not 450M - 100M."""
+    train_calls: list[tuple[str, Path | None]] = []
+
+    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None) -> Path:
+        train_calls.append((run_id, resume))
+        directory = create_run_paths(run_id, runs_root).checkpoints
+        if resume is None:
+            for step in (100_000_000, 150_000_000, 200_000_000):
+                _write_checkpoint(directory, config, "step", step)
+            return directory / "step-000200000000.zip"
+        _write_checkpoint(directory, config, "final", 300_000_000)
+        return directory / "final-000300000000.zip"
+
+    def fake_evaluate_candidates(checkpoints, config, *, run_lineage, selection_seeds, final_seeds, episodes_per_seed, phase):
+        result = []
+        for checkpoint in checkpoints:
+            inventory = checkpoint_inventory(checkpoint, config, run_lineage=run_lineage, phase=phase)
+            # Only the 150M flat checkpoint walks; 100M still falls.
+            if phase == "flat" and inventory.effective_step < 150_000_000:
+                episodes = _episodes(tuple(selection_seeds), reward=1.0, velocity=0.5, fell=True)
+            else:
+                episodes = _episodes(tuple(selection_seeds), reward=1.0, velocity=0.7, fell=False)
+            result.append(
+                EvaluationEvidence(inventory, "selection", tuple(selection_seeds), episodes, 1.0, "test")
+            )
+        return result
+
+    def fake_evaluate_final(checkpoint, config, *, run_lineage, selection_seeds, final_seeds, episodes_per_seed):
+        inventory = checkpoint_inventory(checkpoint, config, run_lineage=run_lineage, phase="selected")
+        return EvaluationEvidence(
+            inventory, "final", tuple(final_seeds),
+            _episodes(tuple(final_seeds), reward=1.0, velocity=0.7, fell=False), 1.0, "test",
+        )
+
+    finalize_calls: list[dict[str, Any]] = []
+
+    def fake_finalize(config_path, run_id, runs_root, overrides, **kwargs):
+        finalize_calls.append({"run_id": run_id, "overrides": overrides, **kwargs})
+        return {"metrics_json": "report/metrics.json"}
+
+    result = run_g1_curriculum(
+        flat_config_path=FLAT_CONFIG,
+        rough_config_path=ROUGH_CONFIG,
+        run_id="g1-late-gate",
+        runs_root=tmp_path,
+        matrix_digest="a" * 64,
+        image_digest="sha256:" + "b" * 64,
+        gallery_example_id="g1-rough-terrain",
+        selection_seeds=SELECTION_SEEDS,
+        final_seeds=FINAL_SEEDS,
+        selection_episodes_per_seed=2,
+        final_episodes_per_seed=4,
+        acceptance_criteria=ACCEPTANCE_CRITERIA,
+        train_phase=fake_train_phase,
+        evaluate_candidates_fn=fake_evaluate_candidates,
+        evaluate_final_fn=fake_evaluate_final,
+        finalize_fn=fake_finalize,
+    )
+
+    lineage = result["phase_lineage"]
+    assert lineage["flat"]["selected_step"] == 150_000_000
+    # The 100M gate was measured and failed; both are retained as honest evidence.
+    assert [item["step"] for item in lineage["flat"]["gates"]] == [100_000_000, 150_000_000]
+    assert [item["passed"] for item in lineage["flat"]["gates"]] == [False, True]
+    assert lineage["rough"]["budget_effective_steps"] == rough_budget(150_000_000) == 300_000_000
+    # The whole remaining budget was spent and the 450M ceiling is exactly met.
+    assert lineage["provenance"]["measured_total_steps"] == 450_000_000
+    assert finalize_calls[0]["overrides"] == [("training.total_steps", 300_000_000)]
+
+
 def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(tmp_path: Path) -> None:
     train_calls: list[tuple[str, Path | None]] = []
 
