@@ -33,7 +33,7 @@
 - [x] 3.6 Reject any selection/final seed overlap and prove final-seed results are unavailable to the selection function
 - [x] 3.7 Change hosted finalization to accept one explicit selected checkpoint digest and evaluate/render that checkpoint while preserving the final-step checkpoint as labeled progression evidence
 - [x] 3.8 Emit initial, representative intermediate, selected, and final-step videos linked to exact checkpoint steps/digests and metrics; retain regressions rather than silently substituting media
-- [ ] 3.9 Extend `metrics.json`, resolved config, report, manifest, and policy bundle with matrix digest, phase lineage, selected checkpoint, ranking explanation, seed roles, hard/preferred results, and measured runtime/cost
+- [x] 3.9 Extend `metrics.json`, resolved config, report, manifest, and policy bundle with matrix digest, phase lineage, selected checkpoint, ranking explanation, seed roles, hard/preferred results, and measured runtime/cost
 - [ ] 3.10 On Nebius CPU compute, run tests for earlier-best selection, ties, regression, missing candidates, corrupt checkpoints, incompatible resume, explicit finalization, deterministic videos, manifest checksums, and bundle inventory; execute any simulator/render test only inside the immutable Nebius image
 
 ## 4. Implement the G1 450M curriculum
@@ -41,47 +41,47 @@
 - [x] 4.1 Inspect and record the exact pinned Playground G1 flat/rough environment identities, PPO defaults, reward terms, commands, observations, reset/termination rules, checkpoint compatibility, and current no-push overrides; do not guess field names
 - [x] 4.2 Add one server-owned G1 result profile retaining 8,192 environments, privileged critic, 20-step unroll, 32 minibatches, four updates, entropy cost 0.005, 20 evaluation points, 1,000-step horizon, and disabled pushes unless inspected source requires a reviewed compatibility adjustment
 - [x] 4.3 Define the flat gait prerequisite as deterministic full-horizon commanded motion and no-fall stability on the selection set; add tests proving standing, reward-only improvement, and short motion cannot pass
-- [ ] 4.4 Implement the dedicated hosted MJX curriculum entry point: train flat from scratch; evaluate at 100M, 150M, and 200M; select the earliest passing gate; stop diagnostic if none passes
-- [ ] 4.5 Resume the exact selected flat checkpoint into the reviewed no-push rough environment and allocate `450M - selected_flat_step` effective steps without exceeding 450M total
-- [ ] 4.6 Retain rough candidates every 25M, rank them with the locomotion rule, and final-evaluate only the selected candidate on the disjoint final set
-- [ ] 4.7 Record both phase configs, image/config/matrix digests, input/output checkpoint digests, effective-step accounting, JIT/train/eval/render/upload timings, and phase outcomes in one immutable provenance chain
-- [ ] 4.8 Ensure rough training does not cancel because an intermediate checkpoint looks weak; only numerical failure, provider failure, or timeout may terminate after rough start
-- [ ] 4.9 Prohibit automatic second G1 seed, steps above 450M, L40S comparison, reward mutation, threshold relaxation, or final-set reselection
-- [ ] 4.10 On Nebius CPU/GPU compute as appropriate, run unit/integration tests for flat pass at 100M/150M/200M, flat failure, correct remainder arithmetic, cross-phase resume, earlier-best rough selection, 450M ceiling, final hard/preferred outcomes, and diagnostic finalization; no G1/JAX/MuJoCo import or test may run on the shared host
+- [x] 4.4 Implement the dedicated hosted MJX curriculum entry point: train flat from scratch; evaluate at 100M, 150M, and 200M; select the earliest passing gate; stop diagnostic if none passes
+- [x] 4.5 Resume the exact selected flat checkpoint into the reviewed no-push rough environment and allocate `450M - selected_flat_step` effective steps without exceeding 450M total
+- [x] 4.6 Retain rough candidates every 25M, rank them with the locomotion rule, and final-evaluate only the selected candidate on the disjoint final set
+- [x] 4.7 Record both phase configs, image/config/matrix digests, input/output checkpoint digests, effective-step accounting, JIT/train/eval/render/upload timings, and phase outcomes in one immutable provenance chain
+- [x] 4.8 Ensure rough training does not cancel because an intermediate checkpoint looks weak; only numerical failure, provider failure, or timeout may terminate after rough start
+- [x] 4.9 Prohibit automatic second G1 seed, steps above 450M, L40S comparison, reward mutation, threshold relaxation, or final-set reselection
+- [x] 4.10 On Nebius CPU/GPU compute as appropriate, run unit/integration tests for flat pass at 100M/150M/200M, flat failure, correct remainder arithmetic, cross-phase resume, earlier-best rough selection, 450M ceiling, final hard/preferred outcomes, and diagnostic finalization; no G1/JAX/MuJoCo import or test may run on the shared host
 
 ## 5. Implement the resumable campaign CLI
 
-- [ ] 5.1 Implement `init` with campaign-ID validation, normalized matrix digest, atomic non-secret state on the Nebius orchestration VM's managed disk, append-only journal, campaign lock, ordered examples, location attestation, and refusal to reuse an ID for a different digest
-- [ ] 5.2 Implement states `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`, `ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, and `CLEANED` with validated transitions and one active remote job invariant
-- [ ] 5.3 Implement stable exit codes 0/10/20/30/40 and a redacted structured envelope with exact `next_command`; ensure raw environment/provider errors cannot leak credentials
-- [ ] 5.4 Implement `implementation-gate` that proves an approved Nebius execution location, matrix, runner, finalizer, curriculum, artifact verifier, cloud auditor, immutable images, Nebius smoke tests, Nebius-executed suites, and stopped/in-use-accounted builder before paid work
+- [x] 5.1 Implement `init` with campaign-ID validation, normalized matrix digest, atomic non-secret state on the Nebius orchestration VM's managed disk, append-only journal, campaign lock, ordered examples, location attestation, and refusal to reuse an ID for a different digest
+- [x] 5.2 Implement states `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`, `ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, and `CLEANED` with validated transitions and one active remote job invariant
+- [x] 5.3 Implement stable exit codes 0/10/20/30/40 and a redacted structured envelope with exact `next_command`; ensure raw environment/provider errors cannot leak credentials
+- [x] 5.4 Implement `implementation-gate` that proves an approved Nebius execution location, matrix, runner, finalizer, curriculum, artifact verifier, cloud auditor, immutable images, Nebius smoke tests, Nebius-executed suites, and stopped/in-use-accounted builder before paid work
 - [ ] 5.5 Implement `preflight` for branch/revision, tracked overlap, immutable image digest, Nebius quality-gate attestations, informational GitHub Actions/deployment status, infrastructure outputs, credential availability without value disclosure, preset/quota, disk/timeout, non-preemptible flag, and cloud baseline; never accept a GitHub-hosted workload check in place of Nebius evidence
-- [ ] 5.6 Implement `plan` with exact run ID/prefix, backend/module, image/config/matrix digests, steps/cadence/seeds, hardware/timeout, parent lineage, required artifacts/gates, retry allowance, cleanup action, and redacted provider preview
-- [ ] 5.7 Implement plan-digest confirmation and reject any submission whose normalized plan differs from the reviewed plan
-- [ ] 5.8 Implement `submit` with deterministic non-tenant run IDs, idempotency key, exact immutable tag/digest, existing infrastructure/secret selectors, no secret output, and no direct mutable CLI overrides
-- [ ] 5.9 Implement `watch` with 60-second polling, heartbeats, effective-step/last-checkpoint/finalization progress, terminal recognition, safe re-entry, and needs-human after five minutes of missing heartbeat while provider state remains active
-- [ ] 5.10 Implement `verify`, `select`, `extend`, `accept`, `cleanup`, `audit-cloud`, `status`, and `handoff` according to the runbook, with every command idempotent and executable only on the approved Nebius orchestration VM
-- [ ] 5.11 Implement stale-lock recovery that proves no live campaign process on the Nebius orchestration VM and changes no remote state; prohibit force-clearing an active campaign lock
-- [ ] 5.12 On the Nebius CPU VM, run state-machine tests for interruption/resume, duplicate command, concurrent invocation, duplicate remote name with matching/mismatching digest, unknown provider state, finalization-only retry, compatible/incompatible resume, cleanup blocking, and host-location rejection
-- [ ] 5.13 On the Nebius CPU VM, run redaction tests using sentinel secrets across stdout/stderr/state/journal/plans/audits/handoff/location attestations and fail the suite if any sentinel appears
+- [x] 5.6 Implement `plan` with exact run ID/prefix, backend/module, image/config/matrix digests, steps/cadence/seeds, hardware/timeout, parent lineage, required artifacts/gates, retry allowance, cleanup action, and redacted provider preview
+- [x] 5.7 Implement plan-digest confirmation and reject any submission whose normalized plan differs from the reviewed plan
+- [x] 5.8 Implement `submit` with deterministic non-tenant run IDs, idempotency key, exact immutable tag/digest, existing infrastructure/secret selectors, no secret output, and no direct mutable CLI overrides
+- [x] 5.9 Implement `watch` with 60-second polling, heartbeats, effective-step/last-checkpoint/finalization progress, terminal recognition, safe re-entry, and needs-human after five minutes of missing heartbeat while provider state remains active
+- [x] 5.10 Implement `verify`, `select`, `extend`, `accept`, `cleanup`, `audit-cloud`, `status`, and `handoff` according to the runbook, with every command idempotent and executable only on the approved Nebius orchestration VM
+- [x] 5.11 Implement stale-lock recovery that proves no live campaign process on the Nebius orchestration VM and changes no remote state; prohibit force-clearing an active campaign lock
+- [x] 5.12 On the Nebius CPU VM, run state-machine tests for interruption/resume, duplicate command, concurrent invocation, duplicate remote name with matching/mismatching digest, unknown provider state, finalization-only retry, compatible/incompatible resume, cleanup blocking, and host-location rejection
+- [x] 5.13 On the Nebius CPU VM, run redaction tests using sentinel secrets across stdout/stderr/state/journal/plans/audits/handoff/location attestations and fail the suite if any sentinel appears
 
 ## 6. Implement immutable acceptance and public evidence handling
 
-- [ ] 6.1 Define a typed allowlisted curated-evidence model for canonical environment, sanitized resolved config, runtime versions, matrix/image/config/checkpoint/manifest digests, selection/final metrics, progression media, measured runtime/cost, and acceptance timestamp
-- [ ] 6.2 Add exact canonical identity mappings for Reacher, HalfCheetah, Ant, Hopper, Walker2D, Go1, G1 flat, and G1 rough; reject fuzzy, friendly-only, unknown, and caller-controlled identity values
-- [ ] 6.3 Normalize only recognized `success.met` shapes and reject missing, contradictory, non-boolean, threshold-inconsistent, or ambiguous legacy values
-- [ ] 6.4 Verify every required object, checksum, content linkage, policy bundle member, selected checkpoint, progression entry, and public fixture against the exact curated prefix without cross-run fallback
-- [ ] 6.5 Make the curator reject tenant-shaped IDs, placeholders, duplicate pins, mutable images, failed hard/preferred targets, missing cleanup proof, unsafe fields, and incomplete measured evidence
-- [ ] 6.6 Keep historical accepted runs available only as named baselines/rollback targets; require an explicit reviewed decision before using one instead of a fresh accepted run
-- [ ] 6.7 Refactor public serialization to use measured curated evidence rather than catalog defaults for executed config, hardware, duration, cost, versions, checkpoint, success, and progress
-- [ ] 6.8 Keep the public resolver structurally separate from tenant lookup and prove headers, tenant IDs/run IDs, object keys, query overrides, and write methods cannot influence evidence resolution or start work
-- [ ] 6.9 On Nebius CPU compute, run backend/frontend fixture suites for all fresh accepted shapes, completed failure, hard-only/preferred-fail, partial publication, stable order, selected-versus-final progress, regressions, anonymous equality, media/downloads, 404 isolation, no training actions, and location-attestation enforcement
+- [x] 6.1 Define a typed allowlisted curated-evidence model for canonical environment, sanitized resolved config, runtime versions, matrix/image/config/checkpoint/manifest digests, selection/final metrics, progression media, measured runtime/cost, and acceptance timestamp
+- [x] 6.2 Add exact canonical identity mappings for Reacher, HalfCheetah, Ant, Hopper, Walker2D, Go1, G1 flat, and G1 rough; reject fuzzy, friendly-only, unknown, and caller-controlled identity values
+- [x] 6.3 Normalize only recognized `success.met` shapes and reject missing, contradictory, non-boolean, threshold-inconsistent, or ambiguous legacy values
+- [x] 6.4 Verify every required object, checksum, content linkage, policy bundle member, selected checkpoint, progression entry, and public fixture against the exact curated prefix without cross-run fallback
+- [x] 6.5 Make the curator reject tenant-shaped IDs, placeholders, duplicate pins, mutable images, failed hard/preferred targets, missing cleanup proof, unsafe fields, and incomplete measured evidence
+- [x] 6.6 Keep historical accepted runs available only as named baselines/rollback targets; require an explicit reviewed decision before using one instead of a fresh accepted run
+- [x] 6.7 Refactor public serialization to use measured curated evidence rather than catalog defaults for executed config, hardware, duration, cost, versions, checkpoint, success, and progress
+- [x] 6.8 Keep the public resolver structurally separate from tenant lookup and prove headers, tenant IDs/run IDs, object keys, query overrides, and write methods cannot influence evidence resolution or start work
+- [x] 6.9 On Nebius CPU compute, run backend/frontend fixture suites for all fresh accepted shapes, completed failure, hard-only/preferred-fail, partial publication, stable order, selected-versus-final progress, regressions, anonymous equality, media/downloads, 404 isolation, no training actions, and location-attestation enforcement
 
 ## 7. Prepare, test, and build exclusively on Nebius Cloud
 
 - [x] 7.1 On the shared host run only static source/plan inspection (`git diff --check`, `git status`, `rg`, and `openspec validate curate-public-showcase-runs --strict`); do not install dependencies or run project Python/Node/Docker/test/build/import/simulation commands there
 - [x] 7.2 Start or reuse the approved Nebius `cpu-d3` `8vcpu-32gb` orchestration/builder VM with a 300–500 GiB cached managed SSD, verify ownership/scope/region, attest its instance identity, check out the exact `debug-portal` revision, and record only non-secret instance state in `IMPLEMENTATION_LOG.MD`
-- [ ] 7.3 On that Nebius VM install dependencies and run lint, type, unit, integration, backend/frontend, production-build, secret-scan, and large-file gates; store sanitized results plus location/revision attestations and resolve failures before image work
+- [x] 7.3 On that Nebius VM install dependencies and run lint, type, unit, integration, backend/frontend, production-build, secret-scan, and large-file gates; store sanitized results plus location/revision attestations and resolve failures before image work
 - [ ] 7.4 On that Nebius VM build SB3 and MJX images with BuildKit from the exact reviewed commit, tag with immutable commit SHA, run health/import/config/matrix/CLI tests, and push without replacing any tag used by an active job
 - [ ] 7.5 From the Nebius VM resolve and record registry digests; prove planned configs/modules are present and no secret or generated training artifact is baked into either image
 - [ ] 7.6 Run a short bounded Nebius CPU SB3 smoke with explicit timeout through the campaign path; verify one update, checkpoint, explicit finalization, durable upload, cloud-side artifact read, cleanup, idempotent re-entry, and location attestation
