@@ -1,3 +1,8 @@
+## Temporary branch policy
+
+For now, commits and pushes to the `main` branch are not allowed. Commit and push only to the
+`debug-portal` branch.
+
 # Agent instructions
 
 This repository uses OpenSpec to plan and implement changes. Before editing, inspect the active
