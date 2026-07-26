@@ -98,7 +98,7 @@
   available retained job row, use **Back to jobs** between records, and verify the redesigned detail
   page for at least one completed job plus every failed/finalizing job currently present; record
   only non-secret SaaS job IDs and observed results in `IMPLEMENTATION_LOG.MD`.
-- [ ] 6.6 Exercise the completed-job UI through real controls: play and seek the final rollout,
+- [x] 6.6 Exercise the completed-job UI through real controls: play and seek the final rollout,
   switch every available media item, expand Evaluation/Episodes/Compute/Run details, test
   open/download actions, refresh and reopen the job from the dashboard, and capture desktop/tablet/
   mobile screenshots. Preserve all SaaS job rows, cached manifests, and S3 run artifacts used for

@@ -11,6 +11,6 @@
 
 ## 3. Deferred live-cluster cutover
 
-- [ ] 3.1 Independently verify the SaaS server's changed SSH host key before connecting.
-- [ ] 3.2 Manually repoint the live root Argo CD Application to `debug-portal`, then refresh and sync it.
-- [ ] 3.3 Verify the root and child Applications are Synced and Healthy and the SaaS workload is healthy.
+- [x] 3.1 Independently verify the SaaS server's changed SSH host key before connecting.
+- [x] 3.2 Manually repoint the live root Argo CD Application to `debug-portal`, then refresh and sync it.
+- [x] 3.3 Verify the root and child Applications are Synced and Healthy and the SaaS workload is healthy.

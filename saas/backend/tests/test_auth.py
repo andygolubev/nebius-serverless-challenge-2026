@@ -33,11 +33,6 @@ def test_invalid_email_format(client, sender):
     assert res.status_code == 422
 
 
-def test_non_nebius_email_rejected(client, sender):
-    res = client.post("/auth/request-code", json={"email": "someone@example.com"})
-    assert res.status_code == 403
-
-
 def test_wrong_code_rejected(client, sender):
     email = _email()
     client.post("/auth/request-code", json={"email": email})

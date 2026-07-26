@@ -38,7 +38,7 @@
 - [x] 2.6 Add a bounded `G1JoystickRoughTerrain` MJX configuration, task-specific evaluation and
   rendering contract, artifact requirements, and production job-spec candidates that reuse the
   immutable MJX runtime without changing the Go1 task.
-- [ ] 2.7 Add configuration, command-construction, environment import, short train, evaluation,
+- [x] 2.7 Add configuration, command-construction, environment import, short train, evaluation,
   headless-render, artifact-contract, and unsafe-run-ID tests for all seven entries.
 - [x] 2.8 Pin the G1 traversal task's server-owned Playground environment override to disable the
   undeclared random push disturbance consistently in training, evaluation, and rendering; reject
@@ -129,7 +129,7 @@
 
 ## 7. Immutable runtime and cloud acceptance
 
-- [ ] 7.1 Start or reuse the approved `cpu-d3` builder, build the SB3 and MJX images with BuildKit,
+- [x] 7.1 Start or reuse the approved `cpu-d3` builder, build the SB3 and MJX images with BuildKit,
   run image import/health/render checks, tag and push immutable commit-SHA revisions, record
   non-secret digests/results, and stop the builder immediately after image work.
 - [x] 7.2 In increasing cost order, run bounded acceptance for each of the five SB3 examples on CPU
@@ -139,50 +139,50 @@
   record the failed 5M Quick gate, select the smallest passing workload, and verify CUDA/JAX
   discovery, training threshold, finalization, video, checkpoint, policy bundle, durable upload,
   runtime, and cost, then stop/delete the H100 immediately.
-- [ ] 7.4 Run the exact pinned 200M / 8,192-environment G1 Rough Terrain no-push revision on the
+- [x] 7.4 Run the exact pinned 200M / 8,192-environment G1 Rough Terrain no-push revision on the
   smallest L40S candidate and the single-H100 candidate with identical image/config/seed gates;
   retain the failed original/default-push and command-ladder evidence, compare
   memory, convergence, end-to-end wall time, utilization, artifact completion, and cost-to-result,
   then select the
   cheapest passing shape and claim H100-required only if L40S fails a declared gate.
-- [ ] 7.5 Bind observed duration/cost and passing evidence to each exact config/image/compute
+- [x] 7.5 Bind observed duration/cost and passing evidence to each exact config/image/compute
   revision, enable only current accepted entries, and fail release readiness unless all seven cards
   pass the complete train-to-artifact path.
-- [ ] 7.6 After every cloud run, delete temporary Serverless AI validation resources and unused
+- [x] 7.6 After every cloud run, delete temporary Serverless AI validation resources and unused
   instances, stop the reusable CPU builder, and audit instances, disks, public IPs, temporary
   security rules, and failed jobs; record cleanup in `IMPLEMENTATION_LOG.MD`.
 
 ## 8. Production UI and artifact validation
 
-- [ ] 8.1 Deploy the accepted immutable revisions through the repository's normal CI/GitOps path,
+- [x] 8.1 Deploy the accepted immutable revisions through the repository's normal CI/GitOps path,
   use `gh` to verify the relevant Actions runs and failed logs, and confirm production health before
   interactive validation.
 - [x] 8.2 In the signed-in production browser, open New Job and click each of the seven gallery cards;
   verify avatar, copy, measured guidance, recommended configuration, backend/hardware, review
   state, absence of a global backend/hardware selector, and Start training behavior at desktop and
   375 px widths.
-- [ ] 8.3 Submit one bounded accepted job from each gallery card through the UI, observe each row
+- [x] 8.3 Submit one bounded accepted job from each gallery card through the UI, observe each row
   progress through training and finalization, and click the job from the Jobs UI into its result
   page rather than validating only through direct API URLs.
-- [ ] 8.4 On every accepted result page, verify compact KPIs, evaluation outcome, runtime/cost,
+- [x] 8.4 On every accepted result page, verify compact KPIs, evaluation outcome, runtime/cost,
   rollout playback/seeking, checkpoint identity, resolved config, versions, and nested details;
   download and inspect the policy bundle and one secondary artifact through the visible UI.
-- [ ] 8.5 Verify failed/finalizing states, expired-artifact retry, safe filenames, cross-tenant 404,
+- [x] 8.5 Verify failed/finalizing states, expired-artifact retry, safe filenames, cross-tenant 404,
   historical result fallback, mobile layout, keyboard navigation, light/dark rendering, and that no
   page exposes a Deploy to Robot claim or trains a Bring Your Robot draft.
-- [ ] 8.6 In the signed-in production browser, save and reopen a custom setup, confirm the page
+- [x] 8.6 In the signed-in production browser, save and reopen a custom setup, confirm the page
   explains validation-only readiness without the misleading GPU-validation control, click **Train
   a verified example**, and verify the gallery opens while the custom setup remains saved.
-- [ ] 8.7 Preserve the seven accepted SaaS job rows and their durable artifacts for user review; do
+- [x] 8.7 Preserve the seven accepted SaaS job rows and their durable artifacts for user review; do
   not delete them during validation. Delete only temporary cloud execution resources after artifact
   durability is confirmed, capture non-secret evidence, and record the final safe state and URLs in
   `IMPLEMENTATION_LOG.MD`.
 
 ## 9. Final verification and handoff
 
-- [ ] 9.1 Re-run `openspec validate add-trainable-examples-gallery --strict`, all changed-area
+- [x] 9.1 Re-run `openspec validate add-trainable-examples-gallery --strict`, all changed-area
   regression suites, production smoke checks, and the final cloud-resource audit after the last
   fix; record exact results and remaining limitations in `IMPLEMENTATION_LOG.MD`.
-- [ ] 9.2 Review every checklist item against the proposal, design, and delta specs; check off only
+- [x] 9.2 Review every checklist item against the proposal, design, and delta specs; check off only
   tasks with recorded evidence and leave explicit blockers plus the next safe action for any item
   that is not verified.
