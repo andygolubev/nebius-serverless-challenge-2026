@@ -7,7 +7,7 @@
 ## 2. Repository verification and delivery
 
 - [x] 2.1 Validate YAML and confirm all tracked Argo CD source references use `debug-portal`.
-- [ ] 2.2 Record the repository update in `IMPLEMENTATION_LOG.MD`, commit it on `debug-portal`, and push only `origin/debug-portal`.
+- [x] 2.2 Record the repository update in `IMPLEMENTATION_LOG.MD`, commit it on `debug-portal`, and push only `origin/debug-portal`.
 
 ## 3. Deferred live-cluster cutover
 
