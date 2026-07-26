@@ -1,76 +1,48 @@
 // Typed API client. Injects the bearer session token and broadcasts a logout
 // event on any 401 so the app can drop back to the login screen.
 
-export type ParamSpec = {
-  name: string;
-  label: string;
-  type: "int" | "float";
-  default: number;
-  min: number;
-  max: number;
+// -- public showcase --
+// Read-only evidence from curated runs that already happened. No submission shape:
+// there is nothing here a visitor can start.
+
+export type ShowcaseEvaluation = {
+  // Whether the run met its task threshold — separate from whether the run finished.
+  success: boolean | null;
+  criterion: string;
+  primary_metric: string;
 };
 
-export type Algorithm = {
-  id: string;
-  label: string;
-  description: string;
-  params: ParamSpec[];
-};
-
-export type Environment = {
-  id: string;
-  label: string;
-  description: string;
-  algorithms: string[];
-};
-
-export type Preset = {
-  id: string;
-  label?: string;
-  description?: string;
-  // Exactly one catalog preset is the flagship default the composer pre-selects.
-  default: boolean;
+export type ShowcaseExecutedConfig = {
   environment: string;
-  algorithm: string;
-  params: Record<string, number>;
+  environment_label: string;
+  algorithm_label: string;
+  total_timesteps: number | null;
+  platform: string | null;
+  preset: string | null;
 };
 
-export type WorkloadProfile = {
-  id: string;
-  label?: string;
-  description?: string;
-  recommended: boolean;
-  params: Record<string, number>;
-};
-
-export type GalleryExample = {
+export type ShowcaseEntry = {
   id: string;
   label: string;
   task: string;
   description: string;
   avatar: string;
   expected_result: string;
-  environment: string;
-  algorithm: string;
   backend_label: string;
   hardware_label: string;
-  recommended_profile: string;
-  recommended_params: Record<string, number>;
-  optional_params: ParamSpec[];
   observed_duration: string;
   observed_cost: string;
-  success_criterion: string;
-  primary_metric: string;
   acceptance_revision: string;
-  workload_profiles: WorkloadProfile[];
+  executed_config: ShowcaseExecutedConfig;
+  evaluation: ShowcaseEvaluation;
+  has_media: boolean;
 };
 
-export type Catalog = {
-  gallery_enabled: boolean;
-  examples: GalleryExample[];
-  environments: Environment[];
-  algorithms: Algorithm[];
-  presets: Preset[];
+export type ShowcaseDetail = ShowcaseEntry & {
+  // Infrastructure completion, reported separately from `evaluation`.
+  status: string;
+  metrics: Record<string, unknown>;
+  artifacts: Artifact[];
 };
 
 export type ResolvedConfig = Record<string, unknown> & {
@@ -340,6 +312,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json();
 }
 
+// Public reads send no Authorization header and never broadcast SESSION_EXPIRED_EVENT:
+// a 404 on the showcase is not a session problem, and a signed-in visitor must get the
+// same response as an anonymous one.
+async function publicRequest<T>(path: string): Promise<T> {
+  const res = await fetch(path);
+  if (!res.ok) {
+    let detail: unknown = res.statusText;
+    try {
+      detail = (await res.json()).detail;
+    } catch {
+      // non-JSON error body; keep statusText
+    }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json();
+}
+
 async function requestBlob(path: string): Promise<Blob> {
   return (await authorizedFetch(path)).blob();
 }
@@ -353,15 +342,9 @@ export const api = {
       body: JSON.stringify({ email, code }),
     }),
   logout: () => request<{ status: string }>("/auth/logout", { method: "POST" }),
-  catalog: () => request<Catalog>("/training-options"),
-  submitJob: (body: {
-    gallery_example_id?: string;
-    gallery_profile_id?: string;
-    preset?: string;
-    environment?: string;
-    algorithm?: string;
-    params?: Record<string, number>;
-  }) => request<Job>("/jobs", { method: "POST", body: JSON.stringify(body) }),
+  // Public, session-free showcase reads.
+  showcase: () => publicRequest<{ examples: ShowcaseEntry[] }>("/showcase"),
+  showcaseExample: (id: string) => publicRequest<ShowcaseDetail>(`/showcase/${encodeURIComponent(id)}`),
   listJobs: () => request<Job[]>("/jobs"),
   getJob: (id: string) => request<Job>(`/jobs/${id}`),
   getArtifacts: (id: string) => request<ArtifactManifest>(`/jobs/${id}/artifacts`),

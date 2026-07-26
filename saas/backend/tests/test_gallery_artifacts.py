@@ -65,13 +65,30 @@ def _bundle(*, tamper: bool = False) -> bytes:
     return output.getvalue()
 
 
+SHOWCASE_METRICS = {
+    "aggregate": {"episodes": 20, "mean_reward": 1234.5, "success": True},
+    "benchmark": {"estimated_cost": 0.12, "currency": "USD"},
+    "checkpoint": "final-000001000000.zip",
+    "environment": "hopper",
+    "backend": "sb3",
+    "runtime_seconds": 613.2,
+}
+
+
 class MemoryS3:
     def __init__(
-        self, *, tamper_bundle: bool = False, omit_checksum_metadata: bool = False
+        self,
+        *,
+        tamper_bundle: bool = False,
+        omit_checksum_metadata: bool = False,
+        run: str = "sim2policy/gallery-run",
+        metrics: dict[str, Any] | None = None,
+        drop: tuple[str, ...] = (),
+        out_of_prefix: str | None = None,
     ) -> None:
         self.objects: dict[str, bytes] = {}
         self.omit_checksum_metadata = omit_checksum_metadata
-        run = "sim2policy/gallery-run"
+        self.presigned: list[dict[str, Any]] = []
         artifacts = {
             "final_policy": "checkpoints/final.zip",
             "metrics_json": "report/metrics.json",
@@ -81,9 +98,15 @@ class MemoryS3:
             "runtime_versions": "report/runtime-versions.json",
             "policy_bundle": "bundle/policy-bundle.zip",
         }
+        for name in drop:
+            artifacts.pop(name, None)
+        if out_of_prefix is not None:
+            artifacts[out_of_prefix] = "../other-run/steal.json"
+        # `metrics_json` *is* report/metrics.json, so its content must be set here
+        # rather than written separately, or the object and its checksum disagree.
         values = {
             "final_policy": _checkpoint(),
-            "metrics_json": b"{}\n",
+            "metrics_json": _json(SHOWCASE_METRICS if metrics is None else metrics),
             "report_md": b"result\n",
             "video_final": b"mp4-placeholder",
             "resolved_config": _json({"gallery_example_id": "hopper-balance"}),
@@ -92,7 +115,7 @@ class MemoryS3:
         }
         checksums = {}
         for name, relative in artifacts.items():
-            value = values[name]
+            value = values.get(name, b"{}\n")
             self.objects[f"{run}/{relative}"] = value
             checksums[name] = {
                 "sha256": hashlib.sha256(value).hexdigest(),
@@ -106,6 +129,10 @@ class MemoryS3:
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         del Bucket
         return {"Body": io.BytesIO(self.objects[Key])}
+
+    def generate_presigned_url(self, _operation, *, Params, ExpiresIn) -> str:
+        self.presigned.append({"params": Params, "expires_in": ExpiresIn})
+        return f"https://objects.example/{Params['Key']}?signed=1"
 
     def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         del Bucket
@@ -149,3 +176,131 @@ def test_gallery_completion_streams_digest_when_object_store_omits_metadata() ->
         "policy_bundle",
         "video_final",
     }
+
+
+# -- public showcase delivery ----------------------------------------------------------
+
+
+def _showcase_service(client: MemoryS3, store, *, enabled: bool = True):
+    """A ShowcaseService over an in-memory run, as the API wires it in production."""
+    from app.settings import ShowcaseSettings
+    from app.showcase import ShowcaseService
+
+    class Backend:
+        artifact_reader = S3ArtifactReader(client, "bucket")
+
+    return ShowcaseService(store, Backend(), ShowcaseSettings(enabled=enabled))
+
+
+def test_showcase_manifest_read_reuses_the_tenant_validation(store) -> None:
+    reader = S3ArtifactReader(MemoryS3(), "bucket")
+    manifest = reader.read_showcase_manifest("gallery-run")
+    assert manifest is not None
+    # The pinned run identity doubles as the cache key.
+    assert manifest.job_id == "gallery-run"
+    assert {item.id for item in manifest.artifacts} >= {"video_final", "policy_bundle"}
+
+
+def test_published_entry_exposes_allowlisted_artifacts_with_opaque_urls(
+    store, pinned
+) -> None:
+    service = _showcase_service(MemoryS3(), store)
+    detail = service.detail("hopper-balance")
+    assert detail is not None
+    ids = {item["id"] for item in detail["artifacts"]}
+    assert ids == {
+        "final_policy",
+        "metrics_json",
+        "report_md",
+        "video_final",
+        "resolved_config",
+        "runtime_versions",
+        "policy_bundle",
+    }
+    for item in detail["artifacts"]:
+        # Opaque route URLs, never a presigned URL or a bucket key.
+        assert item["url"] == f"/showcase/hopper-balance/artifacts/{item['id']}"
+        assert "signed" not in item["url"]
+        assert "bucket" not in item["url"]
+    video = next(item for item in detail["artifacts"] if item["id"] == "video_final")
+    assert video["kind"] == "video"
+    assert video["content_type"] == "video/mp4"
+
+
+def test_presigned_delivery_is_short_lived_and_single_object(store, pinned) -> None:
+    client = MemoryS3()
+    service = _showcase_service(client, store)
+    artifact = service.artifact("hopper-balance", "video_final")
+    assert artifact is not None
+    url = service.presigned(artifact, download=False)
+    assert url is not None and url.startswith("https://objects.example/")
+    call = client.presigned[-1]
+    assert call["expires_in"] <= 300
+    # Exactly one validated in-prefix object; no list or sibling access.
+    assert call["params"]["Key"] == "sim2policy/gallery-run/videos/final.mp4"
+    assert call["params"]["ResponseContentType"] == "video/mp4"
+
+    download = service.presigned(artifact, download=True)
+    assert download is not None
+    assert 'filename="final.mp4"' in client.presigned[-1]["params"][
+        "ResponseContentDisposition"
+    ]
+
+
+def test_artifact_absent_from_the_manifest_is_refused(store, pinned) -> None:
+    service = _showcase_service(MemoryS3(), store)
+    # Not in the public allowlist at all.
+    assert service.artifact("hopper-balance", "backend_comparison") is None
+    # Allowlisted but not published by this run.
+    assert service.artifact("hopper-balance", "demo_recording") is None
+    # A traversing or bogus identifier.
+    assert service.artifact("hopper-balance", "../../etc/passwd") is None
+
+
+def test_entry_is_withheld_when_a_required_artifact_is_missing(store, pinned) -> None:
+    service = _showcase_service(MemoryS3(drop=("video_final",)), store)
+    assert service.detail("hopper-balance") is None
+    assert service.entries() == []
+
+
+def test_entry_is_withheld_when_the_manifest_leaves_the_prefix(store, pinned) -> None:
+    service = _showcase_service(MemoryS3(out_of_prefix="resolved_config"), store)
+    assert service.detail("hopper-balance") is None
+
+
+def test_entry_is_withheld_when_a_member_digest_disagrees(store, pinned) -> None:
+    service = _showcase_service(MemoryS3(tamper_bundle=True), store)
+    assert service.detail("hopper-balance") is None
+
+
+def test_entry_is_withheld_when_the_declaration_disagrees_with_the_run(
+    store, pinned
+) -> None:
+    """A stale card cannot advertise a configuration its pinned run did not execute."""
+    metrics = {**SHOWCASE_METRICS, "environment": "halfcheetah"}
+    service = _showcase_service(MemoryS3(metrics=metrics), store)
+    assert service.detail("hopper-balance") is None
+
+    backend_mismatch = {**SHOWCASE_METRICS, "backend": "mjx"}
+    assert _showcase_service(MemoryS3(metrics=backend_mismatch), store).detail(
+        "hopper-balance"
+    ) is None
+
+
+def test_evaluation_state_is_separate_from_infrastructure_completion(
+    store, pinned
+) -> None:
+    metrics = {**SHOWCASE_METRICS, "aggregate": {"mean_reward": 3.0, "success": False}}
+    service = _showcase_service(MemoryS3(metrics=metrics), store)
+    detail = service.detail("hopper-balance")
+    assert detail is not None
+    # Completed run, unmet threshold — not a failed job.
+    assert detail["status"] == "completed"
+    assert detail["evaluation"]["success"] is False
+    assert detail["evaluation"]["criterion"]
+
+
+def test_disabled_showcase_publishes_nothing(store, pinned) -> None:
+    service = _showcase_service(MemoryS3(), store, enabled=False)
+    assert service.entries() == []
+    assert service.detail("hopper-balance") is None

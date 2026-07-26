@@ -1,8 +1,9 @@
 import { FormEvent, useState } from "react";
 import { api, ApiError, session } from "../api";
 
-// Two-step passwordless login: email → one-time code (with resend).
-export function Login({ onLogin }: { onLogin: () => void }) {
+// Two-step passwordless login: email → one-time code (with resend). Reached
+// deliberately from the public showcase, so it always offers a way back.
+export function Login({ onLogin, onCancel }: { onLogin: () => void; onCancel: () => void }) {
   const [step, setStep] = useState<"email" | "code">("email");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -82,6 +83,11 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             <button className="btn" style={{ width: "100%" }} disabled={busy || !email}>
               {busy ? "Sending…" : "Send code"}
             </button>
+            <p style={{ textAlign: "center", marginBottom: 0 }}>
+              <button type="button" className="btn-link" onClick={onCancel}>
+                ← Back to verified runs
+              </button>
+            </p>
           </form>
         ) : (
           <form onSubmit={verify}>

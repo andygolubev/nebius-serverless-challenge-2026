@@ -171,7 +171,7 @@ describe("My Robots workspace", () => {
     expect(await screen.findByText(/Setup saved\./)).toBeVisible();
     expect(screen.getAllByText("Setup validated").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Train a verified example" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "See a verified example" }).length).toBeGreaterThan(0);
   });
 
   it("renders the full workflow at a 375px viewport using native keyboard controls", async () => {
@@ -285,7 +285,10 @@ describe("My Robots workspace", () => {
     expect(within(card).queryByRole("button", { name: "Start training" })).not.toBeInTheDocument();
     expect(within(card).queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
 
-    fireEvent.click(within(card).getByRole("button", { name: "Train a verified example" }));
+    // The handoff is reference evidence, not an alternative training action: showcase
+    // examples are read-only, so no wording here may offer to train one.
+    expect(within(card).queryByRole("button", { name: /^Train a verified example$/ })).not.toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "See a verified example" }));
     expect(onBrowseExamples).toHaveBeenCalledOnce();
     expect(screen.getByText(validationOnly.name)).toBeVisible();
     expect(fetch.mock.calls.some(([path]) => String(path).includes("training-jobs"))).toBe(false);

@@ -225,6 +225,20 @@ class S3ArtifactReader:
             artifacts=artifacts,
         )
 
+    def read_showcase_manifest(self, run_id: str) -> ArtifactManifest | None:
+        """Read a pinned curated run's manifest for public exposure.
+
+        Deliberately the same validation a tenant read gets — safe relative paths,
+        in-prefix containment, required-artifact completeness, checksum descriptors,
+        object digests, and full bundle validation — because an anonymous audience is
+        a stricter one, not a laxer one. The pinned run identity doubles as the
+        manifest's `job_id`, which is its cache key.
+
+        `run_id` comes only from `catalog.resolve_showcase_run`; there is no caller
+        path that reaches this with a caller-supplied value.
+        """
+        return self.read_manifest(run_id, run_id)
+
     def _validate_gallery_bundle(
         self,
         key: str,

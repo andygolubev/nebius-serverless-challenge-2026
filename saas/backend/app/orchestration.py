@@ -12,7 +12,6 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Protocol
 
-from . import catalog
 from .custom_training import (
     ADAPTER_VERSION,
     PREPARATION_PROFILE,
@@ -126,51 +125,6 @@ class MockBackend:
                     artifacts=artifacts,
                 )
             )
-        elif job.gallery_example_id is not None:
-            artifacts = [
-                Artifact(
-                    id="video_final",
-                    name="Final rollout",
-                    kind="video",
-                    content_type="video/mp4",
-                    key=f"sim2policy/{job.id}/videos/final.mp4",
-                ),
-                Artifact(
-                    id="final_policy",
-                    name="Final checkpoint",
-                    content_type="application/zip",
-                    key=f"sim2policy/{job.id}/checkpoints/final.zip",
-                ),
-                Artifact(
-                    id="policy_bundle",
-                    name="Policy bundle",
-                    content_type="application/zip",
-                    key=f"sim2policy/{job.id}/bundle/policy-bundle.zip",
-                ),
-            ]
-            store.set_artifacts(
-                ArtifactManifest(
-                    job_id=job.id,
-                    status=STATUS_COMPLETED,
-                    metrics={
-                        "aggregate": {"episodes": 20, "mean_reward": 1234.5},
-                        "success": {
-                            "met": True,
-                            "criterion": job.resolved_config.get("success", {}).get(
-                                "criterion", "accepted example threshold"
-                            ),
-                        },
-                        "benchmark": {
-                            "estimated_cost": 0.12,
-                            "currency": "USD",
-                        },
-                        "runtime_seconds": 613.2,
-                        "mock": True,
-                    },
-                    media=[artifacts[0].key],
-                    artifacts=artifacts,
-                )
-            )
         else:
             store.set_artifacts(
                 ArtifactManifest(
@@ -226,17 +180,8 @@ class MockBackend:
 # but we re-validate at the trust boundary anyway.
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
-_DURATION_RE = re.compile(r"(\d+)([hms])")
 # Extra time we allow a job beyond its Nebius timeout before declaring it stuck.
 POLL_TIMEOUT_MARGIN_SECONDS = 30 * 60
-
-
-def parse_duration_seconds(duration: str) -> int:
-    """Parse a Nebius duration such as `1h`, `2h30m`, or `45m` into seconds."""
-    parts = _DURATION_RE.findall(duration)
-    if not parts or "".join(f"{n}{u}" for n, u in parts) != duration:
-        raise ValueError(f"invalid Nebius duration: {duration!r}")
-    return sum(int(n) * {"h": 3600, "m": 60, "s": 1}[u] for n, u in parts)
 
 
 def map_nebius_state(raw: str) -> str | None:
@@ -361,107 +306,20 @@ class NebiusBackend:
     # -- submission --
 
     def build_submission(self, job: Job):
-        """Build the job spec from the server-side catalog only.
+        """Build the job spec from an owned custom training specification only.
 
-        Tenant input never reaches this directly: `resolved_config` is already
-        catalog-validated, and only params named in the spec's `param_paths`
-        become `--set` overrides.
+        There is exactly one submission source left. The public-catalog path was
+        removed with gallery training: the verified examples are a read-only
+        showcase, so no request can reach a public MJX submission builder.
         """
-        from .nebius_client import JobSubmission
-
         if not RUN_ID_RE.match(job.id):
             raise ValueError(f"run id contains unsafe characters: {job.id!r}")
-        if job.job_kind == "custom-robot":
-            return self._build_custom_training_submission(job)
-        spec = catalog.job_spec(job.environment, job.algorithm)
-        if spec is None:
+        if job.job_kind != "custom-robot":
             raise ValueError(
-                f"{job.environment}/{job.algorithm} is not available on the nebius backend"
+                "the nebius backend only submits custom-robot training; public "
+                "catalog submission was removed with gallery training"
             )
-        if job.gallery_example_id is not None:
-            example = catalog.GALLERY_EXAMPLES.get(job.gallery_example_id)
-            if example is None:
-                raise ValueError("gallery example identity is unknown")
-            expected = catalog.resolve_gallery(
-                job.gallery_example_id,
-                {"seed": job.resolved_config.get("params", {}).get("seed", 0)},
-                profile_id=str(job.resolved_config.get("profile", "")),
-            )
-            for field in ("environment", "algorithm", "profile", "acceptance_revision"):
-                if job.resolved_config.get(field) != expected.get(field):
-                    raise ValueError(
-                        "gallery resolved configuration does not match the catalog"
-                    )
-            if (
-                job.environment != example.environment
-                or job.algorithm != example.algorithm
-            ):
-                raise ValueError("gallery job identity does not match its example")
-        params = job.resolved_config.get("params", {})
-        if not isinstance(params, dict):
-            raise ValueError("resolved job parameters are invalid")
-        steps = params.get("total_timesteps")
-        if isinstance(steps, int) and steps > spec.max_total_timesteps:
-            raise ValueError(
-                f"total_timesteps {steps} exceeds the {spec.max_total_timesteps} cap"
-            )
-        s = self._settings
-        args = ["-m", spec.module, "--config", spec.config, "--run-id", job.id]
-        if job.gallery_example_id is not None:
-            args += ["--gallery-example-id", job.gallery_example_id]
-        for name in sorted(spec.param_paths):
-            if name in params:
-                args += ["--set", f"{spec.param_paths[name]}={params[name]}"]
-        args += [
-            "--set",
-            "storage.mode=s3",
-            "--set",
-            f"storage.bucket={s.s3_bucket}",
-            "--set",
-            f"storage.endpoint_url={s.s3_endpoint_url}",
-            "--set",
-            f"storage.region={s.s3_region}",
-            "--set",
-            f"reporting.hourly_rate={spec.hourly_rate}",
-            "--set",
-            "reporting.currency=USD",
-            "--set",
-            f'reporting.rate_date="{spec.rate_date}"',
-        ]
-        if spec.image_key == "mjx":
-            if spec.platform not in {"gpu-h100-sxm", "gpu-l40s-a"}:
-                raise ValueError(
-                    "MJX catalog job uses an unsupported accelerator platform"
-                )
-            image = s.mjx_job_image
-        elif spec.image_key == "sb3":
-            if spec.platform != "cpu-d3" or spec.preset != "8vcpu-32gb":
-                raise ValueError("SB3 catalog job uses an unsupported CPU profile")
-            if s.job_image is None:
-                raise ValueError("immutable SB3 catalog image is not configured")
-            image = s.job_image
-        else:
-            raise ValueError("catalog job has an unsupported runtime image family")
-        return JobSubmission(
-            name=f"sim2policy-{job.id}",
-            image=image,
-            command="python",
-            args=args,
-            platform=spec.platform,
-            preset=spec.preset,
-            timeout_seconds=parse_duration_seconds(spec.timeout),
-            subnet_id=s.subnet_id,
-            parent_id=s.project_id,
-            registry_secret=s.registry_secret,
-            disk_gib=spec.disk_gib,
-            env={
-                "AWS_ACCESS_KEY_ID": s.aws_access_key_id,
-                "SIM2POLICY_RUNTIME_IMAGE": image,
-            },
-            # Secret access key is resolved by Nebius from MysteryBox inside the
-            # job; the plaintext value never enters the submission.
-            env_secrets={"AWS_SECRET_ACCESS_KEY": s.s3_secret_selector},
-        )
+        return self._build_custom_training_submission(job)
 
     def _custom_environment(self) -> dict[str, str]:
         settings = self._settings

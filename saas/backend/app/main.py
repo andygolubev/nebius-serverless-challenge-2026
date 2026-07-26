@@ -18,7 +18,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import catalog, environment_catalog
+from . import catalog, environment_catalog, showcase
 from .auth import (
     AuthService,
     RateLimited,
@@ -57,7 +57,7 @@ from .models import (
 )
 from .orchestration import build_backend
 from .robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate_mjcf
-from .settings import CustomTrainingSettings, GallerySettings
+from .settings import CustomTrainingSettings, ShowcaseSettings
 from .store import (
     AuthStore,
     CustomTrainingStore,
@@ -83,7 +83,9 @@ _custom_settings = getattr(
     "custom_settings",
     CustomTrainingSettings.from_env(orchestration_backend=_backend_name),
 )
-_gallery_settings = GallerySettings.from_env(orchestration_backend=_backend_name)
+_showcase_settings = ShowcaseSettings.from_env(orchestration_backend=_backend_name)
+_showcase = showcase.ShowcaseService(_store, _backend, _showcase_settings)
+_showcase_limiter = showcase.RateLimiter()
 _auth = AuthService(
     AuthStore(_db_path),
     build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")),
@@ -95,6 +97,9 @@ def resume_jobs() -> None:
     # Samples are part of the public upload contract. Refuse to start if packaging or
     # validation drift made either example unusable.
     _load_robot_samples()
+    # Pinned showcase runs are checked once here so an unsafe literal is rejected
+    # before it can be served, without failing readiness over one bad entry.
+    catalog.validate_showcase_runs()
     resume = getattr(_backend, "resume", None)
     if resume is not None:
         resume(_store)
@@ -211,7 +216,7 @@ def health() -> dict[str, str]:
         "email_backend": _auth.sender.name,
         "email_ready": "true",
         "custom_robot_training": "enabled" if _custom_settings.enabled else "disabled",
-        "gallery": "enabled" if _gallery_settings.enabled else "disabled",
+        "showcase": "enabled" if _showcase_settings.enabled else "disabled",
     }
 
 
@@ -673,95 +678,104 @@ def start_robot_setup_training(
     return job
 
 
-# -- jobs --
+# -- public showcase --
+#
+# These handlers take no session parameter at all — not an optional one. A route with
+# an optional session is a route where someone can later widen access with `if
+# session:`. Access is decided solely by the pinned-run allowlist, so a request
+# bearing a valid token receives a byte-identical response. Nothing here creates,
+# mutates, or launches anything.
+
+
+def _public_guard(request: Request) -> None:
+    """Bound anonymous traffic per client address."""
+    client = request.client.host if request.client else "unknown"
+    if not _showcase_limiter.allow(client):
+        raise HTTPException(status_code=429, detail="too many requests; slow down")
+
+
+@app.get("/showcase")
+def list_showcase(request: Request) -> dict:
+    _public_guard(request)
+    try:
+        return {"examples": _showcase.entries()}
+    except Exception:
+        # Never leak a storage error to an anonymous caller, and never 5xx the
+        # landing page: an unreadable entry is simply not published.
+        log.warning("showcase catalog read failed", exc_info=True)
+        return {"examples": []}
+
+
+@app.get("/showcase/{example_id}")
+def get_showcase_example(example_id: str, request: Request) -> dict:
+    _public_guard(request)
+    try:
+        detail = _showcase.detail(example_id)
+    except Exception:
+        log.warning("showcase detail read failed", exc_info=True)
+        raise HTTPException(status_code=503, detail="showcase is temporarily unavailable")
+    if detail is None:
+        # Unknown, hidden, and gate-failing entries are indistinguishable.
+        raise HTTPException(status_code=404, detail="example not found")
+    return detail
+
+
+@app.get("/showcase/{example_id}/artifacts/{artifact_id}")
+def access_showcase_artifact(
+    example_id: str,
+    artifact_id: str,
+    request: Request,
+    download: bool = False,
+):
+    _public_guard(request)
+    try:
+        artifact = _showcase.artifact(example_id, artifact_id)
+        url = _showcase.presigned(artifact, download=download) if artifact else None
+    except Exception:
+        log.warning("showcase artifact access failed", exc_info=True)
+        raise HTTPException(status_code=503, detail="artifact is temporarily unavailable")
+    if artifact is None or url is None:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    # Redirects to a short-lived, read-only URL for exactly one validated object.
+    # Range requests are served by object storage, so seeking works without
+    # downloading the whole file.
+    return RedirectResponse(url, status_code=307)
 
 
 @app.get("/training-options")
-def training_options() -> dict:
-    return catalog.serialize(gallery_enabled=_gallery_settings.enabled)
-
-
-@app.post("/jobs", status_code=201)
-def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> Job:
+def training_options(request: Request) -> dict:
+    """Showcase display metadata. Retained for existing clients; prefer /showcase."""
+    _public_guard(request)
     try:
-        if req.gallery_example_id is not None:
-            if not _gallery_settings.enabled:
-                raise catalog.ValidationError(
-                    "gallery_example_id", "the verified examples gallery is disabled"
-                )
-            if (
-                req.preset is not None
-                or req.environment is not None
-                or req.algorithm is not None
-            ):
-                raise catalog.ValidationError(
-                    "gallery_example_id",
-                    "gallery submissions cannot override preset, environment, or algorithm",
-                )
-            params = dict(req.params)
-            if req.seed is not None:
-                params.setdefault("seed", req.seed)
-            resolved = catalog.resolve_gallery(
-                req.gallery_example_id,
-                params,
-                profile_id=req.gallery_profile_id,
-            )
-        elif req.preset is not None:
-            if _gallery_settings.enabled:
-                raise catalog.ValidationError(
-                    "gallery_example_id", "select a verified gallery example"
-                )
-            if req.gallery_profile_id is not None:
-                raise catalog.ValidationError(
-                    "gallery_profile_id", "a gallery profile requires a gallery example"
-                )
-            expansion = catalog.expand_preset(req.preset)
-            params = {**expansion["params"], **req.params}
-            if req.seed is not None:
-                params.setdefault("seed", req.seed)
-            resolved = catalog.resolve_config(
-                expansion["environment"], expansion["algorithm"], params
-            )
-        else:
-            if req.gallery_profile_id is not None:
-                raise catalog.ValidationError(
-                    "gallery_profile_id", "a gallery profile requires a gallery example"
-                )
-            if _gallery_settings.enabled:
-                raise catalog.ValidationError(
-                    "gallery_example_id", "select a verified gallery example"
-                )
-            if req.environment is None or req.algorithm is None:
-                raise catalog.ValidationError(
-                    "environment", "provide a preset, or environment and algorithm"
-                )
-            params = dict(req.params)
-            if req.seed is not None:
-                params.setdefault("seed", req.seed)
-            resolved = catalog.resolve_config(req.environment, req.algorithm, params)
-    except catalog.ValidationError as e:
-        raise HTTPException(
-            status_code=422, detail={"field": e.field, "message": e.message}
-        )
-    job = Job(
-        id=uuid.uuid4().hex,
-        tenant_id=session.email,
-        preset=(
-            str(resolved.get("profile"))
-            if req.gallery_example_id is not None
-            else req.preset
-        ),
-        environment=resolved["environment"],
-        algorithm=resolved["algorithm"],
-        resolved_config=resolved,
-        status=STATUS_QUEUED,
-        created_at=_now(),
-        updated_at=_now(),
-        gallery_example_id=req.gallery_example_id,
+        return showcase.serialize_options(_showcase)
+    except Exception:
+        log.warning("showcase options read failed", exc_info=True)
+        return {"showcase_enabled": _showcase.enabled, "examples": []}
+
+
+# -- jobs --
+
+
+@app.post("/jobs", status_code=410)
+def submit_job(req: JobRequest, session: Session = Depends(require_session)) -> dict:
+    """Refuse every catalog submission; training starts from an owned robot setup.
+
+    The verified examples are a read-only showcase of runs that were already
+    performed, so there is nothing here to submit. `POST /jobs` is retained only to
+    answer an old client honestly rather than 404-ing it. No branch of this handler
+    can create a SaaS job record or a remote resource.
+    """
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "field": "gallery_example_id",
+            "message": (
+                "Verified examples are a read-only showcase and cannot be trained. "
+                "To train, upload a robot, save a setup, prepare it, and start it with "
+                "POST /robot-setups/{setup_id}/training-jobs."
+            ),
+        },
     )
-    _store.put(job)
-    _backend.launch(job, _store)
-    return job
 
 
 @app.get("/jobs")

@@ -500,8 +500,10 @@ function SetupTrainingActions({
               ? "This setup is saved and validated, but this deployment has no accepted custom training adapter and production job specification. No training job was created."
               : "This setup is saved and validated, but it is outside the fixed custom training profile. No training job was created."}
           </p>
+          {/* Reference evidence, never an alternative training action: showcase
+              examples are read-only and cannot be trained. */}
           <button type="button" className="btn btn-ghost" onClick={onBrowseExamples}>
-            Train a verified example
+            See a verified example
           </button>
         </div>
       )}

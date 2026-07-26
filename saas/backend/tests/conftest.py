@@ -37,6 +37,31 @@ def client() -> TestClient:
 
 
 @pytest.fixture()
+def store():
+    """A fresh JobStore, which also serves as the showcase manifest cache."""
+    from app.store import JobStore
+
+    return JobStore(os.path.join(tempfile.mkdtemp(prefix="saas-store-"), "store.db"))
+
+
+@pytest.fixture()
+def pinned(monkeypatch):
+    """Pin `hopper-balance` at the in-memory `gallery-run`, restoring afterwards.
+
+    `SHOWCASE_RUNS` normally holds placeholders that resolve to no run at all, so a
+    test that needs a published entry has to pin a real one.
+    """
+    from app import catalog
+
+    monkeypatch.setitem(catalog.SHOWCASE_RUNS, "hopper-balance", "gallery-run")
+    catalog.validate_showcase_runs()
+    yield "hopper-balance"
+    # The validated map caches the pinned values; rebuild it from the restored dict.
+    monkeypatch.undo()
+    catalog.validate_showcase_runs()
+
+
+@pytest.fixture()
 def login(client: TestClient, sender: RecordingSender):
     """Log an email in and return auth headers."""
 

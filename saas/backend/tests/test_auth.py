@@ -129,10 +129,29 @@ def test_logout_revokes_session(client, sender, login):
 
 
 def test_tenant_isolation(client, sender, login):
-    alice, bob = login(_email()), login(_email())
-    res = client.post("/jobs", json={"preset": "go1-mjx-quick"}, headers=alice)
-    assert res.status_code == 201
-    job_id = res.json()["id"]
+    # Jobs are created only by the custom-robot path now, so this seeds one directly:
+    # the property under test is read isolation, not how the job came to exist.
+    import uuid as _uuid
+
+    from app import main
+    from app.models import STATUS_QUEUED, Job
+
+    alice_email, bob_email = _email(), _email()
+    alice, bob = login(alice_email), login(bob_email)
+    job_id = _uuid.uuid4().hex
+    main._store.put(
+        Job(
+            id=job_id,
+            tenant_id=alice_email,
+            environment="uploaded-biped",
+            algorithm="ppo-sb3",
+            resolved_config={"job_kind": "custom-robot"},
+            status=STATUS_QUEUED,
+            created_at="2026-07-26T00:00:00+00:00",
+            updated_at="2026-07-26T00:00:00+00:00",
+            job_kind="custom-robot",
+        )
+    )
     assert client.get(f"/jobs/{job_id}", headers=alice).status_code == 200
     assert client.get(f"/jobs/{job_id}", headers=bob).status_code == 404
     assert all(j["id"] != job_id for j in client.get("/jobs", headers=bob).json())

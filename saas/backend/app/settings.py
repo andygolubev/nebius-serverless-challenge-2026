@@ -147,8 +147,18 @@ class CustomTrainingSettings:
 
 
 @dataclass(frozen=True)
-class GallerySettings:
-    """Disabled-first rollout switch for the verified public gallery."""
+class ShowcaseSettings:
+    """Operator kill-switch for the public read-only showcase.
+
+    Enabled by default, unlike the trainable gallery switch it replaces. That switch
+    was disabled-first because every card could spend GPU budget; this one only
+    reveals evidence from runs already paid for, and it is the application's public
+    landing experience, so defaulting it off would serve visitors an empty page.
+
+    It carries no immutable-runtime-image requirement any more: those gated whether
+    a card was safe to *submit*, and nothing in the showcase is submittable. What a
+    showcase entry may reveal is gated per entry by its pinned run's evidence.
+    """
 
     enabled: bool
 
@@ -158,20 +168,9 @@ class GallerySettings:
         env: dict[str, str] | None = None,
         *,
         orchestration_backend: str = "mock",
-    ) -> GallerySettings:
+    ) -> ShowcaseSettings:
         env = os.environ if env is None else env
-        enabled = (
-            env.get("SAAS_GALLERY_ENABLED", "false").strip().lower() in _TRUE_VALUES
-        )
-        if enabled and orchestration_backend == "nebius":
-            sb3_image = env.get("SIM2POLICY_JOB_IMAGE", "").strip()
-            mjx_image = env.get("SIM2POLICY_MJX_JOB_IMAGE", "").strip()
-            if not _IMMUTABLE_SB3_IMAGE_RE.search(sb3_image):
-                raise SettingsError(
-                    "SAAS_GALLERY_ENABLED requires an immutable SIM2POLICY_JOB_IMAGE"
-                )
-            if not _IMMUTABLE_MJX_IMAGE_RE.search(mjx_image):
-                raise SettingsError(
-                    "SAAS_GALLERY_ENABLED requires an immutable SIM2POLICY_MJX_JOB_IMAGE"
-                )
-        return cls(enabled=enabled)
+        # `SAAS_GALLERY_ENABLED` is still honoured so an existing deployment that set
+        # it does not silently change behaviour on upgrade.
+        raw = env.get("SAAS_SHOWCASE_ENABLED", env.get("SAAS_GALLERY_ENABLED", "true"))
+        return cls(enabled=raw.strip().lower() in _TRUE_VALUES)

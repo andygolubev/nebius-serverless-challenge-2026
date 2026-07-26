@@ -787,6 +787,75 @@ select {
   }
 }
 
+/* ---- public showcase ---- */
+/* Reuses the gallery card, badge, and result panels; only layout glue is new. */
+
+.showcase-hero {
+  margin-bottom: var(--sp-6);
+  max-width: 46rem;
+}
+
+.showcase-hero .btn {
+  margin-top: var(--sp-4);
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.brand-button {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+}
+
+.showcase-cta {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-4);
+  justify-content: space-between;
+  margin-top: var(--sp-6);
+  padding: var(--sp-5);
+}
+
+.showcase-cta div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.showcase-cta span {
+  color: var(--text-muted);
+  font-size: var(--fs-sm);
+}
+
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  justify-content: center;
+  margin-top: var(--sp-4);
+}
+
+@media (max-width: 640px) {
+  .showcase-cta,
+  .showcase-cta .btn {
+    width: 100%;
+  }
+}
+
 /* ---- misc ---- */
 
 .empty-state {

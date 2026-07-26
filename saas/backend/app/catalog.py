@@ -1,15 +1,22 @@
-"""Server-owned executable training catalog.
+"""Server-owned training catalog and public showcase pinning.
 
-The public gallery is a small product contract, not a general job builder.  A
-tenant selects one stable example ID and may change only the seed.  Images,
-commands, environments, algorithms, compute, secrets and artifact prefixes are
-derived here and validated again at the orchestration boundary.
+The seven examples are display-and-evidence identities, not a job builder. Nothing
+here is submittable: `JOB_SPECS` survives only as the record of what each curated
+run executed, which is exactly the metadata the public showcase displays.
+
+`SHOWCASE_RUNS` pins each example to one curated run in object storage. It is the
+most security-relevant allowlist in the service — the showcase resolver's only
+input is an example ID and its only output is a literal from this map — so it lives
+in reviewable source rather than in configuration.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from typing import Any
+import logging
+import re
+from dataclasses import dataclass
+
+log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -20,14 +27,6 @@ class Param:
     default: int | float
     min: int | float
     max: int | float
-
-
-@dataclass(frozen=True)
-class Algorithm:
-    id: str
-    label: str
-    description: str
-    params: tuple[Param, ...]
 
 
 @dataclass(frozen=True)
@@ -77,46 +76,6 @@ class GalleryExample:
 
 
 SEED_PARAM = Param("seed", "Seed", "int", 0, 0, 2**31 - 1)
-_COMMON_TUNING_PARAMS = (
-    Param("learning_rate", "Learning rate", "float", 3e-4, 1e-5, 1e-2),
-    SEED_PARAM,
-)
-
-ALGORITHMS: dict[str, Algorithm] = {
-    "ppo-sb3": Algorithm(
-        id="ppo-sb3",
-        label="PPO (Stable-Baselines3)",
-        description="CPU-vectorized MuJoCo PPO.",
-        params=(
-            Param(
-                "total_timesteps",
-                "Total timesteps",
-                "int",
-                1_000_000,
-                10_000,
-                5_000_000,
-            ),
-            *_COMMON_TUNING_PARAMS,
-        ),
-    ),
-    "ppo-mjx": Algorithm(
-        id="ppo-mjx",
-        label="PPO (MJX / JAX)",
-        description="GPU-parallel MuJoCo Playground PPO.",
-        params=(
-            Param(
-                "total_timesteps",
-                "Total timesteps",
-                "int",
-                100_000_000,
-                10_000,
-                100_000_000,
-            ),
-            *_COMMON_TUNING_PARAMS,
-        ),
-    ),
-}
-
 ENVIRONMENTS: dict[str, Environment] = {
     "go1": Environment(
         "go1", "Go1", "Flat-terrain quadruped locomotion.", ("ppo-mjx",)
@@ -139,31 +98,6 @@ ENVIRONMENTS: dict[str, Environment] = {
     "reacher": Environment(
         "reacher", "Reacher", "Two-link arm target reaching.", ("ppo-sb3",)
     ),
-}
-
-DEFAULT_PRESET = "go1-mjx-standard"
-PRESETS: dict[str, dict[str, Any]] = {
-    "go1-mjx-quick": {
-        "label": "Go1 Quick",
-        "description": "Fast GPU demo · observed about 20 min",
-        "environment": "go1",
-        "algorithm": "ppo-mjx",
-        "params": {"total_timesteps": 5_000_000},
-    },
-    "go1-mjx-standard": {
-        "label": "Go1 Standard",
-        "description": "Balanced GPU run · observed about 21 min",
-        "environment": "go1",
-        "algorithm": "ppo-mjx",
-        "params": {"total_timesteps": 25_000_000},
-    },
-    "go1-mjx-quality": {
-        "label": "Go1 Quality",
-        "description": "Flagship GPU result · observed about 27 min",
-        "environment": "go1",
-        "algorithm": "ppo-mjx",
-        "params": {"total_timesteps": 100_000_000},
-    },
 }
 
 _SB3_PARAM_PATHS = {"total_timesteps": "training.total_steps", "seed": "seed"}
@@ -428,180 +362,88 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
 }
 
 
-class ValidationError(Exception):
-    def __init__(self, field: str, message: str) -> None:
-        self.field = field
-        self.message = message
-        super().__init__(f"{field}: {message}")
+# -- public showcase pinning -----------------------------------------------------------
+
+# The same safe pattern the orchestration boundary enforces on run identities.
+SHOWCASE_RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+# A tenant job id is `uuid4().hex`: exactly 32 lowercase hex characters. A pinned
+# showcase run must never be mistakable for one, because both share the artifact
+# cache keyspace and a collision would let a showcase lookup surface tenant data.
+_TENANT_JOB_ID_RE = re.compile(r"^[0-9a-f]{32}$")
+# Marks an example whose curated run has not been performed yet (a separate change
+# performs them). A placeholder resolves to no run at all, so nothing is read from
+# storage and the entry simply stays unpublished.
+PENDING_RUN_PREFIX = "pending-curated-run-"
+
+SHOWCASE_RUNS: dict[str, str] = {
+    "go1-walker": f"{PENDING_RUN_PREFIX}go1-walker",
+    "ant-explorer": f"{PENDING_RUN_PREFIX}ant-explorer",
+    "halfcheetah-sprint": f"{PENDING_RUN_PREFIX}halfcheetah-sprint",
+    "hopper-balance": f"{PENDING_RUN_PREFIX}hopper-balance",
+    "walker2d-stride": f"{PENDING_RUN_PREFIX}walker2d-stride",
+    "g1-rough-terrain": f"{PENDING_RUN_PREFIX}g1-rough-terrain",
+    "reacher-target": f"{PENDING_RUN_PREFIX}reacher-target",
+}
+
+_validated_runs: dict[str, str] | None = None
+
+
+def is_pending_run(run_id: str) -> bool:
+    return run_id.startswith(PENDING_RUN_PREFIX)
+
+
+def _reject(example_id: str, reason: str) -> None:
+    # Sanitized: the rejected value is never logged, only which entry and why.
+    log.warning("showcase entry %s is not publishable: %s", example_id, reason)
+
+
+def validate_showcase_runs() -> dict[str, str]:
+    """Return the pinned runs that are safe to serve, rejecting the rest.
+
+    One bad literal must not take the service down while the other entries are
+    fine, so a rejected entry is logged and left unpublished instead of raising.
+    """
+    global _validated_runs
+    duplicated = {
+        run_id
+        for run_id in SHOWCASE_RUNS.values()
+        if list(SHOWCASE_RUNS.values()).count(run_id) > 1
+    }
+    valid: dict[str, str] = {}
+    for example_id, run_id in SHOWCASE_RUNS.items():
+        if example_id not in GALLERY_EXAMPLES:
+            _reject(example_id, "not a known gallery example")
+        elif not isinstance(run_id, str) or not SHOWCASE_RUN_ID_RE.fullmatch(run_id):
+            _reject(example_id, "pinned run identity is not a safe identifier")
+        elif "/" in run_id or ".." in run_id.split("."):
+            # Belt-and-braces containment: the reader builds `sim2policy/<run>/<rel>`,
+            # so a run identity must be exactly one safe path segment.
+            _reject(example_id, "pinned run identity is not a single safe path segment")
+        elif _TENANT_JOB_ID_RE.fullmatch(run_id):
+            _reject(example_id, "pinned run identity collides with the tenant job space")
+        elif run_id in duplicated:
+            # If two examples claim the same run, neither claim is trustworthy.
+            _reject(example_id, "pinned run identity is claimed by another example")
+        else:
+            valid[example_id] = run_id
+    _validated_runs = valid
+    return valid
+
+
+def resolve_showcase_run(example_id: str) -> str | None:
+    """Map an example ID to its pinned curated run, or None if there is not one.
+
+    This is the showcase's entire identity resolution. It takes no run ID, job ID,
+    storage key, or prefix, and it returns only a literal from `SHOWCASE_RUNS`, so
+    no caller-supplied value can ever select what is read from storage. `None`
+    covers an unknown example, a rejected pinning, and a run not yet performed.
+    """
+    runs = _validated_runs if _validated_runs is not None else validate_showcase_runs()
+    run_id = runs.get(example_id)
+    if run_id is None or is_pending_run(run_id):
+        return None
+    return run_id
 
 
 def job_spec(environment: str, algorithm: str) -> JobSpec | None:
     return JOB_SPECS.get((environment, algorithm))
-
-
-def expand_preset(preset: str) -> dict[str, Any]:
-    if preset not in PRESETS:
-        raise ValidationError("preset", f"unknown preset: {preset}")
-    value = PRESETS[preset]
-    return {
-        k: v for k, v in value.items() if k in {"environment", "algorithm", "params"}
-    }
-
-
-def _validate_params(algorithm: str, params: dict[str, Any]) -> dict[str, int | float]:
-    algo = ALGORITHMS[algorithm]
-    known = {p.name: p for p in algo.params}
-    for name in params:
-        if name not in known:
-            raise ValidationError(name, f"unknown parameter for {algorithm}")
-    resolved: dict[str, int | float] = {}
-    for p in algo.params:
-        value = params.get(p.name, p.default)
-        if p.type == "int":
-            if not isinstance(value, int) or isinstance(value, bool):
-                raise ValidationError(p.name, "must be an integer")
-        elif isinstance(value, bool) or not isinstance(value, int | float):
-            raise ValidationError(p.name, "must be a number")
-        else:
-            value = float(value)
-        if not p.min <= value <= p.max:
-            raise ValidationError(p.name, f"must be between {p.min} and {p.max}")
-        resolved[p.name] = value
-    return resolved
-
-
-def resolve_config(
-    environment: str, algorithm: str, params: dict[str, Any]
-) -> dict[str, Any]:
-    env = ENVIRONMENTS.get(environment)
-    if env is None:
-        raise ValidationError("environment", f"unknown environment: {environment}")
-    if algorithm not in env.algorithms:
-        raise ValidationError(
-            "algorithm", f"algorithm {algorithm!r} not available for {environment}"
-        )
-    if job_spec(environment, algorithm) is None:
-        raise ValidationError(
-            "algorithm", f"algorithm {algorithm!r} is not executable for {environment}"
-        )
-    return {
-        "environment": environment,
-        "algorithm": algorithm,
-        "params": _validate_params(algorithm, params),
-    }
-
-
-def resolve_gallery(
-    example_id: str,
-    params: dict[str, Any],
-    *,
-    profile_id: str | None = None,
-) -> dict[str, Any]:
-    example = GALLERY_EXAMPLES.get(example_id)
-    if example is None:
-        raise ValidationError(
-            "gallery_example_id", f"unknown gallery example: {example_id}"
-        )
-    spec = job_spec(example.environment, example.algorithm)
-    if spec is None or spec.acceptance_revision != example.acceptance_revision:
-        raise ValidationError(
-            "gallery_example_id", "gallery example is not accepted for this release"
-        )
-    allowed = {p.name: p for p in example.optional_params}
-    unknown = sorted(set(params) - set(allowed))
-    if unknown:
-        raise ValidationError(unknown[0], "field is not customizable for this example")
-    selected_profile = profile_id or example.recommended_profile
-    merged = dict(example.recommended_params)
-    if example.id == "go1-walker":
-        preset = PRESETS.get(selected_profile)
-        if preset is None:
-            raise ValidationError(
-                "gallery_profile_id", "choose a Go1 catalog workload size"
-            )
-        merged.update(preset["params"])
-    elif selected_profile != example.recommended_profile:
-        raise ValidationError(
-            "gallery_profile_id", "this example has one fixed recommended workload"
-        )
-    for name, value in params.items():
-        bound = allowed[name]
-        if not isinstance(value, int) or isinstance(value, bool):
-            raise ValidationError(name, "must be an integer")
-        if not bound.min <= value <= bound.max:
-            raise ValidationError(name, f"must be between {bound.min} and {bound.max}")
-        merged[name] = value
-    return {
-        "gallery_example_id": example.id,
-        "example": {
-            "id": example.id,
-            "label": example.label,
-            "avatar": example.avatar,
-            "task": example.task,
-        },
-        "environment": example.environment,
-        "algorithm": example.algorithm,
-        "profile": selected_profile,
-        "params": merged,
-        "acceptance_revision": example.acceptance_revision,
-        "success": {
-            "criterion": example.success_criterion,
-            "primary_metric": example.primary_metric,
-        },
-    }
-
-
-def _serialized_example(example: GalleryExample) -> dict[str, Any]:
-    value = asdict(example)
-    value["optional_params"] = [asdict(item) for item in example.optional_params]
-    value["workload_profiles"] = (
-        [
-            {
-                "id": name,
-                "recommended": name == example.recommended_profile,
-                **preset,
-            }
-            for name, preset in PRESETS.items()
-        ]
-        if example.id == "go1-walker"
-        else []
-    )
-    return value
-
-
-def serialize(*, gallery_enabled: bool = False) -> dict[str, Any]:
-    examples = [
-        _serialized_example(item)
-        for item in GALLERY_EXAMPLES.values()
-        if gallery_enabled
-        and (spec := job_spec(item.environment, item.algorithm)) is not None
-        and spec.acceptance_revision == item.acceptance_revision
-    ]
-    algorithms = ALGORITHMS.values() if gallery_enabled else (ALGORITHMS["ppo-mjx"],)
-    environments = ENVIRONMENTS.values() if gallery_enabled else (ENVIRONMENTS["go1"],)
-    return {
-        "gallery_enabled": gallery_enabled,
-        "examples": examples,
-        "environments": [
-            {
-                "id": e.id,
-                "label": e.label,
-                "description": e.description,
-                "algorithms": list(e.algorithms),
-            }
-            for e in environments
-        ],
-        "algorithms": [
-            {
-                "id": a.id,
-                "label": a.label,
-                "description": a.description,
-                "params": [asdict(p) for p in a.params],
-            }
-            for a in algorithms
-        ],
-        "presets": [
-            {"id": name, "default": name == DEFAULT_PRESET, **cfg}
-            for name, cfg in PRESETS.items()
-        ],
-    }
