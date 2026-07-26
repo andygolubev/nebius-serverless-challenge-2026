@@ -19,6 +19,8 @@ implementation evidence rather than available by default.
 from __future__ import annotations
 
 import json
+import os
+import re
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -110,6 +112,27 @@ class BlockedProvider:
 
     def audit(self) -> dict[str, Any]:
         raise ProviderError(self.reason)
+
+
+_PROJECT_ID = re.compile(r"^project-[a-z0-9]+$")
+
+
+def provider_from_environment(
+    environment: Mapping[str, str] | None = None,
+) -> JobProvider:
+    """Enable live Nebius dispatch only with an explicit runner opt-in.
+
+    The CLI remains safe to inspect and gate on an approved Nebius VM without
+    spending authority.  Submission additionally requires the managed runner to
+    provide both its reviewed project scope and an explicit dispatch mode.
+    """
+    source = os.environ if environment is None else environment
+    if source.get("SIM2POLICY_PROVIDER_DISPATCH") != "nebius":
+        return BlockedProvider()
+    project_id = source.get("SIM2POLICY_NEBIUS_PROJECT_ID", "")
+    if not _PROJECT_ID.fullmatch(project_id):
+        return BlockedProvider()
+    return NebiusCliProvider(project_id=project_id)
 
 
 class NebiusCliProvider:

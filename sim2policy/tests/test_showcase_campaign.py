@@ -10,7 +10,13 @@ from typing import Any
 
 import pytest
 
-from sim2policy.campaign_provider import JobStatus, ProviderError
+from sim2policy.campaign_provider import (
+    BlockedProvider,
+    JobStatus,
+    NebiusCliProvider,
+    ProviderError,
+    provider_from_environment,
+)
 from sim2policy.campaign_state import CampaignError, CampaignStore
 from sim2policy.execution_location import (
     ExecutionLocationError,
@@ -83,6 +89,22 @@ class FakeProvider:
     def audit(self):
         return self._audit
 
+
+def test_live_provider_requires_explicit_nebius_dispatch_and_project_scope() -> None:
+    assert isinstance(provider_from_environment({}), BlockedProvider)
+    assert isinstance(
+        provider_from_environment({"SIM2POLICY_PROVIDER_DISPATCH": "nebius"}),
+        BlockedProvider,
+    )
+    assert isinstance(
+        provider_from_environment(
+            {
+                "SIM2POLICY_PROVIDER_DISPATCH": "nebius",
+                "SIM2POLICY_NEBIUS_PROJECT_ID": "project-e00wkbbppr00tab5fhhmz7",
+            }
+        ),
+        NebiusCliProvider,
+    )
 
 class FakeEvidence:
     """In-memory curated-run evidence, keyed by run id."""

@@ -37,6 +37,7 @@ from sim2policy.campaign_provider import (
     BlockedProvider,
     JobProvider,
     ProviderError,
+    provider_from_environment,
 )
 from sim2policy.campaign_redaction import sanitize_exception
 from sim2policy.campaign_state import (
@@ -1327,7 +1328,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         args = build_parser().parse_args(argv)
         matrix = load_matrix(args.matrix)
         store = CampaignStore(args.state_root, args.campaign_id)
-        campaign = Campaign(store, matrix)
+        campaign = Campaign(store, matrix, provider=provider_from_environment())
         code, result = dispatch(campaign, args, attestation)
     except (CampaignError, MatrixError, ExecutionLocationError) as exc:
         # The message is redacted before printing: a matrix or path error can
