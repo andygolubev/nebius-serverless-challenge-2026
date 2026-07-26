@@ -34,6 +34,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from sim2policy import finalize as finalize_module
+from sim2policy import train_mjx
 from sim2policy.checkpoint import checkpoint_by_digest, list_step_checkpoints, nearest_checkpoint
 from sim2policy.checkpoint_selection import (
     EvaluationEvidence,
@@ -55,8 +57,6 @@ from sim2policy.g1_curriculum import (
     selected_flat_gate,
 )
 from sim2policy.run import create_run_paths
-from sim2policy import finalize as finalize_module
-from sim2policy import train_mjx
 
 
 def _config_digest(path: str | Path) -> str:

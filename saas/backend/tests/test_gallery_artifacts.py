@@ -80,6 +80,12 @@ SHOWCASE_METRICS = {
         "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb"},
     },
     "selected_checkpoint": {"effective_step": 5000000, "sha256": "c" * 64},
+    "seed_roles": {"selection": [101, 151, 211, 271, 331], "final": [0, 1, 2, 3, 4]},
+    "ranking_explanation": {"kind": "mean_reward", "fields": ["mean_reward"]},
+    "acceptance": {
+        "hard": {"criteria": {"mean_reward": True}, "passed": True},
+        "preferred": {"criteria": {"mean_reward": True}, "passed": True},
+    },
     "progression": [
         {"stage": "untrained", "selected": False, "checkpoint": {"effective_step": 0, "sha256": "d" * 64}},
         {"stage": "selected", "selected": True, "checkpoint": {"effective_step": 5000000, "sha256": "c" * 64}},
