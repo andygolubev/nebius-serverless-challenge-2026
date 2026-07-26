@@ -11,6 +11,6 @@
 
 ## 3. Live Argo CD cutover
 
-- [ ] 3.1 Independently verify the SaaS server's changed SSH host key and repair local trust.
-- [ ] 3.2 Repoint, refresh, and sync the live root Argo CD Application to `debug-portal`.
-- [ ] 3.3 Verify root/child Application sync and health, the SaaS workload image and readiness, and public health.
+- [x] 3.1 Independently verify the SaaS server's changed SSH host key and repair local trust.
+- [x] 3.2 Repoint, refresh, and sync the live root Argo CD Application to `debug-portal`.
+- [x] 3.3 Verify root/child Application sync and health, the SaaS workload image and readiness, and public health.
