@@ -1,8 +1,8 @@
 """Sentinel-secret redaction across every persisted and printed campaign surface."""
 
-from __future__ import annotations
-
 # ruff: noqa: E501
+
+from __future__ import annotations
 
 import json
 from pathlib import Path

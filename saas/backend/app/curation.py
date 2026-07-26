@@ -39,6 +39,33 @@ CANONICAL_ENVIRONMENTS: dict[str, str] = {
     "g1-rough-terrain": "G1JoystickRoughTerrain",
 }
 
+# The runtime each example is expected to have executed. Checked alongside the
+# environment identity so a stale card cannot advertise a backend its pinned run
+# did not use.
+CANONICAL_BACKENDS: dict[str, str] = {
+    "reacher-target": "sb3",
+    "halfcheetah-sprint": "sb3",
+    "ant-explorer": "sb3",
+    "hopper-balance": "sb3",
+    "walker2d-stride": "sb3",
+    "go1-walker": "mjx",
+    "g1-rough-terrain": "mjx",
+}
+
+# Numeric evaluation fields that may be published. Explicit so an aggregate key the
+# evaluator adds later stays private until it is reviewed here.
+AGGREGATE_FIELDS = frozenset(
+    {
+        "mean_reward",
+        "std_reward",
+        "mean_episode_length",
+        "episodes",
+        "mean_velocity",
+        "min_velocity",
+        "no_fall_count",
+    }
+)
+
 # Identities a curriculum phase may legitimately record. G1 acquires a flat gait
 # before rough terrain, so `G1JoystickFlatTerrain` is a valid *phase* identity while
 # never being a valid *final task* identity — public success is scored only against
@@ -116,10 +143,12 @@ class CuratedEvidence:
     backend: str
     matrix_digest: str
     image_reference: str
+    checkpoint: str | None
     selected_checkpoint: SelectedCheckpoint
     success: bool
     criterion: str
     primary_metric: float | None
+    aggregate: dict[str, float]
     acceptance: AcceptanceOutcome
     measured_runtime_seconds: float | None
     measured_cost: float | None
@@ -277,6 +306,8 @@ def curate(
     backend = metrics.get("backend")
     if backend not in {"sb3", "mjx"}:
         raise CurationError("recorded backend is not a known runtime")
+    if backend != CANONICAL_BACKENDS[example_id]:
+        raise CurationError("recorded backend disagrees with the declared example")
 
     success = normalize_success(metrics)
     if success is None:
@@ -352,7 +383,12 @@ def curate(
         if cleanup_state != "PASS":
             raise CurationError("cleanup proof is missing for this curated run")
 
-    aggregate = metrics.get("aggregate") if isinstance(metrics.get("aggregate"), dict) else {}
+    raw_aggregate = metrics.get("aggregate") if isinstance(metrics.get("aggregate"), dict) else {}
+    aggregate = {
+        str(key): float(value)
+        for key, value in raw_aggregate.items()
+        if key in AGGREGATE_FIELDS and isinstance(value, (int, float)) and not isinstance(value, bool)
+    }
     primary = aggregate.get("mean_velocity", aggregate.get("mean_reward"))
     training = resolved.get("training") if isinstance(resolved.get("training"), dict) else {}
     hardware = resolved.get("hardware") if isinstance(resolved.get("hardware"), dict) else {}
@@ -367,10 +403,13 @@ def curate(
         backend=str(backend),
         matrix_digest=matrix_digest,
         image_reference=image,
+        # The native checkpoint *filename*, never an object key or storage path.
+        checkpoint=str(metrics["checkpoint"]) if isinstance(metrics.get("checkpoint"), str) else None,
         selected_checkpoint=SelectedCheckpoint(effective_step=step, sha256=digest),
         success=True,
         criterion=success["criterion"],
         primary_metric=float(primary) if isinstance(primary, (int, float)) and not isinstance(primary, bool) else None,
+        aggregate=aggregate,
         acceptance=acceptance,
         measured_runtime_seconds=float(runtime_seconds),
         measured_cost=float(cost),

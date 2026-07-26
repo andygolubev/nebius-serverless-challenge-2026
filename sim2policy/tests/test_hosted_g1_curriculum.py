@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 # ruff: noqa: E501
+
+from __future__ import annotations
 
 import zipfile
 from pathlib import Path

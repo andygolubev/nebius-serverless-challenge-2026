@@ -1,8 +1,8 @@
 """Campaign state machine: idempotency, serialization, resume, and fail-closed stops."""
 
-from __future__ import annotations
-
 # ruff: noqa: E501
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -12,7 +12,11 @@ import pytest
 
 from sim2policy.campaign_provider import JobStatus, ProviderError
 from sim2policy.campaign_state import CampaignError, CampaignStore
-from sim2policy.execution_location import ExecutionLocationError, LocationAttestation, require_nebius_execution
+from sim2policy.execution_location import (
+    ExecutionLocationError,
+    LocationAttestation,
+    require_nebius_execution,
+)
 from sim2policy.showcase_campaign import (
     EXIT_ACTIVE,
     EXIT_INVARIANT,
@@ -537,9 +541,8 @@ def test_a_new_process_resumes_from_persisted_state_alone(campaign) -> None:
 def test_a_held_lock_refuses_a_concurrent_command(campaign) -> None:
     build, store, _matrix = campaign
     instance = build()
-    with store.lock("plan"):
-        with pytest.raises(CampaignError, match="lock is held"):
-            instance.plan("reacher", 0)
+    with store.lock("plan"), pytest.raises(CampaignError, match="lock is held"):
+        instance.plan("reacher", 0)
 
 
 def test_recover_lock_refuses_while_the_holder_is_live(campaign) -> None:

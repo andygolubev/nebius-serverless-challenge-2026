@@ -1,8 +1,8 @@
 """Durability, locking, and transition validity of the campaign state store."""
 
-from __future__ import annotations
-
 # ruff: noqa: E501
+
+from __future__ import annotations
 
 import json
 import os
@@ -55,9 +55,8 @@ def test_lock_is_exclusive_and_fails_immediately_rather_than_waiting(tmp_path: P
         holder = store.lock_holder()
         assert holder["pid"] == os.getpid()
         assert holder["command"] == "plan"
-        with pytest.raises(CampaignError, match="lock is held"):
-            with store.lock("submit"):
-                raise AssertionError("a second holder must never enter the lock")
+        with pytest.raises(CampaignError, match="lock is held"), store.lock("submit"):
+            raise AssertionError("a second holder must never enter the lock")
     # Released on exit, so the next command proceeds normally.
     with store.lock("submit"):
         pass
@@ -65,9 +64,8 @@ def test_lock_is_exclusive_and_fails_immediately_rather_than_waiting(tmp_path: P
 
 def test_lock_is_released_even_when_the_body_raises(tmp_path: Path) -> None:
     store = _store(tmp_path)
-    with pytest.raises(ValueError):
-        with store.lock("plan"):
-            raise ValueError("boom")
+    with pytest.raises(ValueError), store.lock("plan"):
+        raise ValueError("boom")
     assert not store.lock_path.exists()
 
 
