@@ -91,8 +91,9 @@ flowchart LR
   kustomize image mapping).
 - `.github/workflows/saas-image.yml` builds the SaaS image and pushes it to the Nebius registry,
   authenticating with a `registry.pusher` service-account credential via `docker login --password-stdin`.
-  A successful `main` build commits the immutable image tag to the kustomization after verifying
-  that `main` has not advanced, so ArgoCD deploys the exact build without an operator override.
+  During the temporary debug-deployment workflow, a successful `debug-portal` build commits the
+  immutable image tag to that branch's kustomization after verifying that the branch has not
+  advanced, so ArgoCD deploys the exact build without an operator override.
 - `runs/<run-id>/` is canonical while a process runs. `checkpoints/`, `tensorboard/`, `videos/`, and
   `report/` map to the same subpaths at `s3://<bucket>/sim2policy/<run-id>/`, which is canonical
   across ephemeral jobs. A checkpoint is uploaded fully before `latest.json` is advanced.
