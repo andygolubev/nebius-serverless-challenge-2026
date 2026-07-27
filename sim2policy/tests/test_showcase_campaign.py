@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from sim2policy.campaign_infra import Probe
 from sim2policy.campaign_provider import (
     BlockedProvider,
     JobStatus,
@@ -88,6 +89,36 @@ class FakeProvider:
 
     def audit(self):
         return self._audit
+
+
+class FakeProber:
+    """Live-probe double: returns scripted probe results, records what was asked."""
+
+    def __init__(self, *, failing: set[str] | None = None) -> None:
+        self.failing = failing or set()
+        self.calls: list[dict[str, Any]] = []
+
+    def collect(self, *, expected_revision, hardware=None, expected_branch="debug-portal"):
+        self.calls.append(
+            {
+                "expected_revision": expected_revision,
+                "hardware": dict(hardware) if hardware else None,
+                "expected_branch": expected_branch,
+            }
+        )
+        names = ["repository", "infrastructure", "credentials"]
+        if hardware is not None:
+            names.append("preset_quota")
+        probes = [Probe(name, name not in self.failing, {"stub": True}) for name in names]
+        probes.append(
+            Probe(
+                "github_actions",
+                True,
+                {"runs": [{"conclusion": "failure"}]},
+                informational=True,
+            )
+        )
+        return probes
 
 
 def test_live_provider_requires_explicit_nebius_dispatch_and_project_scope() -> None:
@@ -185,6 +216,7 @@ def campaign(tmp_path: Path):
     store = CampaignStore(tmp_path, "gallery-result-20260726")
 
     def build(provider=None, evidence=None, **kwargs):
+        kwargs.setdefault("prober", FakeProber())
         instance = Campaign(
             store,
             matrix,
@@ -616,9 +648,84 @@ def test_preflight_blocks_while_a_job_is_active(campaign) -> None:
 
 def test_preflight_passes_on_a_clean_campaign(campaign) -> None:
     build, *_ = campaign
-    code, envelope = build().preflight("reacher")
+    prober = FakeProber()
+    code, envelope = build(prober=prober).preflight("reacher")
     assert code == EXIT_OK, envelope.get("failed_checks")
     assert envelope["checks"]["non_preemptible"] is True
+    assert envelope["checks"]["nebius_quality_gates"] is True
+    assert envelope["checks"]["cloud_baseline"] is True
+    # The probes are given the reviewed revision and the exact card hardware.
+    assert prober.calls[0]["expected_revision"] == "git:" + "a" * 40
+    assert prober.calls[0]["hardware"]["platform"] == "cpu-d3"
+
+
+def test_preflight_records_a_persistent_probe_audit(campaign) -> None:
+    build, store, _matrix = campaign
+    build().preflight("reacher")
+    audit = store.read_json(store.audit_path("preflight.json"))
+    assert audit is not None and audit["example"] == "reacher"
+    assert [probe["name"] for probe in audit["probes"]] == [
+        "repository", "infrastructure", "credentials", "preset_quota"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("failing", "reason"),
+    [
+        ("repository", "REVISION_MISMATCH"),
+        ("infrastructure", "INFRASTRUCTURE_UNRESOLVED"),
+        ("credentials", "CREDENTIALS_UNAVAILABLE"),
+        ("preset_quota", "PRESET_OR_QUOTA_INSUFFICIENT"),
+    ],
+)
+def test_preflight_blocks_on_each_failed_live_probe(campaign, failing: str, reason: str) -> None:
+    build, *_ = campaign
+    code, envelope = build(prober=FakeProber(failing={failing})).preflight("reacher")
+    assert code == EXIT_NEEDS_HUMAN and envelope["reason_code"] == reason
+    assert f"probe_{failing}" in envelope["failed_checks"]
+
+
+def test_preflight_fails_closed_without_a_prober(campaign) -> None:
+    """No cloud visibility must block a paid attempt, not silently pass it."""
+    build, *_ = campaign
+    instance = build()
+    instance.prober = None
+    code, envelope = instance.preflight("reacher")
+    assert code == EXIT_NEEDS_HUMAN
+    assert envelope["reason_code"] == "PREFLIGHT_PROBES_UNAVAILABLE"
+
+
+def test_preflight_never_lets_a_github_result_decide(campaign) -> None:
+    """A red informational run does not block, and a green one cannot substitute."""
+    build, store, _matrix = campaign
+    code, envelope = build().preflight("reacher")
+    assert code == EXIT_OK
+    assert envelope["informational"][0]["name"] == "github_actions"
+    assert not any(name.startswith("probe_github") for name in envelope["checks"])
+
+    # A GitHub-shaped preparation attestation cannot satisfy the Nebius gate.
+    store.write_json(
+        store.evidence_path("sb3-smoke.json"),
+        {"provider": "github", "workflow": "smoke.yml", "conclusion": "success"},
+    )
+    code, envelope = build().preflight("reacher")
+    assert code == EXIT_NEEDS_HUMAN
+    assert "nebius_quality_gates" in envelope["failed_checks"]
+
+
+def test_preflight_blocks_on_an_unaccounted_running_job(campaign) -> None:
+    build, *_ = campaign
+    provider = FakeProvider(audit_result={"active_jobs": ["aijob-someone-else"], "running_instances": []})
+    code, envelope = build(provider=provider).preflight("reacher")
+    assert code == EXIT_NEEDS_HUMAN and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
+    assert envelope["unaccounted_resources"] == ["aijob-someone-else"]
+
+
+def test_preflight_blocks_when_the_cloud_cannot_be_audited(campaign) -> None:
+    build, *_ = campaign
+    code, envelope = build(provider=BlockedProvider()).preflight("reacher")
+    assert code == EXIT_NEEDS_HUMAN and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
+    assert envelope["checks"]["cloud_baseline"] is False
 
 
 def test_campaign_commands_refuse_to_run_outside_nebius() -> None:

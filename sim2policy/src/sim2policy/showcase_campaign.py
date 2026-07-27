@@ -39,6 +39,7 @@ from sim2policy.campaign_provider import (
     ProviderError,
     provider_from_environment,
 )
+from sim2policy.campaign_infra import InfrastructurePreflight, probe_from_environment
 from sim2policy.campaign_redaction import sanitize_exception
 from sim2policy.campaign_state import (
     ACTIVE_STATES,
@@ -97,6 +98,29 @@ def _digest(value: Any) -> str:
     ).hexdigest()
 
 
+def _preflight_reason(checks: Mapping[str, bool], unaccounted: Sequence[Any]) -> str:
+    """Name the most actionable failure so the handoff points at one thing to fix."""
+    if not checks.get("no_active_job", True):
+        return "ACTIVE_JOB_PRESENT"
+    if not checks.get("previous_attempt_cleaned", True):
+        return "CLEANUP_REQUIRED"
+    if unaccounted or not checks.get("cloud_baseline", True):
+        return "UNACCOUNTED_RESOURCE"
+    if not checks.get("probe_live_probes", True):
+        return "PREFLIGHT_PROBES_UNAVAILABLE"
+    if not checks.get("probe_repository", True):
+        return "REVISION_MISMATCH"
+    if not checks.get("probe_infrastructure", True):
+        return "INFRASTRUCTURE_UNRESOLVED"
+    if not checks.get("probe_credentials", True):
+        return "CREDENTIALS_UNAVAILABLE"
+    if not checks.get("probe_preset_quota", True):
+        return "PRESET_OR_QUOTA_INSUFFICIENT"
+    if not checks.get("nebius_quality_gates", True):
+        return "NEBIUS_ATTESTATION_MISSING"
+    return "PREFLIGHT_FAILED"
+
+
 def _rank_key(aggregate: Mapping[str, Any], kind: str, effective_step: int) -> tuple[float, ...]:
     """Ranking over recorded aggregates, matching `checkpoint_selection.rank_key`.
 
@@ -136,6 +160,7 @@ class Campaign:
         clock: Any = time.time,
         sleeper: Any = time.sleep,
         environment: Mapping[str, str] | None = None,
+        prober: InfrastructurePreflight | None = None,
     ) -> None:
         self.store = store
         self.matrix = matrix
@@ -144,6 +169,9 @@ class Campaign:
         self._clock = clock
         self._sleep = sleeper
         self._environment = dict(os.environ if environment is None else environment)
+        # Absent an explicit Nebius project scope this stays `None`, which preflight
+        # treats as a failed probe rather than as "nothing to check".
+        self.prober = prober if prober is not None else probe_from_environment(self._environment)
 
     # -- envelope ------------------------------------------------------------
 
@@ -329,6 +357,14 @@ class Campaign:
     # -- preflight (5.5) -----------------------------------------------------
 
     def preflight(self, example: str | None = None) -> tuple[int, dict[str, Any]]:
+        """Prove, immediately before a paid attempt, that the cloud can run it.
+
+        Persisted state answers "what did this campaign already do"; it cannot
+        answer "is the revision still the reviewed one, do the credentials still
+        resolve, is the preset still available". Those come from live read-only
+        probes, and every one of them must pass. A GitHub Actions result is
+        collected alongside them but is structurally excluded from the decision.
+        """
         with self.store.lock("preflight"):
             state = self.store.read()
             checks: dict[str, bool] = {}
@@ -341,6 +377,11 @@ class Campaign:
             checks["branch"] = self._environment.get("SIM2POLICY_BRANCH", "debug-portal") == "debug-portal"
             revision = self._environment.get("SIM2POLICY_IMMUTABLE_REVISION")
             checks["immutable_revision"] = bool(revision)
+
+            # Every preparation attestation must still be a Nebius one. The gate
+            # recorded this once; preflight re-reads it so a substituted or
+            # third-party-sourced document cannot survive between attempts.
+            checks["nebius_quality_gates"] = self._nebius_gate_attestations()
 
             # One active job, campaign-wide.
             active = active_attempt(state)
@@ -357,26 +398,40 @@ class Campaign:
             ]
             checks["previous_attempt_cleaned"] = not unclean
 
+            hardware: Mapping[str, Any] | None = None
             if example is not None:
                 card = self.matrix.card(example)
                 hardware = card["hardware"]
                 checks["non_preemptible"] = hardware.get("preemptible") is False
                 checks["image_digest"] = self._image_evidence(card["image"]["runtime"]) is not None
 
+            # Live cloud baseline: nothing chargeable may be running that this
+            # campaign cannot account for.
+            baseline, unaccounted = self._cloud_baseline(state)
+            checks["cloud_baseline"] = baseline is not None and not unaccounted
+
+            probes, informational = self._live_probes(revision, hardware)
+            for probe in probes:
+                checks[f"probe_{probe['name']}"] = bool(probe["ok"])
+
             failed = sorted(name for name, ok in checks.items() if not ok)
-            findings = {"checks": dict(sorted(checks.items())), "failed_checks": failed}
+            findings: dict[str, Any] = {
+                "checks": dict(sorted(checks.items())),
+                "failed_checks": failed,
+                "probes": probes,
+                "informational": informational,
+                "cloud_baseline": baseline,
+                "unaccounted_resources": unaccounted,
+            }
+            self.store.write_json(
+                self.store.audit_path("preflight.json"),
+                {"at": utc_now(), "example": example, **findings},
+            )
             if failed:
-                reason = (
-                    "ACTIVE_JOB_PRESENT"
-                    if not checks.get("no_active_job", True)
-                    else "CLEANUP_REQUIRED"
-                    if not checks.get("previous_attempt_cleaned", True)
-                    else "PREFLIGHT_FAILED"
-                )
                 return self.envelope(
                     code=EXIT_NEEDS_HUMAN,
                     decision="BLOCK",
-                    reason_code=reason,
+                    reason_code=_preflight_reason(checks, unaccounted),
                     next_command="handoff",
                     extra=findings,
                 )
@@ -387,6 +442,59 @@ class Campaign:
                 next_command="plan",
                 extra=findings,
             )
+
+    def _nebius_gate_attestations(self) -> bool:
+        """Every required preparation document exists and names a Nebius resource."""
+        for name in REQUIRED_GATE_EVIDENCE:
+            document = self.store.read_json(self.store.evidence_path(name))
+            if not isinstance(document, dict):
+                return False
+            location = document.get("location_attestation") or document
+            if location.get("provider") != "nebius":
+                return False
+        return True
+
+    def _cloud_baseline(
+        self, state: Mapping[str, Any]
+    ) -> tuple[dict[str, Any] | None, list[str]]:
+        """Enumerate chargeable resources and separate ours from everything else."""
+        try:
+            audit = dict(self.provider.audit())
+        except ProviderError as exc:
+            return None, [self.store.safe(sanitize_exception(exc))]
+        known = {
+            item.get("remote_id")
+            for item in (state.get("attempts") or {}).values()
+            if isinstance(item, dict)
+        }
+        unaccounted = [job for job in audit.get("active_jobs", []) if job and job not in known]
+        return audit, unaccounted
+
+    def _live_probes(
+        self, revision: str | None, hardware: Mapping[str, Any] | None
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Run the read-only probes, split into deciding and informational results.
+
+        With no prober the campaign cannot see the cloud at all, which is reported
+        as a failed probe rather than an absent one: an unobservable environment
+        must block a paid attempt, not silently pass it.
+        """
+        if self.prober is None:
+            return [
+                {
+                    "name": "live_probes",
+                    "ok": False,
+                    "informational": False,
+                    "detail": {"error": "no Nebius project scope is configured for live probes"},
+                }
+            ], []
+        results = self.prober.collect(expected_revision=revision, hardware=hardware)
+        deciding: list[dict[str, Any]] = []
+        informational: list[dict[str, Any]] = []
+        for probe in results:
+            record = self.store.safe(probe.to_dict())
+            (informational if probe.informational else deciding).append(record)
+        return deciding, informational
 
     def _image_evidence(self, runtime: str) -> dict[str, Any] | None:
         document = self.store.read_json(self.store.evidence_path(f"{runtime}-image.json"))
