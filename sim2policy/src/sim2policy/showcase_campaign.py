@@ -33,13 +33,13 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from sim2policy.campaign_infra import InfrastructurePreflight, probe_from_environment
 from sim2policy.campaign_provider import (
     BlockedProvider,
     JobProvider,
     ProviderError,
     provider_from_environment,
 )
-from sim2policy.campaign_infra import InfrastructurePreflight, probe_from_environment
 from sim2policy.campaign_redaction import sanitize_exception
 from sim2policy.campaign_state import (
     ACTIVE_STATES,
@@ -604,6 +604,25 @@ class Campaign:
                 selectors.append(value)
         return selectors
 
+    def _durable_storage(self) -> dict[str, str]:
+        """The artifact destination, taken from the resolved infrastructure outputs.
+
+        `storage.mode=s3` without a bucket fails the job's own config validation
+        minutes into paid compute, so the destination is resolved here, recorded in
+        the plan, and refused outright when it is not configured. The values are
+        bucket/endpoint/region identifiers — never the credentials used to reach
+        them, which stay secret selectors resolved by the provider.
+        """
+        settings = {
+            "storage.bucket": self._environment.get("SIM2POLICY_ARTIFACT_BUCKET", ""),
+            "storage.endpoint_url": self._environment.get("SIM2POLICY_ARTIFACT_ENDPOINT", ""),
+            "storage.region": self._environment.get("SIM2POLICY_ARTIFACT_REGION", ""),
+        }
+        missing = sorted(name for name, value in settings.items() if not value)
+        if missing:
+            raise CampaignError(f"durable artifact destination is not configured: {missing}")
+        return settings
+
     def _build_command(
         self,
         card: Mapping[str, Any],
@@ -616,9 +635,10 @@ class Campaign:
         image_digest: str,
     ) -> list[str]:
         """The exact argument array the job runs. No shell string is ever built."""
+        storage = self._durable_storage()
         if example == "g1":
             curriculum = card["curriculum"]
-            return [
+            command = [
                 "python", "-m", "sim2policy.hosted_g1_curriculum",
                 "--matrix", "configs/showcase_training_matrix.yaml",
                 "--flat-config", curriculum["flat_config"],
@@ -626,6 +646,9 @@ class Campaign:
                 "--run-id", run_id,
                 "--image-digest", image_digest,
             ]
+            for key, value in sorted(storage.items()):
+                command += ["--set", f"{key}={value}"]
+            return command
         module = f"sim2policy.hosted_{card['backend']}"
         command = [
             "python", "-m", module,
@@ -638,6 +661,8 @@ class Campaign:
             "--set", f"seed={seed}",
             "--set", "storage.mode=s3",
         ]
+        for key, value in sorted(storage.items()):
+            command += ["--set", f"{key}={value}"]
         if parent is not None and parent.get("checkpoint_sha256"):
             command += ["--selected-checkpoint-digest", str(parent["checkpoint_sha256"])]
         return command

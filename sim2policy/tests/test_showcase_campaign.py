@@ -226,6 +226,9 @@ def campaign(tmp_path: Path):
             environment={
                 "SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40,
                 "SIM2POLICY_BRANCH": "debug-portal",
+                "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
+                "SIM2POLICY_ARTIFACT_ENDPOINT": "https://storage.eu-north1.nebius.cloud",
+                "SIM2POLICY_ARTIFACT_REGION": "eu-north1",
             },
             **kwargs,
         )
@@ -363,6 +366,9 @@ def test_submit_passes_only_secret_selectors_never_values(campaign) -> None:
         provider=provider,
         environment={
             "SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40,
+            "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
+            "SIM2POLICY_ARTIFACT_ENDPOINT": "https://storage.eu-north1.nebius.cloud",
+            "SIM2POLICY_ARTIFACT_REGION": "eu-north1",
             "NEBIUS_REGISTRY_SECRET_VERSION": "mbsecver-e00abc",
             "NEBIUS_REGISTRY_PASSWORD": "SENTINEL-VALUE-must-not-appear",
         },
@@ -633,6 +639,30 @@ def test_recover_lock_will_not_guess_about_another_host(campaign) -> None:
     assert code == EXIT_INVARIANT
     assert envelope["reason_code"] == "LOCK_HOLDER_ON_ANOTHER_HOST"
 
+
+
+def test_plan_carries_the_durable_artifact_destination(campaign) -> None:
+    """`storage.mode=s3` without a bucket fails inside the paid job, not here."""
+    build, *_ = campaign
+    _code, planned = build().plan("reacher", 0)
+    command = planned["plan"]["command"]
+    assert "--set" in command
+    assert "storage.bucket=sim2policy-artifacts" in command
+    assert "storage.endpoint_url=https://storage.eu-north1.nebius.cloud" in command
+    assert "storage.region=eu-north1" in command
+
+
+def test_plan_refuses_an_unconfigured_artifact_destination(campaign) -> None:
+    build, store, matrix = campaign
+    instance = Campaign(
+        store,
+        matrix,
+        provider=FakeProvider(),
+        prober=FakeProber(),
+        environment={"SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40},
+    )
+    with pytest.raises(CampaignError, match="durable artifact destination"):
+        instance.build_plan("reacher", 0)
 
 # -- preflight and location -------------------------------------------------
 

@@ -77,6 +77,7 @@ def run_g1_curriculum(
     selection_episodes_per_seed: int,
     final_episodes_per_seed: int,
     acceptance_criteria: dict[str, Any],
+    config_overrides: dict[str, Any] | None = None,
     min_velocity: float = 0.4,
     train_phase: Callable[..., Path] = train_mjx.train_mjx,
     evaluate_candidates_fn: Callable[..., list[EvaluationEvidence]] = evaluate_candidates,
@@ -84,7 +85,10 @@ def run_g1_curriculum(
     finalize_fn: Callable[..., dict[str, str]] = finalize_module.finalize_run,
 ) -> dict[str, Any]:
     runs_root = Path(runs_root)
-    flat_config: RunConfig = load_config(flat_config_path)
+    # The campaign supplies the durable artifact destination the same way it does
+    # for the single-phase paths; both curriculum phases must write to it.
+    overrides = dict(config_overrides or {})
+    flat_config: RunConfig = load_config(flat_config_path, overrides)
     if flat_config.environment != FLAT_ENVIRONMENT:
         raise CurriculumError("flat config does not declare the reviewed flat environment")
 
@@ -158,7 +162,9 @@ def run_g1_curriculum(
 
     # --- Phase 2: rough, resumed from the selected flat checkpoint. --------
     remaining = rough_budget(selected_gate.step)
-    rough_config: RunConfig = load_config(rough_config_path, {"training.total_steps": remaining})
+    rough_config: RunConfig = load_config(
+        rough_config_path, {**overrides, "training.total_steps": remaining}
+    )
     if rough_config.environment != ROUGH_ENVIRONMENT:
         raise CurriculumError("rough config does not declare the reviewed rough environment")
     rough_run_id = f"{run_id}-rough"
@@ -248,6 +254,17 @@ def run_g1_curriculum(
     }
 
 
+def _parse_overrides(items: Sequence[str]) -> dict[str, Any]:
+    """Parse `--set key=value` pairs, refusing anything without exactly one `=`."""
+    overrides: dict[str, Any] = {}
+    for item in items:
+        key, separator, value = item.partition("=")
+        if not separator or not key:
+            raise CurriculumError(f"invalid --set override: {item}")
+        overrides[key] = value
+    return overrides
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run the bounded G1 flat-to-rough curriculum")
     parser.add_argument("--matrix", required=True)
@@ -256,6 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--image-digest", required=True)
+    parser.add_argument("--set", action="append", default=[])
     return parser
 
 
@@ -282,6 +300,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         selection_episodes_per_seed=campaign["selection"]["episodes_per_seed"],
         final_episodes_per_seed=campaign["final"]["episodes_per_seed"],
         acceptance_criteria=card["acceptance"],
+        config_overrides=_parse_overrides(args.set),
     )
     print(json.dumps({"outcome": result["outcome"]}, sort_keys=True))
     if result["outcome"] == "NEEDS_HUMAN":

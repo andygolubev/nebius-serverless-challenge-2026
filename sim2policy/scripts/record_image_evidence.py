@@ -89,7 +89,8 @@ def _image_audit(reference: str, runtime: str, script: Path) -> dict[str, Any]:
     try:
         report = json.loads(stdout)
     except json.JSONDecodeError:
-        return {"ok": False, "error": f"audit produced no report (exit {code}): {stderr.strip()[:200]}"}
+        detail = stderr.strip()[:200]
+        return {"ok": False, "error": f"audit produced no report (exit {code}): {detail}"}
     report["exit_code"] = code
     return report
 

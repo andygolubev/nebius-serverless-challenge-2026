@@ -76,7 +76,9 @@ SECRET_CONTENT_PATTERNS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
 
 #: Text files large enough to be data, not source, are not content-scanned.
 _MAX_SCAN_BYTES = 2_000_000
-_SCAN_SUFFIXES = frozenset({".py", ".yaml", ".yml", ".json", ".toml", ".cfg", ".ini", ".txt", ".sh", ".md"})
+_SCAN_SUFFIXES = frozenset(
+    {".py", ".yaml", ".yml", ".json", ".toml", ".cfg", ".ini", ".txt", ".sh", ".md"}
+)
 
 
 def _matrix_paths(app: Path, matrix_relative: str) -> tuple[list[str], str | None]:
@@ -127,8 +129,7 @@ def _walk(roots: list[Path]):
     for root in roots:
         if not root.exists():
             continue
-        for path in root.rglob("*"):
-            yield path
+        yield from root.rglob("*")
 
 
 def _holds_private_key(path: Path) -> bool:
@@ -151,13 +152,17 @@ def _check_secrets(roots: list[Path], app: Path) -> dict[str, Any]:
     by_name: list[str] = []
     for path in _walk(roots):
         if path.is_dir():
-            named = path.name in SECRET_DIRECTORY_NAMES or str(path).endswith(SECRET_DIRECTORY_PATHS)
+            named = path.name in SECRET_DIRECTORY_NAMES or str(path).endswith(
+                SECRET_DIRECTORY_PATHS
+            )
             if named and any(path.iterdir()):
                 by_name.append(str(path))
             continue
-        if path.name in SECRET_FILE_NAMES or path.suffix in SECRET_FILE_SUFFIXES:
-            by_name.append(str(path))
-        elif path.suffix in KEY_BEARING_SUFFIXES and _holds_private_key(path):
+        if (
+            path.name in SECRET_FILE_NAMES
+            or path.suffix in SECRET_FILE_SUFFIXES
+            or (path.suffix in KEY_BEARING_SUFFIXES and _holds_private_key(path))
+        ):
             by_name.append(str(path))
 
     by_content: list[dict[str, str]] = []
@@ -186,11 +191,12 @@ def _check_training_artifacts(app: Path) -> dict[str, Any]:
     """No run directory, checkpoint, or rendered video may be baked into a layer."""
     found: list[str] = []
     for path in app.rglob("*"):
-        if path.is_dir() and path.name in ARTIFACT_DIRECTORY_NAMES and any(path.iterdir()):
+        if path.is_dir():
+            if path.name in ARTIFACT_DIRECTORY_NAMES and any(path.iterdir()):
+                found.append(str(path))
+        elif path.suffix in ARTIFACT_SUFFIXES:
             found.append(str(path))
-        elif path.is_file() and path.suffix in ARTIFACT_SUFFIXES:
-            found.append(str(path))
-        elif path.is_file() and path.suffix == ".zip" and "test" not in str(path):
+        elif path.suffix == ".zip" and "test" not in str(path):
             # SB3 saves policies as `.zip`; a fixture under tests is expected.
             found.append(str(path))
     return {"found": sorted(found), "ok": not found}
