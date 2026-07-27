@@ -101,6 +101,13 @@ def _plan(args: argparse.Namespace) -> dict[str, Any]:
             "AWS_ENDPOINT_URL_S3": args.endpoint,
             "AWS_DEFAULT_REGION": args.region,
             "AWS_ACCESS_KEY_ID": args.access_key_id,
+            # Every workload entry point refuses to start without proof of where it
+            # is running, and a job cannot derive that for itself.
+            "SIM2POLICY_EXECUTION_LOCATION": "nebius",
+            "SIM2POLICY_COMMAND_CLASS": "training",
+            "SIM2POLICY_NEBIUS_RESOURCE_ID": args.run_id,
+            "SIM2POLICY_NEBIUS_REGION": args.region,
+            "SIM2POLICY_IMMUTABLE_REVISION": args.revision,
         },
         "secret_environment": {"AWS_SECRET_ACCESS_KEY": args.artifact_secret},
         "registry_secret": args.registry_secret,
@@ -164,6 +171,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--endpoint", required=True)
     parser.add_argument("--region", default="eu-north1")
     parser.add_argument("--prefix", default="sim2policy")
+    parser.add_argument("--revision", required=True, help="Commit the image was built from")
     parser.add_argument("--subnet-id", required=True)
     parser.add_argument("--access-key-id", required=True)
     parser.add_argument("--artifact-secret", required=True, help="MysteryBox selector, not a value")

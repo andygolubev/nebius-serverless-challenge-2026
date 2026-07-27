@@ -145,6 +145,10 @@ def render_with_fallback(args: list[str]) -> str:
     for backend in ("egl", "osmesa"):
         env = os.environ.copy()
         env["MUJOCO_GL"] = backend
+        # The worker is a render command, whatever spawned it. Without this it
+        # inherits the parent's class (`finalization`) and its own location guard
+        # rejects it, which reads as a rendering failure rather than a mislabel.
+        env["SIM2POLICY_COMMAND_CLASS"] = "render"
         process = subprocess.run(
             [sys.executable, "-m", "sim2policy.render", "--worker", *args],
             env=env,

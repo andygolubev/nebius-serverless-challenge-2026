@@ -80,6 +80,28 @@ def classify(state: str) -> bool | None:
     return None
 
 
+def _parse_json_payload(stdout: str) -> Any:
+    """Parse the JSON document out of CLI output that may be prefixed with progress.
+
+    `job create` and `instance create` block on the create operation and narrate it
+    on stdout ("waiting for operation ... to complete") before emitting the
+    resource. Treating that as malformed JSON would report a failure for a job the
+    provider had already created — the most expensive kind of wrong answer here.
+    """
+    text = stdout.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    start = min((i for i in (text.find("{"), text.find("[")) if i >= 0), default=-1)
+    if start < 0:
+        raise ProviderError("provider returned no JSON document")
+    try:
+        return json.loads(text[start:])
+    except json.JSONDecodeError as exc:
+        raise ProviderError(sanitize_exception(exc)) from None
+
+
 class JobProvider(Protocol):
     """What the campaign needs from a compute provider, and nothing more."""
 
@@ -151,17 +173,26 @@ class NebiusCliProvider:
         runner: Any = subprocess.run,
         binary: str = "nebius",
         timeout_seconds: int = 120,
+        submit_timeout_seconds: int = 900,
     ) -> None:
         self._project_id = project_id
         self._runner = runner
         self._binary = binary
         self._timeout = timeout_seconds
+        # `job create` blocks until the create operation settles, which takes far
+        # longer than a read. A read timeout applied to it would abandon a job that
+        # the provider had in fact already created.
+        self._submit_timeout = submit_timeout_seconds
 
-    def _invoke(self, arguments: Sequence[str]) -> dict[str, Any]:
+    def _invoke(self, arguments: Sequence[str], *, timeout: int | None = None) -> dict[str, Any]:
         command = [self._binary, *arguments, "--format", "json"]
         try:
             completed = self._runner(
-                command, capture_output=True, text=True, timeout=self._timeout, check=False
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout or self._timeout,
+                check=False,
             )
         except Exception as exc:  # subprocess/OS failures carry environment detail
             raise ProviderError(sanitize_exception(exc)) from None
@@ -174,10 +205,7 @@ class NebiusCliProvider:
             )
         if not (completed.stdout or "").strip():
             return {}
-        try:
-            value = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise ProviderError(sanitize_exception(exc)) from None
+        value = _parse_json_payload(completed.stdout)
         return value if isinstance(value, dict) else {"items": value}
 
     def submit(self, plan: Mapping[str, Any], *, idempotency_key: str) -> str:
@@ -225,7 +253,7 @@ class NebiusCliProvider:
             arguments += ["--env-secret", f"{name}={selector}"]
         if plan.get("registry_secret"):
             arguments += ["--registry-secret", str(plan["registry_secret"])]
-        result = self._invoke(arguments)
+        result = self._invoke(arguments, timeout=self._submit_timeout)
         remote_id = result.get("metadata", {}).get("id") or result.get("id")
         if not isinstance(remote_id, str) or not remote_id:
             raise ProviderError("provider returned no remote job identity")

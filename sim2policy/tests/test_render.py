@@ -234,6 +234,26 @@ def test_fallback_uses_osmesa_after_egl_failure(monkeypatch: pytest.MonkeyPatch)
     assert calls == ["egl", "osmesa"]
 
 
+def test_render_worker_is_labelled_a_render_command(monkeypatch) -> None:
+    """The worker must not inherit its parent's command class.
+
+    `finalize` runs with `SIM2POLICY_COMMAND_CLASS=finalization`; without an
+    explicit label the worker's own location guard rejects it, which surfaces as a
+    rendering failure and kills the whole job after training has already been paid
+    for.
+    """
+    seen: list[str] = []
+
+    def fake_run(command, env=None, **kwargs):
+        seen.append((env or {}).get("SIM2POLICY_COMMAND_CLASS", ""))
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    monkeypatch.setenv("SIM2POLICY_COMMAND_CLASS", "finalization")
+    monkeypatch.setattr("sim2policy.render.subprocess.run", fake_run)
+    render.render_with_fallback(["--config", "x", "--output", "y"])
+    assert seen == ["render"]
+
+
 def test_montage_command_labels_and_inputs(tmp_path: Path) -> None:
     videos = [tmp_path / "a.mp4", tmp_path / "b.mp4", tmp_path / "c.mp4"]
     command = render.montage_command(videos, tmp_path / "out.mp4")

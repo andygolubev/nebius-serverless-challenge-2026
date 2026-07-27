@@ -137,6 +137,69 @@ def test_live_provider_requires_explicit_nebius_dispatch_and_project_scope() -> 
         NebiusCliProvider,
     )
 
+def test_provider_parses_json_after_operation_progress_output() -> None:
+    """`job create` narrates the operation on stdout before emitting the resource.
+
+    Reporting that as a failure would abandon a job the provider already created,
+    which is how a duplicate submission happens.
+    """
+    import subprocess as _subprocess
+
+    def runner(command, **_kwargs):
+        stdout = (
+            'waiting for operation "computeoperation-e00abc" over resource '
+            '"aijob-e00xyz" to complete\n{"metadata": {"id": "aijob-e00xyz"}}\n'
+        )
+        return _subprocess.CompletedProcess(command, 0, stdout, "")
+
+    provider = NebiusCliProvider(project_id="project-e00wkbbppr00tab5fhhmz7", runner=runner)
+    remote_id = provider.submit(
+        {
+            "run_id": "smoke-sb3-1",
+            "image_reference": "registry.example/sim2policy@sha256:" + "a" * 64,
+            "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb", "disk_gib": 100, "timeout_minutes": 60},
+            "command": ["python", "-m", "sim2policy.hosted_sb3", "--set", "seed=0"],
+        },
+        idempotency_key="key",
+    )
+    assert remote_id == "aijob-e00xyz"
+
+
+def test_provider_submit_uses_the_real_job_create_surface() -> None:
+    """Flags are checked against the CLI that exists, not the one we wish existed."""
+    import subprocess as _subprocess
+
+    captured: list[list[str]] = []
+
+    def runner(command, **_kwargs):
+        captured.append(list(command))
+        return _subprocess.CompletedProcess(command, 0, '{"metadata": {"id": "aijob-e1"}}', "")
+
+    provider = NebiusCliProvider(project_id="project-e00wkbbppr00tab5fhhmz7", runner=runner)
+    provider.submit(
+        {
+            "run_id": "smoke-sb3-1",
+            "image_reference": "registry.example/sim2policy@sha256:" + "a" * 64,
+            "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb", "disk_gib": 100, "timeout_minutes": 60},
+            "command": ["python", "-m", "sim2policy.hosted_sb3", "--set", "seed=0"],
+            "subnet_id": "vpcsubnet-e00abc",
+            "environment": {"SIM2POLICY_EXECUTION_LOCATION": "nebius"},
+            "secret_environment": {"AWS_SECRET_ACCESS_KEY": "mbsecver-e00abc"},
+            "registry_secret": "mbsecver-e00reg",
+        },
+        idempotency_key="key",
+    )
+    command = captured[0]
+    assert command[1:4] == ["ai", "job", "create"]
+    for flag in ("--image", "--container-command", "--args", "--platform", "--preset",
+                 "--disk-size", "--timeout", "--subnet-id", "--registry-secret"):
+        assert flag in command, flag
+    # The container arguments are one joined string, never a shell command line.
+    assert command[command.index("--args") + 1] == "-m sim2policy.hosted_sb3 --set seed=0"
+    assert "--env-secret" in command
+    assert "AWS_SECRET_ACCESS_KEY=mbsecver-e00abc" in command
+
+
 class FakeEvidence:
     """In-memory curated-run evidence, keyed by run id."""
 
@@ -657,6 +720,17 @@ def test_plan_carries_the_durable_artifact_destination(campaign) -> None:
     assert "storage.bucket=sim2policy-artifacts" in command
     assert "storage.endpoint_url=https://storage.eu-north1.nebius.cloud" in command
     assert "storage.region=eu-north1" in command
+
+
+def test_plan_carries_the_execution_location_the_job_cannot_derive(campaign) -> None:
+    """A workload entry point refuses to start without this; the job cannot infer it."""
+    build, *_ = campaign
+    _code, planned = build().plan("reacher", 0)
+    environment = planned["plan"]["environment"]
+    assert environment["SIM2POLICY_EXECUTION_LOCATION"] == "nebius"
+    assert environment["SIM2POLICY_COMMAND_CLASS"] == "training"
+    assert environment["SIM2POLICY_NEBIUS_RESOURCE_ID"] == planned["plan"]["run_id"]
+    assert environment["SIM2POLICY_IMMUTABLE_REVISION"] == "git:" + "a" * 40
 
 
 def test_plan_refuses_an_unconfigured_artifact_destination(campaign) -> None:

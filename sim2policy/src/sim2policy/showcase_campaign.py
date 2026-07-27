@@ -581,7 +581,7 @@ class Campaign:
             "cleanup_action": "delete campaign-owned compute, retain provider history and S3 evidence",
             "command": command,
             "subnet_id": self._environment.get("SIM2POLICY_SUBNET_ID", ""),
-            "environment": self._job_environment(),
+            "environment": self._job_environment(run_id),
             "secret_environment": self._job_secret_environment(),
             "registry_secret": self._environment.get("NEBIUS_REGISTRY_SECRET_VERSION", ""),
             "secret_selectors": self._secret_selectors(),
@@ -612,23 +612,37 @@ class Campaign:
                 selectors.append(value)
         return selectors
 
-    def _job_environment(self) -> dict[str, str]:
-        """Non-secret environment the job needs to reach its artifact destination.
+    def _job_environment(self, run_id: str) -> dict[str, str]:
+        """Non-secret environment the job needs to start and to reach its bucket.
 
         The access key *ID* is an identifier, not a credential; its matching secret
         is delivered separately as a selector the provider resolves. Both are
         required together, so a half-configured runner is refused here rather than
         discovered by a job that cannot upload what it just spent an hour computing.
+
+        The execution-location attestation is passed in the same way. Every workload
+        entry point refuses to start without it, by design — the job must be able to
+        prove it is running on Nebius, and it cannot derive that for itself. The
+        resource identity is the deterministic job name, which is unique within the
+        project and resolves back to exactly this submission.
         """
         storage = self._durable_storage()
+        revision = self._environment.get("SIM2POLICY_IMMUTABLE_REVISION", "")
         environment = {
             "SIM2POLICY_S3_BUCKET": storage["storage.bucket"],
             "AWS_ENDPOINT_URL_S3": storage["storage.endpoint_url"],
             "AWS_DEFAULT_REGION": storage["storage.region"],
             "AWS_ACCESS_KEY_ID": self._environment.get("SIM2POLICY_ARTIFACT_ACCESS_KEY_ID", ""),
+            "SIM2POLICY_EXECUTION_LOCATION": "nebius",
+            "SIM2POLICY_COMMAND_CLASS": "training",
+            "SIM2POLICY_NEBIUS_RESOURCE_ID": run_id,
+            "SIM2POLICY_NEBIUS_REGION": storage["storage.region"],
+            "SIM2POLICY_IMMUTABLE_REVISION": revision,
         }
         if not environment["AWS_ACCESS_KEY_ID"]:
             raise CampaignError("artifact access key ID is not configured")
+        if not revision:
+            raise CampaignError("immutable revision is not configured")
         return environment
 
     def _job_secret_environment(self) -> dict[str, str]:
