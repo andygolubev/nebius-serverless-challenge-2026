@@ -22,12 +22,21 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     parser.add_argument("--selected-checkpoint-digest")
     parser.add_argument("--matrix-digest")
     parser.add_argument("--runs-root", default="runs")
+    parser.add_argument(
+        "--resume",
+        nargs="?",
+        const="latest",
+        help="Resume training: 'remote' pulls this run's latest durable checkpoint.",
+    )
     parser.add_argument("--set", action="append", default=[])
     args = parser.parse_args(argv)
 
     shared = ["--config", args.config, "--run-id", args.run_id, "--runs-root", args.runs_root]
     overrides = [value for item in args.set for value in ("--set", item)]
-    train = [sys.executable, "-m", "sim2policy.train_mjx", *shared, *overrides]
+    # Resume is a training-only concern; finalization always works from the run
+    # tree the training phase leaves behind.
+    resume = ["--resume", args.resume] if args.resume else []
+    train = [sys.executable, "-m", "sim2policy.train_mjx", *shared, *resume, *overrides]
     finalize = [sys.executable, "-m", "sim2policy.finalize", *shared]
     if args.gallery_example_id:
         finalize += ["--gallery-example-id", args.gallery_example_id]

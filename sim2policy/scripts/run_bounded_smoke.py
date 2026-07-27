@@ -71,16 +71,21 @@ def _build_command(args: argparse.Namespace) -> list[str]:
             *storage,
         ]
     module = "sim2policy.hosted_sb3" if args.runtime == "sb3" else "sim2policy.hosted_mjx"
-    return [
+    command = [
         "python", "-m", module,
         "--config", args.config,
         "--run-id", args.run_id,
         "--gallery-example-id", args.gallery_example_id,
+    ]
+    if args.resume:
+        command += ["--resume", args.resume]
+    command += [
         "--set", f"training.total_steps={args.steps}",
         "--set", f"checkpoint.every_steps={args.checkpoint_every}",
         "--set", "seed=0",
         *storage,
     ]
+    return command
 
 
 def _plan(args: argparse.Namespace) -> dict[str, Any]:
@@ -194,6 +199,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", default="configs/reacher_sb3.yaml")
     parser.add_argument("--gallery-example-id", default="reacher-target")
     parser.add_argument("--curriculum", action="store_true")
+    parser.add_argument("--resume", help="Passed to the job's training phase (e.g. 'remote').")
+    parser.add_argument(
+        "--phase",
+        default="default",
+        help="Name for this phase inside the runtime's smoke evidence document.",
+    )
+    parser.add_argument(
+        "--require-phase",
+        action="append",
+        default=[],
+        help="Phases that must all be present and passing before the document is ok.",
+    )
     parser.add_argument("--steps", type=int, default=4096)
     parser.add_argument("--checkpoint-every", type=int, default=2048)
     parser.add_argument("--platform", required=True)
@@ -296,8 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     except ProviderError as exc:
         audit, checks["cleanup"] = {"error": sanitize_exception(exc)}, False
 
-    document = {
-        "runtime": args.runtime,
+    phase = {
         "run_id": args.run_id,
         "remote_id": remote_id,
         "image_digest": args.image_digest,
@@ -318,7 +334,23 @@ def main(argv: list[str] | None = None) -> int:
         "location_attestation": attestation.to_dict(),
         "ok": bool(checks) and all(checks.values()),
     }
-    campaign.write_json(campaign.evidence_path(f"{args.runtime}-smoke.json"), document)
+    # Phases accumulate into one document: a runtime's smoke evidence has to prove
+    # every clause the runbook names, and those need more than one bounded job.
+    path = campaign.evidence_path(f"{args.runtime}-smoke.json")
+    document = campaign.read_json(path) or {}
+    phases = dict(document.get("phases") or {})
+    phases[args.phase] = phase
+    required = sorted(set(args.require_phase) or {args.phase})
+    document = {
+        "runtime": args.runtime,
+        "phases": phases,
+        "required_phases": required,
+        "missing_phases": [name for name in required if name not in phases],
+        "recorded_at": utc_now(),
+        "location_attestation": attestation.to_dict(),
+        "ok": all(phases.get(name, {}).get("ok") for name in required),
+    }
+    campaign.write_json(path, document)
     write_location_attestation(
         campaign.evidence_path(f"{args.runtime}-smoke-location.json"), attestation
     )

@@ -21,6 +21,20 @@ def test_commands_keep_validated_arguments_as_array_elements() -> None:
     assert train.count("--set") == 2 and finalize.count("--set") == 2
 
 
+def test_resume_is_passed_to_training_only() -> None:
+    """Finalization works from the run tree; only training resumes a checkpoint."""
+    train, finalize = build_commands(
+        ["--config", "configs/g1_flat_mjx.yaml", "--run-id", "run-safe-1", "--resume", "remote"]
+    )
+    assert train[train.index("--resume") + 1] == "remote"
+    assert "--resume" not in finalize
+
+
+def test_resume_is_absent_unless_requested() -> None:
+    train, _finalize = build_commands(["--config", "c.yaml", "--run-id", "r1"])
+    assert "--resume" not in train
+
+
 def test_run_trains_then_finalizes_in_separate_processes() -> None:
     calls = []
 
