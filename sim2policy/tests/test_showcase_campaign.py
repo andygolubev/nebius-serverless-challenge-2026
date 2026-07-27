@@ -146,9 +146,12 @@ def test_provider_parses_json_after_operation_progress_output() -> None:
     import subprocess as _subprocess
 
     def runner(command, **_kwargs):
+        # Exactly what the CLI writes: terminal control sequences around a
+        # progress line, then the resource. `\x1b[2K` must not look like an array.
         stdout = (
-            'waiting for operation "computeoperation-e00abc" over resource '
-            '"aijob-e00xyz" to complete\n{"metadata": {"id": "aijob-e00xyz"}}\n'
+            '\x1b[?25l\x1b[2Kwaiting for operation "computeoperation-e00abc" over '
+            'resource "aijob-e00xyz" to complete\x1b[1A\x1b[2K\n'
+            '{"metadata": {"id": "aijob-e00xyz"}}\n'
         )
         return _subprocess.CompletedProcess(command, 0, stdout, "")
 

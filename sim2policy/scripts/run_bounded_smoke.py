@@ -130,19 +130,52 @@ def _watch(provider: NebiusCliProvider, remote_id: str, deadline: float) -> dict
     return last
 
 
+#: Terminal run statuses the finalizer writes. Both spellings appear in recorded
+#: runs, and neither is a failure.
+COMPLETE_STATUSES = frozenset({"complete", "completed"})
+
+
+def _reader_available(store: ArtifactStore) -> tuple[bool, str | None]:
+    """Distinguish "cannot read the bucket" from "the run uploaded nothing".
+
+    `get_json_optional` treats every failure as an absent object, which is right
+    for a poll loop and wrong for evidence: a credential problem would otherwise be
+    recorded as a job that produced no artifacts, blaming the wrong component.
+    """
+    try:
+        store.client.list_objects_v2(
+            Bucket=store.config.bucket, Prefix=store.key_for("."), MaxKeys=1
+        )
+    except Exception as exc:  # botocore raises several unrelated families
+        return False, sanitize_exception(exc)
+    return True, None
+
+
 def _cloud_checks(store: ArtifactStore) -> dict[str, Any]:
     """Read the run back from durable storage, the way the campaign verifier does."""
+    readable, reader_error = _reader_available(store)
+    if not readable:
+        return {
+            "artifact_store_readable": False,
+            "reader_error": reader_error,
+            "durable_upload": False,
+            "cloud_side_read": False,
+            "finalization": False,
+            "checkpoint": False,
+        }
     present = {name: store.get_json_optional(name) is not None for name in REQUIRED_OBJECTS}
     status = store.get_json_optional("metadata/status.json") or {}
     artifacts = store.get_json_optional("report/artifacts.json") or {}
     metrics = store.get_json_optional("report/metrics.json") or {}
     names = set((artifacts.get("artifacts") or {}).keys())
+    run_status = str(status.get("status", ""))
     return {
+        "artifact_store_readable": True,
         "objects_present": present,
         "durable_upload": all(present.values()),
         "cloud_side_read": bool(status) and bool(metrics),
-        "run_status": str(status.get("status", "")),
-        "finalization": str(status.get("status", "")) == "completed",
+        "run_status": run_status,
+        "finalization": run_status in COMPLETE_STATUSES,
         "checkpoint": bool((metrics.get("selected_checkpoint") or {}).get("sha256")),
         "artifact_names": sorted(names),
         "has_final_policy": "final_policy" in names,
@@ -172,6 +205,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--region", default="eu-north1")
     parser.add_argument("--prefix", default="sim2policy")
     parser.add_argument("--revision", required=True, help="Commit the image was built from")
+    parser.add_argument(
+        "--expect-running",
+        action="append",
+        default=[],
+        help="Instance IDs legitimately running (the persistent SaaS server).",
+    )
     parser.add_argument("--subnet-id", required=True)
     parser.add_argument("--access-key-id", required=True)
     parser.add_argument("--artifact-secret", required=True, help="MysteryBox selector, not a value")
@@ -248,9 +287,11 @@ def main(argv: list[str] | None = None) -> int:
     # asserts the absence of any active job or running instance we did not expect.
     try:
         audit = provider.audit()
-        running = [
-            item for item in audit.get("running_instances", []) if item != attestation.resource_id
-        ]
+        # This controller and any declared persistent instance (the SaaS server) are
+        # expected to be running; everything else would be a leak from this smoke.
+        expected = {attestation.resource_id, *(args.expect_running or [])}
+        running = [item for item in audit.get("running_instances", []) if item not in expected]
+        audit["unaccounted_running_instances"] = running
         checks["cleanup"] = not audit.get("active_jobs") and not running
     except ProviderError as exc:
         audit, checks["cleanup"] = {"error": sanitize_exception(exc)}, False

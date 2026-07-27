@@ -36,6 +36,9 @@ ACTIVE_PROVIDER_STATES = frozenset(
 TERMINAL_SUCCESS_STATES = frozenset({"COMPLETED", "SUCCEEDED"})
 TERMINAL_FAILURE_STATES = frozenset({"FAILED", "ERROR", "CANCELLED", "CANCELED"})
 
+#: Terminal control sequences the CLI writes around its progress narration.
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[a-zA-Z]")
+
 
 class ProviderError(RuntimeError):
     """Raised when a provider call fails or returns something unparseable."""
@@ -84,22 +87,27 @@ def _parse_json_payload(stdout: str) -> Any:
     """Parse the JSON document out of CLI output that may be prefixed with progress.
 
     `job create` and `instance create` block on the create operation and narrate it
-    on stdout ("waiting for operation ... to complete") before emitting the
-    resource. Treating that as malformed JSON would report a failure for a job the
-    provider had already created — the most expensive kind of wrong answer here.
+    on stdout ("waiting for operation ... to complete"), interleaved with terminal
+    control sequences, before emitting the resource. Treating that as malformed
+    JSON would report a failure for a job the provider had already created — the
+    most expensive kind of wrong answer here.
+
+    The escapes are stripped first (`\x1b[2K` would otherwise look like the start
+    of a JSON array), then every remaining `{`/`[` is tried in order until one
+    parses. Scanning rather than guessing one offset keeps this working whatever
+    the CLI decides to narrate.
     """
-    text = stdout.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    start = min((i for i in (text.find("{"), text.find("[")) if i >= 0), default=-1)
-    if start < 0:
+    text = _ANSI_ESCAPE.sub("", stdout).strip()
+    if not text:
         raise ProviderError("provider returned no JSON document")
-    try:
-        return json.loads(text[start:])
-    except json.JSONDecodeError as exc:
-        raise ProviderError(sanitize_exception(exc)) from None
+    candidates = [0] + [index for index, char in enumerate(text) if char in "{["]
+    error: json.JSONDecodeError | None = None
+    for start in candidates:
+        try:
+            return json.loads(text[start:])
+        except json.JSONDecodeError as exc:
+            error = exc
+    raise ProviderError(sanitize_exception(error or ValueError("no JSON document"))) from None
 
 
 class JobProvider(Protocol):
