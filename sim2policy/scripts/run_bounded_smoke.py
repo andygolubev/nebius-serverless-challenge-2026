@@ -95,7 +95,15 @@ def _plan(args: argparse.Namespace) -> dict[str, Any]:
             "preemptible": False,
         },
         "command": _build_command(args),
-        "secret_selectors": [s for s in (args.secret_version or []) if s],
+        "subnet_id": args.subnet_id,
+        "environment": {
+            "SIM2POLICY_S3_BUCKET": args.bucket,
+            "AWS_ENDPOINT_URL_S3": args.endpoint,
+            "AWS_DEFAULT_REGION": args.region,
+            "AWS_ACCESS_KEY_ID": args.access_key_id,
+        },
+        "secret_environment": {"AWS_SECRET_ACCESS_KEY": args.artifact_secret},
+        "registry_secret": args.registry_secret,
     }
 
 
@@ -156,7 +164,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--endpoint", required=True)
     parser.add_argument("--region", default="eu-north1")
     parser.add_argument("--prefix", default="sim2policy")
-    parser.add_argument("--secret-version", action="append", default=[])
+    parser.add_argument("--subnet-id", required=True)
+    parser.add_argument("--access-key-id", required=True)
+    parser.add_argument("--artifact-secret", required=True, help="MysteryBox selector, not a value")
+    parser.add_argument("--registry-secret", required=True, help="MysteryBox selector, not a value")
     parser.add_argument(
         "--watch-minutes",
         type=int,

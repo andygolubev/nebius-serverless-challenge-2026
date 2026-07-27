@@ -580,8 +580,16 @@ class Campaign:
             "max_retries_remaining": MAX_RETRIES_BEFORE_CHECKPOINT,
             "cleanup_action": "delete campaign-owned compute, retain provider history and S3 evidence",
             "command": command,
+            "subnet_id": self._environment.get("SIM2POLICY_SUBNET_ID", ""),
+            "environment": self._job_environment(),
+            "secret_environment": self._job_secret_environment(),
+            "registry_secret": self._environment.get("NEBIUS_REGISTRY_SECRET_VERSION", ""),
             "secret_selectors": self._secret_selectors(),
         }
+        if not plan["subnet_id"]:
+            raise CampaignError("job subnet is not configured")
+        if not plan["registry_secret"]:
+            raise CampaignError("registry pull secret selector is not configured")
         plan["plan_digest"] = _digest({k: v for k, v in plan.items() if k != "plan_digest"})
         return plan
 
@@ -603,6 +611,32 @@ class Campaign:
             if value:
                 selectors.append(value)
         return selectors
+
+    def _job_environment(self) -> dict[str, str]:
+        """Non-secret environment the job needs to reach its artifact destination.
+
+        The access key *ID* is an identifier, not a credential; its matching secret
+        is delivered separately as a selector the provider resolves. Both are
+        required together, so a half-configured runner is refused here rather than
+        discovered by a job that cannot upload what it just spent an hour computing.
+        """
+        storage = self._durable_storage()
+        environment = {
+            "SIM2POLICY_S3_BUCKET": storage["storage.bucket"],
+            "AWS_ENDPOINT_URL_S3": storage["storage.endpoint_url"],
+            "AWS_DEFAULT_REGION": storage["storage.region"],
+            "AWS_ACCESS_KEY_ID": self._environment.get("SIM2POLICY_ARTIFACT_ACCESS_KEY_ID", ""),
+        }
+        if not environment["AWS_ACCESS_KEY_ID"]:
+            raise CampaignError("artifact access key ID is not configured")
+        return environment
+
+    def _job_secret_environment(self) -> dict[str, str]:
+        """Env vars delivered as MysteryBox selectors, never as values."""
+        selector = self._environment.get("NEBIUS_ARTIFACT_SECRET_VERSION", "")
+        if not selector:
+            raise CampaignError("artifact secret selector is not configured")
+        return {"AWS_SECRET_ACCESS_KEY": selector}
 
     def _durable_storage(self) -> dict[str, str]:
         """The artifact destination, taken from the resolved infrastructure outputs.

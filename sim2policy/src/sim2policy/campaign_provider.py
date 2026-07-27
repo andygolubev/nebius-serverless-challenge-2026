@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -184,25 +185,46 @@ class NebiusCliProvider:
 
         Every value comes from the campaign matrix by way of the confirmed plan;
         this method adds no defaults and accepts no override.
+
+        The CLI takes the container arguments as a single `--args` string rather
+        than an array, so the argument array the campaign built is joined with
+        `shlex.join` here. That keeps the quoting decision in one audited place
+        instead of at every call site, and no value is ever interpolated into a
+        shell command line.
+
+        `idempotency_key` is not a flag this API accepts. Duplicate submission is
+        prevented instead by the deterministic job name plus `find_by_name`, which
+        the caller checks first; the key is retained for adapters that do support
+        one.
         """
         hardware = plan["hardware"]
+        command = [str(value) for value in plan["command"]]
+        if not command:
+            raise ProviderError("plan carries no container command")
         arguments = [
             "ai", "job", "create",
             "--parent-id", self._project_id,
             "--name", str(plan["run_id"]),
-            "--spec.image.name", str(plan["image_reference"]),
-            "--spec.resources.platform", str(hardware["platform"]),
-            "--spec.resources.preset", str(hardware["preset"]),
-            "--spec.disk.type", "NETWORK_SSD",
-            "--spec.disk.size-gibibytes", str(hardware["disk_gib"]),
+            "--image", str(plan["image_reference"]),
+            "--container-command", command[0],
+            "--args", shlex.join(command[1:]),
+            "--platform", str(hardware["platform"]),
+            "--preset", str(hardware["preset"]),
+            "--disk-size", f"{int(hardware['disk_gib'])}Gi",
+            # The API's minimum timeout is one hour; the matrix never declares less.
             "--timeout", f"{int(hardware['timeout_minutes'])}m",
-            "--idempotency-key", idempotency_key,
+            "--restart-policy", "never",
         ]
-        for value in plan["command"]:
-            arguments += ["--spec.command", str(value)]
-        for selector in plan.get("secret_selectors", []):
-            # Version IDs only. The payload is resolved by the provider at use time.
-            arguments += ["--spec.secret-version-id", str(selector)]
+        if plan.get("subnet_id"):
+            arguments += ["--subnet-id", str(plan["subnet_id"])]
+        for name, value in sorted((plan.get("environment") or {}).items()):
+            arguments += ["--env", f"{name}={value}"]
+        for name, selector in sorted((plan.get("secret_environment") or {}).items()):
+            # Selectors only. The payload is resolved by the provider at use time
+            # and never enters this process.
+            arguments += ["--env-secret", f"{name}={selector}"]
+        if plan.get("registry_secret"):
+            arguments += ["--registry-secret", str(plan["registry_secret"])]
         result = self._invoke(arguments)
         remote_id = result.get("metadata", {}).get("id") or result.get("id")
         if not isinstance(remote_id, str) or not remote_id:
@@ -224,20 +246,23 @@ class NebiusCliProvider:
 
         Recovering a submission whose response was lost depends on the run name
         being deterministic, which is why plans derive it rather than randomize it.
+        A name that does not exist is an expected answer, not a failure, so the
+        provider's not-found error is translated to `None` rather than raised.
         """
-        result = self._invoke(["ai", "job", "list", "--parent-id", self._project_id])
-        for item in result.get("items", []):
-            if not isinstance(item, dict):
-                continue
-            metadata = item.get("metadata", {})
-            if metadata.get("name") == name:
-                state = str(item.get("status", {}).get("state") or "UNKNOWN")
-                return JobStatus(
-                    remote_id=str(metadata.get("id", "")),
-                    state=state,
-                    terminal=classify(state),
-                )
-        return None
+        try:
+            result = self._invoke(
+                ["ai", "job", "get-by-name", "--parent-id", self._project_id, "--name", name]
+            )
+        except ProviderError as exc:
+            if "NotFound" in str(exc) or "not found" in str(exc).lower():
+                return None
+            raise
+        metadata = result.get("metadata", {})
+        remote_id = str(metadata.get("id", ""))
+        if not remote_id:
+            return None
+        state = str(result.get("status", {}).get("state") or "UNKNOWN")
+        return JobStatus(remote_id=remote_id, state=state, terminal=classify(state))
 
     def audit(self) -> dict[str, Any]:
         """Enumerate every chargeable resource class the cleanup checklist names."""
