@@ -52,8 +52,22 @@ REQUIRED_OBJECTS = (
 POLL_SECONDS = 20
 
 
+#: Asserts a real accelerator before any expensive phase is submitted. Runs as its
+#: own seconds-long job, because discovering a CPU fallback after a full training
+#: phase means paying accelerator rates for the whole discovery.
+DEVICE_PROBE = (
+    "import jax, json, sys; "
+    "backend = jax.default_backend(); "
+    "devices = [{'platform': d.platform, 'kind': d.device_kind} for d in jax.devices()]; "
+    "print(json.dumps({'event': 'jax_devices', 'backend': backend, 'devices': devices})); "
+    "sys.exit(0 if backend == 'gpu' else 1)"
+)
+
+
 def _build_command(args: argparse.Namespace) -> list[str]:
     """The bounded job command, mirroring the campaign's own argument array."""
+    if args.device_probe:
+        return ["python", "-c", DEVICE_PROBE]
     storage = [
         "--set", "storage.mode=s3",
         "--set", f"storage.bucket={args.bucket}",
@@ -201,6 +215,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--curriculum", action="store_true")
     parser.add_argument("--resume", help="Passed to the job's training phase (e.g. 'remote').")
     parser.add_argument(
+        "--device-probe",
+        action="store_true",
+        help="Submit a seconds-long accelerator assertion instead of a training phase.",
+    )
+    parser.add_argument(
         "--phase",
         default="default",
         help="Name for this phase inside the runtime's smoke evidence document.",
@@ -285,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
             checks["idempotent_reentry"] = False
 
     cloud: dict[str, Any] = {}
-    if checks.get("terminal_success"):
+    if checks.get("terminal_success") and not args.device_probe:
         store = ArtifactStore(
             StorageConfig(
                 mode="s3",

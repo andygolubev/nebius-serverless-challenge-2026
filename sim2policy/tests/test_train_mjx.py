@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from sim2policy import train_mjx as train_mjx_module
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
@@ -457,3 +458,21 @@ def fake_initial_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         "sim2policy.train_mjx.jax_device_info",
         lambda: ("gpu", [{"id": 0, "platform": "gpu", "kind": "Fake H100"}]),
     )
+
+
+def test_require_accelerator_rejects_a_cpu_fallback(monkeypatch) -> None:
+    """A GPU-priced job that silently ran on CPU is the failure this prevents."""
+    monkeypatch.delenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, raising=False)
+    with pytest.raises(RuntimeError, match="no GPU device"):
+        train_mjx_module.require_accelerator("cpu", [{"platform": "cpu", "kind": "CpuDevice"}])
+
+
+def test_require_accelerator_accepts_a_gpu_backend_or_device(monkeypatch) -> None:
+    monkeypatch.delenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, raising=False)
+    train_mjx_module.require_accelerator("gpu", [])
+    train_mjx_module.require_accelerator("cpu", [{"platform": "gpu", "kind": "H100"}])
+
+
+def test_cpu_training_needs_an_explicit_opt_in(monkeypatch) -> None:
+    monkeypatch.setenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, "1")
+    train_mjx_module.require_accelerator("cpu", [{"platform": "cpu", "kind": "CpuDevice"}])

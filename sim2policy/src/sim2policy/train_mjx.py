@@ -7,6 +7,7 @@ import importlib
 import inspect
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -112,6 +113,32 @@ def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
         "observation_size": getattr(env, "observation_size", None),
         "action_size": getattr(env, "action_size", None),
     }
+
+
+#: Set to "1" to permit MJX training on CPU. Intended only for CPU-only test hosts;
+#: never for a GPU-priced job.
+ALLOW_CPU_ENVIRONMENT_VARIABLE = "SIM2POLICY_ALLOW_CPU_MJX"
+
+
+def require_accelerator(backend: str, devices: list[dict[str, Any]]) -> None:
+    """Refuse to train MJX on CPU unless a CPU host was explicitly declared.
+
+    JAX silently falls back to CPU when it cannot load the CUDA libraries, and MJX
+    training still "works" — just orders of magnitude slower. On an H100 job that
+    is invisible in the logs and shows up only as a GPU bill for CPU work, so the
+    fallback is turned into an immediate, loud failure.
+    """
+    if backend.lower() == "gpu" or any(
+        str(device.get("platform", "")).lower() == "gpu" for device in devices
+    ):
+        return
+    if os.environ.get(ALLOW_CPU_ENVIRONMENT_VARIABLE) == "1":
+        return
+    raise RuntimeError(
+        "MJX training found no GPU device (JAX backend "
+        f"{backend!r}); refusing to run accelerator-priced training on CPU. "
+        f"Set {ALLOW_CPU_ENVIRONMENT_VARIABLE}=1 only on a CPU-only host."
+    )
 
 
 def jax_device_info() -> tuple[str, list[dict[str, Any]]]:
@@ -504,6 +531,7 @@ def train_mjx(
             ),
             flush=True,
         )
+        require_accelerator(jax_backend, devices)
         if state is not None:
             state.update_status(
                 STATUS_TRAINING,
