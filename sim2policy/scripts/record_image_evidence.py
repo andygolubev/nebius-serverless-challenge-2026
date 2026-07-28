@@ -39,10 +39,27 @@ def _run(command: list[str], *, timeout: int = TIMEOUT_SECONDS) -> tuple[int, st
     return completed.returncode, completed.stdout or "", completed.stderr or ""
 
 
+#: The registry accumulates one manifest per pushed revision, so the default page
+#: is quickly too small. A freshly pushed tag falling off the first page reads as
+#: "not present" and silently blocks the gate, so ask for the whole listing.
+_REGISTRY_PAGE_SIZE = "1000"
+
+
 def _registry_digest(registry_id: str, tag: str) -> tuple[str | None, str]:
     """Ask the registry which manifest the immutable tag currently resolves to."""
     code, stdout, stderr = _run(
-        ["nebius", "registry", "image", "list", "--parent-id", registry_id, "--format", "json"]
+        [
+            "nebius",
+            "registry",
+            "image",
+            "list",
+            "--parent-id",
+            registry_id,
+            "--page-size",
+            _REGISTRY_PAGE_SIZE,
+            "--format",
+            "json",
+        ]
     )
     if code != 0:
         return None, f"registry list failed (exit {code}): {stderr.strip()[:200]}"

@@ -168,6 +168,35 @@ def test_provider_parses_json_after_operation_progress_output() -> None:
     assert remote_id == "aijob-e00xyz"
 
 
+def test_provider_parses_json_followed_by_operation_progress_output() -> None:
+    """The narration is not always a prefix; it also lands after the resource.
+
+    A live submission was lost exactly this way: the job existed, the response did
+    not parse, and the attempt recorded no remote id.
+    """
+    import subprocess as _subprocess
+
+    def runner(command, **_kwargs):
+        stdout = (
+            '{"metadata": {"id": "aijob-e00xyz"}}\n'
+            '\x1b[2Koperation "computeoperation-e00abc" over resource '
+            '"aijob-e00xyz" completed\n'
+        )
+        return _subprocess.CompletedProcess(command, 0, stdout, "")
+
+    provider = NebiusCliProvider(project_id="project-e00wkbbppr00tab5fhhmz7", runner=runner)
+    remote_id = provider.submit(
+        {
+            "run_id": "smoke-sb3-1",
+            "image_reference": "registry.example/sim2policy@sha256:" + "a" * 64,
+            "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb", "disk_gib": 100, "timeout_minutes": 60},
+            "command": ["python", "-m", "sim2policy.hosted_sb3", "--set", "seed=0"],
+        },
+        idempotency_key="key",
+    )
+    assert remote_id == "aijob-e00xyz"
+
+
 def test_provider_submit_uses_the_real_job_create_surface() -> None:
     """Flags are checked against the CLI that exists, not the one we wish existed."""
     import subprocess as _subprocess

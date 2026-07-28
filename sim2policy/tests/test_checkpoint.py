@@ -41,6 +41,14 @@ def test_checksum_mismatch_is_rejected(tmp_path: Path) -> None:
         validate_checkpoint(path, config)
 
 
+def test_resume_into_a_different_environment_is_rejected(tmp_path: Path) -> None:
+    """A checkpoint may only resume into the task it was trained on."""
+    other = load_config(ROOT / "configs/reacher_sb3.yaml")
+    path = make_checkpoint(tmp_path, "step", 128)
+    with pytest.raises(CheckpointError, match="not sb3/Reacher-v5"):
+        validate_checkpoint(path, other)
+
+
 def test_progression_uses_nearest_quarter(tmp_path: Path) -> None:
     initial = make_checkpoint(tmp_path, "initial", 0)
     near_quarter = make_checkpoint(tmp_path, "step", 30)

@@ -92,6 +92,12 @@ def _parse_json_payload(stdout: str) -> Any:
     JSON would report a failure for a job the provider had already created — the
     most expensive kind of wrong answer here.
 
+    The narration is not reliably a prefix: the CLI also reports the completed
+    operation *after* the resource. `json.loads` demands the document run to the
+    end of the string, so trailing narration failed every candidate offset and
+    reported a submit failure for a job that had in fact been created. Decoding
+    with `raw_decode` consumes just the document and ignores whatever follows.
+
     The escapes are stripped first (`\x1b[2K` would otherwise look like the start
     of a JSON array), then every remaining `{`/`[` is tried in order until one
     parses. Scanning rather than guessing one offset keeps this working whatever
@@ -100,13 +106,16 @@ def _parse_json_payload(stdout: str) -> Any:
     text = _ANSI_ESCAPE.sub("", stdout).strip()
     if not text:
         raise ProviderError("provider returned no JSON document")
+    decoder = json.JSONDecoder()
     candidates = [0] + [index for index, char in enumerate(text) if char in "{["]
     error: json.JSONDecodeError | None = None
     for start in candidates:
         try:
-            return json.loads(text[start:])
+            value, _end = decoder.raw_decode(text, start)
         except json.JSONDecodeError as exc:
             error = exc
+        else:
+            return value
     raise ProviderError(sanitize_exception(error or ValueError("no JSON document"))) from None
 
 

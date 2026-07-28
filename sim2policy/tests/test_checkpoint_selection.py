@@ -30,6 +30,23 @@ def test_locomotion_stability_outranks_reward_and_earlier_tie_wins() -> None:
     assert select_checkpoint((stable, later_tie), kind="locomotion") == stable
 
 
+def test_a_later_checkpoint_that_regressed_never_wins() -> None:
+    """Training longer is not evidence of being better; the ranking decides."""
+    best = _candidate(100_000_000, reward=5.0, velocity=0.9)
+    regressed = _candidate(125_000_000, reward=5.0, velocity=0.6)
+    assert select_checkpoint((best, regressed), kind="locomotion") == best
+    assert select_checkpoint((regressed, best), kind="locomotion") == best
+
+
+def test_selection_refuses_an_empty_candidate_set() -> None:
+    try:
+        select_checkpoint((), kind="locomotion")
+    except SelectionError:
+        pass
+    else:  # pragma: no cover - assertion form keeps the cause clear
+        raise AssertionError("an empty candidate set must not yield a selection")
+
+
 def test_selection_and_final_sets_can_never_overlap() -> None:
     try:
         validate_seed_roles((101, 151), (0, 1, 101))
