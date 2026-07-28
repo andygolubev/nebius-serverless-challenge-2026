@@ -40,6 +40,17 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[bytes]], ...] = (
     ("private_key_block", re.compile(rb"-----BEGIN[A-Z ]*PRIVATE KEY-----")),
 )
 
+# These are deliberately credential-shaped *redaction fixtures*.  Keeping the
+# exceptions exact (path plus detector) lets the tracked-file scan continue to
+# reject a real credential anywhere else, including another test.
+TEST_SENTINEL_ALLOWLIST = frozenset(
+    {
+        ("sim2policy/tests/test_campaign_infra.py", "iam_token"),
+        ("sim2policy/tests/test_campaign_redaction.py", "aws_access_key_id"),
+        ("sim2policy/tests/test_campaign_redaction.py", "iam_token"),
+    }
+)
+
 _TAIL = 400
 
 
@@ -96,6 +107,8 @@ def _scan_tracked(repo: Path) -> dict[str, Any]:
         except OSError:
             continue
         for label, pattern in SECRET_PATTERNS:
+            if (relative, label) in TEST_SENTINEL_ALLOWLIST:
+                continue
             if pattern.search(blob):
                 matches.append({"path": relative, "pattern": label})
     return {
@@ -106,6 +119,10 @@ def _scan_tracked(repo: Path) -> dict[str, Any]:
 
 
 def _quality_gates(repo: Path) -> dict[str, Any]:
+    # `subprocess.run(cwd=...)` resolves a relative command path beneath that
+    # directory.  Resolve once here so the backend venv is not accidentally
+    # prefixed by its own cwd (``saas/backend/saas/backend/.venv``).
+    repo = repo.resolve()
     sim2policy = repo / "sim2policy"
     backend = repo / "saas" / "backend"
     frontend = repo / "saas" / "frontend"
