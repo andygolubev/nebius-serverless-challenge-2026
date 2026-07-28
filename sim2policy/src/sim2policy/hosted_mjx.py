@@ -13,6 +13,22 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 
+FINALIZE_TIMEOUT_ENVIRONMENT_VARIABLE = "SIM2POLICY_FINALIZE_TIMEOUT_SECONDS"
+DEFAULT_FINALIZE_TIMEOUT_SECONDS = 900
+
+
+def _finalize_timeout_seconds(environment: dict[str, str]) -> int:
+    value = environment.get(FINALIZE_TIMEOUT_ENVIRONMENT_VARIABLE, "")
+    if not value:
+        return DEFAULT_FINALIZE_TIMEOUT_SECONDS
+    try:
+        timeout = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{FINALIZE_TIMEOUT_ENVIRONMENT_VARIABLE} must be an integer") from exc
+    if timeout <= 0:
+        raise ValueError(f"{FINALIZE_TIMEOUT_ENVIRONMENT_VARIABLE} must be positive")
+    return timeout
+
 
 def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     parser = argparse.ArgumentParser(description="Run hosted MJX training and finalization")
@@ -57,10 +73,19 @@ def run(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> None:
     train, finalize = build_commands(argv)
+    print('{"event":"phase","phase":"training_start"}', flush=True)
     runner(train, check=True, text=True)
+    print('{"event":"phase","phase":"training_complete"}', flush=True)
     environment = os.environ.copy()
     environment["SIM2POLICY_COMMAND_CLASS"] = "finalization"
-    runner(finalize, check=True, text=True, env=environment)
+    timeout = _finalize_timeout_seconds(environment)
+    print('{"event":"phase","phase":"finalization_start"}', flush=True)
+    try:
+        runner(finalize, check=True, text=True, env=environment, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        print('{"event":"phase","phase":"finalization_timeout"}', flush=True)
+        raise RuntimeError(f"finalization exceeded {timeout} seconds") from exc
+    print('{"event":"phase","phase":"finalization_complete"}', flush=True)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
