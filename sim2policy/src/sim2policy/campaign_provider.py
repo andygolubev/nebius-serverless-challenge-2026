@@ -83,6 +83,34 @@ def classify(state: str) -> bool | None:
     return None
 
 
+#: `ai job create` ignores `--format json` and always prints a human-readable
+#: summary ("Job ID: aijob-...", then an indented "ID:" line). There is no JSON to
+#: parse and stderr is empty, so the created job's identity has to be read out of
+#: the text. Losing it is expensive twice over: the job is already running and
+#: already costing money, and the attempt records no remote id to watch or clean up.
+_CREATE_REMOTE_ID = re.compile(r"\b(aijob-[a-z0-9]+)\b")
+
+
+def _remote_id_from_create_output(stdout: str) -> str | None:
+    """Extract the created job's ID from a JSON *or* plain-text create response.
+
+    JSON is tried first so this keeps working if the CLI ever honours the flag.
+    """
+    text = _ANSI_ESCAPE.sub("", stdout).strip()
+    if not text:
+        return None
+    try:
+        payload = _parse_json_payload(text)
+    except ProviderError:
+        payload = None
+    if isinstance(payload, dict):
+        candidate = payload.get("metadata", {}).get("id") or payload.get("id")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    match = _CREATE_REMOTE_ID.search(text)
+    return match.group(1) if match else None
+
+
 def _parse_json_payload(stdout: str) -> Any:
     """Parse the JSON document out of CLI output that may be prefixed with progress.
 
@@ -201,6 +229,26 @@ class NebiusCliProvider:
         # the provider had in fact already created.
         self._submit_timeout = submit_timeout_seconds
 
+    def _invoke_raw(self, arguments: Sequence[str], *, timeout: int | None = None) -> str:
+        """Run a command whose output is not JSON and return its stdout verbatim."""
+        command = [self._binary, *arguments, "--format", "json"]
+        try:
+            completed = self._runner(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=timeout or self._timeout,
+                check=False,
+            )
+        except Exception as exc:
+            raise ProviderError(sanitize_exception(exc)) from None
+        if completed.returncode != 0:
+            raise ProviderError(
+                f"provider command failed (exit {completed.returncode}): "
+                f"{sanitize_exception(RuntimeError(completed.stderr or ''))}"
+            )
+        return completed.stdout or ""
+
     def _invoke(self, arguments: Sequence[str], *, timeout: int | None = None) -> dict[str, Any]:
         command = [self._binary, *arguments, "--format", "json"]
         try:
@@ -270,9 +318,9 @@ class NebiusCliProvider:
             arguments += ["--env-secret", f"{name}={selector}"]
         if plan.get("registry_secret"):
             arguments += ["--registry-secret", str(plan["registry_secret"])]
-        result = self._invoke(arguments, timeout=self._submit_timeout)
-        remote_id = result.get("metadata", {}).get("id") or result.get("id")
-        if not isinstance(remote_id, str) or not remote_id:
+        stdout = self._invoke_raw(arguments, timeout=self._submit_timeout)
+        remote_id = _remote_id_from_create_output(stdout)
+        if not remote_id:
             raise ProviderError("provider returned no remote job identity")
         return remote_id
 

@@ -197,6 +197,38 @@ def test_provider_parses_json_followed_by_operation_progress_output() -> None:
     assert remote_id == "aijob-e00xyz"
 
 
+def test_provider_reads_the_remote_id_from_the_plain_text_create_response() -> None:
+    """`ai job create` ignores `--format json` and prints a text summary.
+
+    Verbatim from a live submission. Failing to read the ID here leaves a running,
+    billing job with no recorded remote id to watch or clean up.
+    """
+    import subprocess as _subprocess
+
+    def runner(command, **_kwargs):
+        stdout = (
+            "\nJob ID: aijob-e00my0tag2x84c2f43\n"
+            "Job created successfully.\n"
+            "Job:\n"
+            "  ID:       aijob-e00my0tag2x84c2f43\n"
+            "  Name:     smoke-mjx-flat-20260729-01\n"
+            "  State:    RUNNING\n"
+        )
+        return _subprocess.CompletedProcess(command, 0, stdout, "\n")
+
+    provider = NebiusCliProvider(project_id="project-e00wkbbppr00tab5fhhmz7", runner=runner)
+    remote_id = provider.submit(
+        {
+            "run_id": "smoke-mjx-flat-20260729-01",
+            "image_reference": "registry.example/sim2policy@sha256:" + "a" * 64,
+            "hardware": {"platform": "cpu-d3", "preset": "8vcpu-32gb", "disk_gib": 100, "timeout_minutes": 60},
+            "command": ["python", "-m", "sim2policy.hosted_mjx", "--set", "seed=0"],
+        },
+        idempotency_key="key",
+    )
+    assert remote_id == "aijob-e00my0tag2x84c2f43"
+
+
 def test_provider_submit_uses_the_real_job_create_surface() -> None:
     """Flags are checked against the CLI that exists, not the one we wish existed."""
     import subprocess as _subprocess
