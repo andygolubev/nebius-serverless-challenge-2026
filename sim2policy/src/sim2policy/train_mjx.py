@@ -272,8 +272,15 @@ def _prepare_resume_checkpoint(
     destination = paths.root / "resume" / checkpoint.stem
     if destination.exists():
         shutil.rmtree(destination)
+    # Playground's resume flag names a directory *containing* numeric
+    # checkpoint directories.  An Orbax checkpoint archive contains the
+    # contents of one numeric directory, including internal directories such
+    # as ``ocdbt.process_0``.  Extracting it directly into ``destination``
+    # therefore makes the upstream scanner try to parse those internal names
+    # as checkpoint steps.  Restore the archive beneath its attested step so
+    # the scanner sees exactly one numeric checkpoint entry.
     destination.mkdir(parents=True)
-    _safe_extract_checkpoint(checkpoint, destination)
+    _safe_extract_checkpoint(checkpoint, destination / f"{metadata.step:012d}")
     return destination
 
 

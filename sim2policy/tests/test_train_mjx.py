@@ -237,7 +237,10 @@ def test_train_mjx_extracts_zipped_resume_checkpoint(
     load_flag = next(part for part in seen_command if part.startswith("--load_checkpoint_path="))
     resume_path = Path(load_flag.removeprefix("--load_checkpoint_path="))
     assert resume_path.is_dir()
-    assert (resume_path / "manifest.ocdbt").is_file()
+    # The upstream Playground loader enumerates this directory and parses
+    # each child as a checkpoint step.  Orbax internals must be one level
+    # below the numeric step rather than siblings of it.
+    assert (resume_path / "000000000128" / "manifest.ocdbt").is_file()
 
 
 def test_locomotion_success_reporting_for_mjx(
