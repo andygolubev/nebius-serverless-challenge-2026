@@ -14,7 +14,12 @@ import sys
 from collections.abc import Callable, Sequence
 
 FINALIZE_TIMEOUT_ENVIRONMENT_VARIABLE = "SIM2POLICY_FINALIZE_TIMEOUT_SECONDS"
-DEFAULT_FINALIZE_TIMEOUT_SECONDS = 900
+# A cold G1 MJX render takes about four minutes on the verified H100 image, and
+# finalization deliberately renders four independently isolated checkpoints.
+# Fifteen minutes therefore aborts a healthy run before evaluation/upload; keep
+# the guard below the one-hour smoke provider limit while covering that measured
+# workload.
+DEFAULT_FINALIZE_TIMEOUT_SECONDS = 2700
 
 
 def _finalize_timeout_seconds(environment: dict[str, str]) -> int:

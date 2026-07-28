@@ -67,4 +67,4 @@ def test_run_trains_then_finalizes_in_separate_processes() -> None:
     assert calls[0][1] == {"check": True, "text": True}
     assert calls[1][1]["check"] is True and calls[1][1]["text"] is True
     assert calls[1][1]["env"]["SIM2POLICY_COMMAND_CLASS"] == "finalization"
-    assert calls[1][1]["timeout"] == 900
+    assert calls[1][1]["timeout"] == 2700
