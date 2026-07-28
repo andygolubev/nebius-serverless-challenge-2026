@@ -93,6 +93,8 @@ def _build_command(args: argparse.Namespace) -> list[str]:
     ]
     if args.resume:
         command += ["--resume", args.resume]
+    if args.resume_run_id:
+        command += ["--resume-run-id", args.resume_run_id]
     command += [
         "--set", f"training.total_steps={args.steps}",
         "--set", f"checkpoint.every_steps={args.checkpoint_every}",
@@ -214,6 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gallery-example-id", default="reacher-target")
     parser.add_argument("--curriculum", action="store_true")
     parser.add_argument("--resume", help="Passed to the job's training phase (e.g. 'remote').")
+    parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
     parser.add_argument(
         "--device-probe",
         action="store_true",

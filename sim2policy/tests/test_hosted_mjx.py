@@ -30,6 +30,16 @@ def test_resume_is_passed_to_training_only() -> None:
     assert "--resume" not in finalize
 
 
+def test_remote_resume_can_name_a_distinct_source_run() -> None:
+    train, _finalize = build_commands(
+        [
+            "--config", "configs/g1_mjx.yaml", "--run-id", "rough-run",
+            "--resume", "remote", "--resume-run-id", "flat-run",
+        ]
+    )
+    assert train[train.index("--resume-run-id") + 1] == "flat-run"
+
+
 def test_resume_is_absent_unless_requested() -> None:
     train, _finalize = build_commands(["--config", "c.yaml", "--run-id", "r1"])
     assert "--resume" not in train

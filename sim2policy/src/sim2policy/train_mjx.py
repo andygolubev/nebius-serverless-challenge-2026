@@ -675,6 +675,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--resume", nargs="?", const="latest")
+    parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
     parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     return parser
 
@@ -700,7 +701,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     if args.resume:
         if args.resume == "remote":
             paths = create_run_paths(args.run_id, args.runs_root)
-            resume = ArtifactStore(config.storage, args.run_id).resume_latest(
+            resume = ArtifactStore(config.storage, args.resume_run_id or args.run_id).resume_latest(
                 paths.checkpoints, config
             )
         else:

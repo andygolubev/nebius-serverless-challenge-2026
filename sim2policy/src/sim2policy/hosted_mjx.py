@@ -28,6 +28,7 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
         const="latest",
         help="Resume training: 'remote' pulls this run's latest durable checkpoint.",
     )
+    parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
     parser.add_argument("--set", action="append", default=[])
     args = parser.parse_args(argv)
 
@@ -36,6 +37,8 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     # Resume is a training-only concern; finalization always works from the run
     # tree the training phase leaves behind.
     resume = ["--resume", args.resume] if args.resume else []
+    if args.resume_run_id:
+        resume += ["--resume-run-id", args.resume_run_id]
     train = [sys.executable, "-m", "sim2policy.train_mjx", *shared, *resume, *overrides]
     finalize = [sys.executable, "-m", "sim2policy.finalize", *shared]
     if args.gallery_example_id:
