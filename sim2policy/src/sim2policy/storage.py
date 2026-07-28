@@ -262,11 +262,20 @@ class ArtifactStore:
             raise StorageError(f"invalid JSON object at {relative}")
         return result
 
-    def resume_latest(self, destination: Path, config: RunConfig) -> Path:
+    def resume_latest(
+        self,
+        destination: Path,
+        config: RunConfig,
+        *,
+        allowed_source_environment: str | None = None,
+    ) -> Path:
         manifest = self._get_json("checkpoints/latest.json")
         if (
             manifest.get("backend") != config.backend
-            or manifest.get("environment") != config.environment
+            or (
+                manifest.get("environment") != config.environment
+                and manifest.get("environment") != allowed_source_environment
+            )
         ):
             raise CheckpointError("latest remote checkpoint is incompatible with selected config")
         checkpoint = destination / Path(str(manifest["checkpoint_key"])).name

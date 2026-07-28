@@ -19,8 +19,10 @@ from pathlib import Path
 from typing import Any
 
 from sim2policy.checkpoint import (
+    CheckpointError,
     checkpoint_path,
     latest_checkpoint,
+    load_checkpoint_metadata,
     validate_checkpoint,
     write_checkpoint_metadata,
 )
@@ -64,6 +66,9 @@ _PLAYGROUND_FLAG_MAP = {
     "policy_hidden_layer_sizes",
     "value_hidden_layer_sizes",
 }
+REVIEWED_RESUME_TRANSITIONS = frozenset(
+    {("G1JoystickFlatTerrain", "G1JoystickRoughTerrain")}
+)
 
 
 def _environment_overrides(config: RunConfig) -> dict[str, Any]:
@@ -242,10 +247,24 @@ def _repair_brax_checkpoint_config(checkpoint: Path) -> None:
         config_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPaths) -> Path:
+def _prepare_resume_checkpoint(
+    checkpoint: Path,
+    config: RunConfig,
+    paths: RunPaths,
+    *,
+    allowed_source_environment: str | None = None,
+) -> Path:
     if checkpoint.is_dir():
         return checkpoint
-    validate_checkpoint(checkpoint, config)
+    metadata = load_checkpoint_metadata(checkpoint)
+    if metadata.backend != config.backend or (
+        metadata.environment != config.environment
+        and metadata.environment != allowed_source_environment
+    ):
+        raise CheckpointError(
+            f"checkpoint is for {metadata.backend}/{metadata.environment}, "
+            f"not {config.backend}/{config.environment}"
+        )
     if checkpoint.suffix != ".zip":
         raise RuntimeError(
             "MJX resume requires a raw Playground checkpoint directory or a zipped Orbax checkpoint"
@@ -455,6 +474,7 @@ def train_mjx(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     initial_checkpoint_factory: Callable[[RunConfig, Path], Path] | None = None,
     state: RunStateStore | None = None,
+    allowed_source_environment: str | None = None,
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
@@ -549,7 +569,14 @@ def train_mjx(
             },
         )
         raw_resume = (
-            _prepare_resume_checkpoint(resume, config, paths) if resume is not None else None
+            _prepare_resume_checkpoint(
+                resume,
+                config,
+                paths,
+                allowed_source_environment=allowed_source_environment,
+            )
+            if resume is not None
+            else None
         )
 
         transition("initial_checkpoint")
@@ -698,11 +725,21 @@ def main(argv: Sequence[str] | None = None) -> None:
     if config.backend != "mjx":
         raise SystemExit("selected config is not an MJX config")
     resume = None
+    allowed_source_environment = next(
+        (
+            source
+            for source, target in REVIEWED_RESUME_TRANSITIONS
+            if target == config.environment
+        ),
+        None,
+    )
     if args.resume:
         if args.resume == "remote":
             paths = create_run_paths(args.run_id, args.runs_root)
             resume = ArtifactStore(config.storage, args.resume_run_id or args.run_id).resume_latest(
-                paths.checkpoints, config
+                paths.checkpoints,
+                config,
+                allowed_source_environment=allowed_source_environment,
             )
         else:
             resume = (
@@ -712,7 +749,14 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
     state = RunStateStore(config.storage, args.run_id, args.runs_root)
     try:
-        final = train_mjx(config, args.run_id, args.runs_root, resume=resume, state=state)
+        final = train_mjx(
+            config,
+            args.run_id,
+            args.runs_root,
+            resume=resume,
+            state=state,
+            allowed_source_environment=allowed_source_environment,
+        )
     except (RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         state.update_status(STATUS_FAILED, error=str(exc))
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)

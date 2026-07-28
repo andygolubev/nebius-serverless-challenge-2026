@@ -153,6 +153,12 @@ def test_publish_and_resume_round_trip(tmp_path: Path) -> None:
     incompatible = replace(config, environment="Other-v1")
     with pytest.raises(CheckpointError, match="incompatible"):
         store.resume_latest(tmp_path / "wrong", incompatible)
+    transitioned = store.resume_latest(
+        tmp_path / "transitioned",
+        incompatible,
+        allowed_source_environment=config.environment,
+    )
+    assert transitioned.read_bytes() == original.read_bytes()
 
 
 def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> None:
