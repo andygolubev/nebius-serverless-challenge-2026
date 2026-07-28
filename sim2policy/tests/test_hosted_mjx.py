@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 
+from sim2policy.finalize import _phase
 from sim2policy.hosted_mjx import build_commands, run
+
+
+def test_finalization_phase_events_are_machine_readable(capsys) -> None:
+    _phase("upload_complete")
+    assert json.loads(capsys.readouterr().out) == {
+        "event": "finalization_phase",
+        "phase": "upload_complete",
+    }
 
 
 def test_commands_keep_validated_arguments_as_array_elements() -> None:

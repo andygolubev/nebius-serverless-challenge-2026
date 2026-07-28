@@ -38,6 +38,11 @@ from sim2policy.runstate import (
 from sim2policy.storage import ArtifactStore
 
 
+def _phase(name: str) -> None:
+    """Emit an unbuffered, machine-readable finalization progress boundary."""
+    print(json.dumps({"event": "finalization_phase", "phase": name}), flush=True)
+
+
 def _override(value: str) -> tuple[str, Any]:
     return parse_override(value)
 
@@ -79,7 +84,9 @@ def finalize_run(
     paths = create_run_paths(run_id, runs_root)
     store = ArtifactStore(config.storage, run_id)
     state = RunStateStore(config.storage, run_id, runs_root)
+    _phase("download_start")
     store.download_tree(paths.root, ("checkpoints", "tensorboard", "metadata", "report"))
+    _phase("download_complete")
     initial, quarter, final_step = progression_checkpoints(
         paths.checkpoints, config.training.total_steps
     )
@@ -98,6 +105,7 @@ def finalize_run(
         strict=True,
     ):
         video = paths.videos / f"{name}.mp4"
+        _phase(f"render_{name}_start")
         render_with_fallback(
             [
                 "--config",
@@ -109,6 +117,7 @@ def finalize_run(
                 *child_overrides,
             ]
         )
+        _phase(f"render_{name}_complete")
         videos.append(video)
         inventory = checkpoint_inventory(
             checkpoint,
@@ -129,6 +138,7 @@ def finalize_run(
     # step separately so a late regression can never be hidden by replacement.
     shutil.copy2(paths.videos / "selected.mp4", paths.videos / "final.mp4")
     montage = paths.videos / "progression_montage.mp4"
+    _phase("montage_start")
     subprocess.run(
         montage_command(
             videos,
@@ -137,8 +147,11 @@ def finalize_run(
         ),
         check=True,
     )
+    _phase("montage_complete")
     state.update_status(STATUS_EVALUATING)
+    _phase("evaluation_start")
     metrics = evaluate(selected, config, run_id, paths.root)
+    _phase("evaluation_complete")
     metrics["selected_checkpoint"] = checkpoint_inventory(
         selected, config, run_lineage=run_id, phase="selected"
     ).to_dict()
@@ -253,7 +266,10 @@ def finalize_run(
             versions=versions,
             runtime_image=runtime_image,
         )
+        _phase("bundle_complete")
+    _phase("upload_start")
     store.sync_tree(paths.root, required=store.enabled)
+    _phase("upload_complete")
     artifacts = state.discover_artifacts()
     curation_evidence = {
         key: metrics[key]
