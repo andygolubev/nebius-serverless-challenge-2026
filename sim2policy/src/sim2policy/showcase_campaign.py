@@ -1079,6 +1079,36 @@ class Campaign:
                     next_command="handoff",
                     attempt=attempt,
                 )
+            # The provider's terminal state decides whether incomplete evidence
+            # means "training failed" or "finalization failed", so it is resolved
+            # here rather than assumed from a `watch` that may have been
+            # interrupted — the runbook expects watch to be re-entrant, and an
+            # unrecorded state would otherwise read as a provider failure.
+            terminal_state = str(attempt.get("provider_terminal_state") or "")
+            if not terminal_state:
+                try:
+                    status = self.provider.poll(str(attempt["remote_id"]))
+                except ProviderError as exc:
+                    return self.envelope(
+                        code=EXIT_NEEDS_HUMAN,
+                        decision="BLOCK",
+                        reason_code="UNKNOWN_PROVIDER_STATE",
+                        next_command="handoff",
+                        attempt=attempt,
+                        extra={"provider_error": self.store.safe(sanitize_exception(exc))},
+                    )
+                if not status.terminal:
+                    return self.envelope(
+                        code=EXIT_ACTIVE,
+                        decision="ACTIVE",
+                        reason_code="JOB_STILL_ACTIVE",
+                        next_command="watch --until-terminal",
+                        attempt=attempt,
+                    )
+                terminal_state = status.state
+                attempt["provider_terminal_state"] = terminal_state
+                attempt["provider_state"] = terminal_state
+
             campaign = self.matrix.campaign
             final_seeds = campaign["final"]["seeds"]
             result = verify_run_evidence(
@@ -1092,10 +1122,7 @@ class Campaign:
                 self.store.evidence_path(f"verify-{key.replace(':', '-')}.json"), result.to_dict()
             )
             attempt["evidence_digest"] = _digest(result.to_dict())
-            provider_failed = str(attempt.get("provider_terminal_state", "")).upper() not in {
-                "COMPLETED",
-                "SUCCEEDED",
-            }
+            provider_failed = terminal_state.upper() not in {"COMPLETED", "SUCCEEDED"}
             if result.passed and not provider_failed:
                 attempt["state"] = "VERIFIED"
                 saved = self._save_attempt(state, key, attempt, command="verify")
@@ -1134,6 +1161,27 @@ class Campaign:
             state = self.store.read()
             card = self.matrix.card(example)
             attempts = state.get("attempts") or {}
+
+            # "An extension is allowed only by the quality decision after all
+            # three base seeds." Ranking a partial set could crown an
+            # unrepresentative winner and spend the single extension on it, so
+            # every declared base seed must be terminal first.
+            settled = {"VERIFIED", "CLEANED", "ACCEPTED", "REJECTED"}
+            outstanding = sorted(
+                seed
+                for seed in card["seeds"]
+                if (attempts.get(attempt_key(example, seed, "base")) or {}).get("state")
+                not in settled
+            )
+            if outstanding:
+                return self.envelope(
+                    code=EXIT_INVARIANT,
+                    decision="BLOCK",
+                    reason_code="BASE_SEEDS_INCOMPLETE",
+                    next_command=f"plan --example {example} --seed {outstanding[0]}",
+                    extra={"outstanding_seeds": outstanding},
+                )
+
             candidates = []
             for key, attempt in sorted(attempts.items()):
                 if not isinstance(attempt, dict) or attempt.get("example") != example:

@@ -56,9 +56,12 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     "VERIFIED": frozenset({"ACCEPTED", "REJECTED", "NEEDS_HUMAN", "CLEANED"}),
     "ACCEPTED": frozenset({"CLEANED", "NEEDS_HUMAN"}),
     "REJECTED": frozenset({"CLEANED", "NEEDS_HUMAN"}),
-    # PLANNED is reachable only for an attempt that never acquired a remote job;
-    # the caller proves that before re-planning, so no live job can be orphaned.
-    "NEEDS_HUMAN": frozenset({"CLEANED", "PLANNED"}),
+    # NEEDS_HUMAN is a stop, not a grave. PLANNED is reachable only for an
+    # attempt that never acquired a remote job, and VERIFIED only when a fresh
+    # verification proves complete durable evidence against a terminal-completed
+    # provider state. Both require positive proof; neither clears the stop on its
+    # own say-so.
+    "NEEDS_HUMAN": frozenset({"CLEANED", "PLANNED", "VERIFIED"}),
     "CLEANED": frozenset(),
 }
 

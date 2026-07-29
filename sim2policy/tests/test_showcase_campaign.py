@@ -621,6 +621,25 @@ def _submitted_and_terminal(
     return instance
 
 
+def _all_base_seeds_verified(build, matrix, *, preferred: bool = True, prefix: str = "showcase-gallery-result-20260726-reacher"):
+    """Every declared base seed run and verified — what `select` requires.
+
+    Selection ranks a complete set by contract: an extension may only follow the
+    quality decision taken after all three base seeds.
+    """
+    seeds = matrix.card("reacher")["seeds"]
+    documents: dict = {}
+    for seed in seeds:
+        documents.update(_run_documents(f"{prefix}-s{seed}", matrix.digest, preferred=preferred))
+    instance = build(provider=FakeProvider(states=["COMPLETED"]), evidence=FakeEvidence(documents))
+    for seed in seeds:
+        _code, planned = instance.plan("reacher", seed)
+        instance.submit("reacher", seed, planned["plan"]["plan_digest"])
+        instance.watch(poll_seconds=0, until_terminal=True)
+        instance.verify("reacher", seed)
+    return instance
+
+
 def test_verify_accepts_a_complete_prefix_and_is_idempotent(campaign) -> None:
     build, _store, matrix = campaign
     run_id = "showcase-gallery-result-20260726-reacher-s0"
@@ -631,6 +650,55 @@ def test_verify_accepts_a_complete_prefix_and_is_idempotent(campaign) -> None:
 
     code, envelope = instance.verify("reacher", 0)
     assert code == EXIT_OK and envelope["decision"] == "ALREADY_VERIFIED"
+
+
+def test_verify_resolves_the_terminal_state_when_watch_was_interrupted(campaign) -> None:
+    """An interrupted watch must not make a completed run look like a failure."""
+    build, store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    provider = FakeProvider(states=["COMPLETED"])
+    evidence = FakeEvidence(_run_documents(run_id, matrix.digest))
+    instance = build(provider=provider, evidence=evidence)
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+    # No watch ran, so nothing recorded a terminal state.
+    assert "provider_terminal_state" not in store.read()["attempts"]["reacher:0:base"]
+
+    code, envelope = instance.verify("reacher", 0)
+    assert code == EXIT_OK and envelope["decision"] == "VERIFIED"
+
+
+def test_a_stopped_attempt_can_be_verified_once_its_blocker_is_resolved(campaign) -> None:
+    """NEEDS_HUMAN is a stop, not a grave — but only proof clears it."""
+    build, store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    provider = FakeProvider(states=["COMPLETED"])
+    documents = _run_documents(run_id, matrix.digest)
+    instance = build(provider=provider, evidence=FakeEvidence({}))
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+    instance.watch(poll_seconds=0, until_terminal=True)
+    code, _envelope = instance.verify("reacher", 0)
+    assert code == EXIT_REJECTED
+    assert store.read()["attempts"]["reacher:0:base"]["state"] == "NEEDS_HUMAN"
+
+    resolved = build(provider=provider, evidence=FakeEvidence(documents))
+    code, envelope = resolved.verify("reacher", 0)
+    assert code == EXIT_OK and envelope["decision"] == "VERIFIED"
+
+
+def test_verify_refuses_while_the_job_is_still_active(campaign) -> None:
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    provider = FakeProvider(states=["RUNNING"])
+    evidence = FakeEvidence(_run_documents(run_id, matrix.digest))
+    instance = build(provider=provider, evidence=evidence)
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+
+    code, envelope = instance.verify("reacher", 0)
+    assert code == EXIT_ACTIVE and envelope["reason_code"] == "JOB_STILL_ACTIVE"
+    assert envelope["next_command"] == "watch --until-terminal"
 
 
 def test_verify_classifies_a_finalization_only_failure(campaign) -> None:
@@ -734,11 +802,20 @@ def test_cleanup_passes_and_closes_the_attempt(campaign) -> None:
     assert store.read()["attempts"]["reacher:0:base"]["state"] == "CLEANED"
 
 
-def test_select_records_the_winner_and_skips_the_extension_when_quality_is_met(campaign) -> None:
-    build, store, matrix = campaign
+def test_select_refuses_until_every_declared_base_seed_is_settled(campaign) -> None:
+    """Ranking a partial set could crown an unrepresentative winner."""
+    build, _store, matrix = campaign
     run_id = "showcase-gallery-result-20260726-reacher-s0"
     instance = _submitted_and_terminal(build, run_id, matrix)
     instance.verify("reacher", 0)
+    code, envelope = instance.select("reacher")
+    assert code == EXIT_INVARIANT and envelope["reason_code"] == "BASE_SEEDS_INCOMPLETE"
+    assert envelope["outstanding_seeds"] == [7, 42]
+
+
+def test_select_records_the_winner_and_skips_the_extension_when_quality_is_met(campaign) -> None:
+    build, _store, matrix = campaign
+    instance = _all_base_seeds_verified(build, matrix)
     code, envelope = instance.select("reacher")
     assert code == EXIT_OK
     assert envelope["decision"] == "EXTENSION_SKIPPED_QUALITY_MET"
@@ -748,9 +825,7 @@ def test_select_records_the_winner_and_skips_the_extension_when_quality_is_met(c
 
 def test_select_requires_an_extension_when_the_preferred_target_is_missed(campaign) -> None:
     build, _store, matrix = campaign
-    run_id = "showcase-gallery-result-20260726-reacher-s0"
-    instance = _submitted_and_terminal(build, run_id, matrix, preferred=False)
-    instance.verify("reacher", 0)
+    instance = _all_base_seeds_verified(build, matrix, preferred=False)
     code, envelope = instance.select("reacher")
     assert code == EXIT_OK and envelope["decision"] == "EXTENSION_REQUIRED"
     assert "--phase extension" in envelope["next_command"]
@@ -758,9 +833,7 @@ def test_select_requires_an_extension_when_the_preferred_target_is_missed(campai
 
 def test_accept_needs_a_human_when_only_the_hard_floor_passes(campaign) -> None:
     build, _store, matrix = campaign
-    run_id = "showcase-gallery-result-20260726-reacher-s0"
-    instance = _submitted_and_terminal(build, run_id, matrix, preferred=False)
-    instance.verify("reacher", 0)
+    instance = _all_base_seeds_verified(build, matrix, preferred=False)
     instance.cleanup()
     instance.select("reacher")
     code, envelope = instance.accept("reacher")
@@ -770,9 +843,7 @@ def test_accept_needs_a_human_when_only_the_hard_floor_passes(campaign) -> None:
 
 def test_accept_is_pin_ready_only_with_hard_preferred_and_cleanup(campaign) -> None:
     build, _store, matrix = campaign
-    run_id = "showcase-gallery-result-20260726-reacher-s0"
-    instance = _submitted_and_terminal(build, run_id, matrix)
-    instance.verify("reacher", 0)
+    instance = _all_base_seeds_verified(build, matrix)
 
     # Cleanup has not run: acceptance must not be pin-ready yet.
     instance.select("reacher")
@@ -787,10 +858,8 @@ def test_accept_is_pin_ready_only_with_hard_preferred_and_cleanup(campaign) -> N
 
 
 def test_extension_can_only_be_consumed_once(campaign) -> None:
-    build, store, matrix = campaign
-    run_id = "showcase-gallery-result-20260726-reacher-s0"
-    instance = _submitted_and_terminal(build, run_id, matrix, preferred=False)
-    instance.verify("reacher", 0)
+    build, _store, matrix = campaign
+    instance = _all_base_seeds_verified(build, matrix, preferred=False)
     instance.select("reacher")
     plan = instance.build_plan("reacher", 0, phase="extension")
     code, _envelope = instance.extend("reacher", plan["plan_digest"])
