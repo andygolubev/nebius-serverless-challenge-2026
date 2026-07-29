@@ -15,6 +15,9 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--gallery-example-id", required=True)
     parser.add_argument("--selected-checkpoint-digest")
+    parser.add_argument("--resume-run-id")
+    parser.add_argument("--resume-checkpoint-path")
+    parser.add_argument("--resume-checkpoint-sha256")
     parser.add_argument("--matrix-digest")
     # Curation evidence the campaign owns and the finalizer records verbatim; the
     # job never invents these, and without them a run cannot be accepted.
@@ -37,6 +40,13 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
         args.gallery_example_id,
         *overrides,
     ]
+    for flag, value in (
+        ("--resume-run-id", args.resume_run_id),
+        ("--resume-checkpoint-path", args.resume_checkpoint_path),
+        ("--resume-checkpoint-sha256", args.resume_checkpoint_sha256),
+    ):
+        if value:
+            train += [flag, value]
     if args.selected_checkpoint_digest:
         finalize += ["--selected-checkpoint-digest", args.selected_checkpoint_digest]
     if args.matrix_digest:

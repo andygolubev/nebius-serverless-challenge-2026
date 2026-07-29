@@ -297,7 +297,11 @@ def _complete_metrics(*, matrix_digest: str, preferred: bool = True) -> dict[str
         "benchmark": {"estimated_cost": 0.03, "rate_date": "2026-07-26"},
         "success": {"met": True, "criterion": "mean_reward >= -10"},
         "aggregate": {"mean_reward": -6.5, "mean_episode_length": 50.0, "episodes": 20},
-        "selected_checkpoint": {"effective_step": 800000, "sha256": "c" * 64},
+        "selected_checkpoint": {
+            "effective_step": 800000,
+            "native_path": "step-000000800000.zip",
+            "sha256": "c" * 64,
+        },
         "seed_roles": {"selection": [101, 151, 211, 271, 331], "final": [0, 1, 2, 3, 4]},
         "ranking_explanation": {"kind": "mean_reward", "fields": ["mean_reward"]},
         "acceptance": {

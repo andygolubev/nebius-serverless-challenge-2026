@@ -15,6 +15,7 @@ from sim2policy.checkpoint import (
     load_checkpoint_metadata,
     metadata_path,
     sha256_file,
+    validate_checkpoint,
 )
 from sim2policy.config import RunConfig, StorageConfig, validate_prefix, validate_run_id
 
@@ -319,6 +320,45 @@ class ArtifactStore:
             checkpoint.unlink(missing_ok=True)
             sidecar.unlink(missing_ok=True)
             raise CheckpointError("downloaded checkpoint checksum mismatch")
+        return checkpoint
+
+    def resume_named_checkpoint(
+        self,
+        destination: Path,
+        config: RunConfig,
+        *,
+        checkpoint_name: str,
+        expected_sha256: str,
+    ) -> Path:
+        """Restore one exact, already-selected checkpoint from this run.
+
+        Extensions must never substitute the latest checkpoint for the ranked
+        parent.  The campaign records the canonical checkpoint filename and
+        digest; both are required here before a child run can resume.
+        """
+        safe = PurePosixPath(checkpoint_name)
+        if safe.is_absolute() or len(safe.parts) != 1 or safe.suffix != ".zip":
+            raise CheckpointError("selected checkpoint filename is unsafe")
+        checkpoint = destination / safe.name
+        sidecar = metadata_path(checkpoint)
+        destination.mkdir(parents=True, exist_ok=True)
+        source_checkpoint = self.key_for(f"checkpoints/{safe.name}")
+        source_sidecar = self.key_for(f"checkpoints/{sidecar.name}")
+        self._attempt(
+            "download selected checkpoint",
+            lambda: self.client.download_file(
+                self.config.bucket, source_checkpoint, str(checkpoint)
+            ),
+        )
+        self._attempt(
+            "download selected checkpoint metadata",
+            lambda: self.client.download_file(self.config.bucket, source_sidecar, str(sidecar)),
+        )
+        metadata = validate_checkpoint(checkpoint, config)
+        if metadata.sha256 != expected_sha256:
+            checkpoint.unlink(missing_ok=True)
+            sidecar.unlink(missing_ok=True)
+            raise CheckpointError("selected remote checkpoint checksum mismatch")
         return checkpoint
 
 

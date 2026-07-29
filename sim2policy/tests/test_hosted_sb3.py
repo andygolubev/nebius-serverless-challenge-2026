@@ -74,3 +74,16 @@ def test_hosted_sb3_forwards_curation_evidence_to_finalization_only() -> None:
     )
     assert finalize[finalize.index("--ranking-explanation-json") + 1] == '{"kind": "mean_reward"}'
     assert "--acceptance-criteria-json" in finalize
+
+
+def test_hosted_sb3_resumes_only_training_from_an_exact_parent_checkpoint() -> None:
+    train, finalize = build_commands(
+        [
+            "--config", "configs/hopper_sb3.yaml", "--run-id", "child",
+            "--gallery-example-id", "hopper-balance", "--resume-run-id", "parent",
+            "--resume-checkpoint-path", "step-000003000000.zip",
+            "--resume-checkpoint-sha256", "a" * 64,
+        ]
+    )
+    assert train[train.index("--resume-run-id") + 1] == "parent"
+    assert "--resume-run-id" not in finalize

@@ -235,6 +235,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--resume", nargs="?", const="latest")
+    parser.add_argument("--resume-run-id")
+    parser.add_argument("--resume-checkpoint-path")
+    parser.add_argument("--resume-checkpoint-sha256")
     parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     return parser
 
@@ -248,7 +251,20 @@ def main(argv: Sequence[str] | None = None) -> None:
     if config.backend != "sb3":
         raise SystemExit("selected config is not an SB3 config")
     resume = None
-    if args.resume:
+    named_resume = (args.resume_run_id, args.resume_checkpoint_path, args.resume_checkpoint_sha256)
+    if any(named_resume) and not all(named_resume):
+        raise SystemExit("named remote resume requires run ID, checkpoint path, and checksum")
+    if args.resume and any(named_resume):
+        raise SystemExit("--resume cannot be combined with named remote resume")
+    if all(named_resume):
+        paths = create_run_paths(args.run_id, args.runs_root)
+        resume = ArtifactStore(config.storage, args.resume_run_id).resume_named_checkpoint(
+            paths.checkpoints,
+            config,
+            checkpoint_name=args.resume_checkpoint_path,
+            expected_sha256=args.resume_checkpoint_sha256,
+        )
+    elif args.resume:
         if args.resume == "remote":
             paths = create_run_paths(args.run_id, args.runs_root)
             resume = ArtifactStore(config.storage, args.run_id).resume_latest(

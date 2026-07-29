@@ -573,6 +573,7 @@ class Campaign:
             parent = {
                 "run_id": selection.get("run_id"),
                 "checkpoint_sha256": selection.get("checkpoint_sha256"),
+                "checkpoint_native_path": selection.get("checkpoint_native_path"),
                 "effective_step": selection.get("effective_step"),
             }
 
@@ -769,8 +770,14 @@ class Campaign:
         ]
         for key, value in sorted(storage.items()):
             command += ["--set", f"{key}={value}"]
-        if parent is not None and parent.get("checkpoint_sha256"):
-            command += ["--selected-checkpoint-digest", str(parent["checkpoint_sha256"])]
+        if parent is not None:
+            if not all(parent.get(key) for key in ("run_id", "checkpoint_sha256", "checkpoint_native_path")):
+                raise CampaignError("extension parent is missing exact checkpoint provenance")
+            command += [
+                "--resume-run-id", str(parent["run_id"]),
+                "--resume-checkpoint-path", str(parent["checkpoint_native_path"]),
+                "--resume-checkpoint-sha256", str(parent["checkpoint_sha256"]),
+            ]
         return command
 
     def plan(self, example: str, seed: int, *, phase: str = "base") -> tuple[int, dict[str, Any]]:
@@ -1202,6 +1209,7 @@ class Campaign:
                         "run_id": attempt["run_id"],
                         "seed": attempt.get("seed"),
                         "checkpoint_sha256": selected.get("sha256"),
+                        "checkpoint_native_path": selected.get("native_path"),
                         "effective_step": int(selected.get("effective_step") or 0),
                         "aggregate": aggregate,
                         "acceptance": metrics.get("acceptance"),
@@ -1233,6 +1241,7 @@ class Campaign:
                 "run_id": winner["run_id"],
                 "seed": winner["seed"],
                 "checkpoint_sha256": winner["checkpoint_sha256"],
+                "checkpoint_native_path": winner["checkpoint_native_path"],
                 "effective_step": winner["effective_step"],
                 "runner_up": ordered[1]["run_id"] if len(ordered) > 1 else None,
                 "candidate_count": len(ordered),

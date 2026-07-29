@@ -8,7 +8,12 @@ from typing import Any
 
 import pytest
 
-from sim2policy.checkpoint import CheckpointError, checkpoint_path, write_checkpoint_metadata
+from sim2policy.checkpoint import (
+    CheckpointError,
+    checkpoint_path,
+    sha256_file,
+    write_checkpoint_metadata,
+)
 from sim2policy.config import StorageConfig, load_config
 from sim2policy.storage import ArtifactStore, StorageError
 
@@ -162,6 +167,25 @@ def test_publish_and_resume_round_trip(tmp_path: Path) -> None:
         allowed_source_environment=config.environment,
     )
     assert transitioned.read_bytes() == original.read_bytes()
+
+
+def test_resume_named_checkpoint_requires_the_recorded_digest(tmp_path: Path) -> None:
+    config = load_config(ROOT / "configs/smoke_sb3.yaml")
+    client = FakeS3()
+    parent = ArtifactStore(s3_config(), "parent", client=client)
+    source = make_checkpoint(tmp_path / "source")
+    parent.publish_checkpoint(source, tmp_path / "source")
+    restored = parent.resume_named_checkpoint(
+        tmp_path / "restored",
+        config,
+        checkpoint_name=source.name,
+        expected_sha256=sha256_file(source),
+    )
+    assert restored.read_bytes() == source.read_bytes()
+    with pytest.raises(CheckpointError, match="checksum"):
+        parent.resume_named_checkpoint(
+            tmp_path / "wrong", config, checkpoint_name=source.name, expected_sha256="0" * 64
+        )
 
 
 def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> None:
