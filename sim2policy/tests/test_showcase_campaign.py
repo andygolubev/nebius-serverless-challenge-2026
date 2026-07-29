@@ -258,6 +258,10 @@ def test_provider_submit_uses_the_real_job_create_surface() -> None:
     for flag in ("--image", "--container-command", "--args", "--platform", "--preset",
                  "--disk-size", "--timeout", "--subnet-id", "--registry-secret"):
         assert flag in command, flag
+    # The provider CLI copies the image argument into a 64-character label, so
+    # digest pinning stays in the reviewed plan while this boundary submits the
+    # pre-verified immutable tag.
+    assert command[command.index("--image") + 1] == "registry.example/sim2policy"
     # The container arguments are one joined string, never a shell command line.
     assert command[command.index("--args") + 1] == "-m sim2policy.hosted_sb3 --set seed=0"
     assert "--env-secret" in command

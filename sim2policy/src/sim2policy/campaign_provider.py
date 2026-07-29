@@ -294,11 +294,18 @@ class NebiusCliProvider:
         command = [str(value) for value in plan["command"]]
         if not command:
             raise ProviderError("plan carries no container command")
+        # The current `nebius ai job create` CLI copies its `--image` value to a
+        # provider label.  Labels are capped at 64 characters, while our pinned
+        # `tag@sha256:digest` reference is longer.  Submit the immutable
+        # commit-SHA tag and retain the resolved digest separately in the
+        # reviewed plan/provenance; the tag is evidenced immutable before this
+        # boundary is reached.
+        image_reference = str(plan["image_reference"]).split("@", 1)[0]
         arguments = [
             "ai", "job", "create",
             "--parent-id", self._project_id,
             "--name", str(plan["run_id"]),
-            "--image", str(plan["image_reference"]),
+            "--image", image_reference,
             "--container-command", command[0],
             "--args", shlex.join(command[1:]),
             "--platform", str(hardware["platform"]),
