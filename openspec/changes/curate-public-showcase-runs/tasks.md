@@ -91,7 +91,7 @@
 
 ## 8. Execute fresh SB3 campaigns sequentially
 
-- [ ] 8.1 From the attested Nebius orchestration VM, initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff; the shared host only invokes/observes the cloud command
+- [x] 8.1 From the attested Nebius orchestration VM, initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff; the shared host only invokes/observes the cloud command
 - [ ] 8.2 Execute Reacher seed 0 through plan/submit/watch/verify/cleanup; record exact state/evidence/cleanup and run no other campaign job concurrently
 - [ ] 8.3 Execute Reacher seeds 7 and 42 with the identical matrix contract, verifying and cleaning each before the next
 - [ ] 8.4 Run Reacher selection; if required by structured `next_command`, extend only the winning seed to 1.5M; final-accept once and emit accepted/rejected/needs-human without improvisation
