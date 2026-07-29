@@ -48,3 +48,29 @@ def test_hosted_sb3_stops_before_finalization_when_training_fails() -> None:
         )
     assert len(calls) == 1
     assert "sim2policy.train_sb3" in calls[0]
+
+
+def test_hosted_sb3_forwards_curation_evidence_to_finalization_only() -> None:
+    """Training does not need seed roles or thresholds; publication does."""
+    train, finalize = build_commands(
+        [
+            "--config",
+            "configs/hopper_sb3.yaml",
+            "--run-id",
+            "run-safe",
+            "--gallery-example-id",
+            "hopper-balance",
+            "--seed-roles-json",
+            '{"training": [7], "selection": [101], "final": [0]}',
+            "--ranking-explanation-json",
+            '{"kind": "mean_reward"}',
+            "--acceptance-criteria-json",
+            '{"hard": {"mean_reward": 1000}, "preferred": {"mean_reward": 1800}}',
+        ]
+    )
+    assert "--seed-roles-json" not in train
+    assert finalize[finalize.index("--seed-roles-json") + 1] == (
+        '{"training": [7], "selection": [101], "final": [0]}'
+    )
+    assert finalize[finalize.index("--ranking-explanation-json") + 1] == '{"kind": "mean_reward"}'
+    assert "--acceptance-criteria-json" in finalize

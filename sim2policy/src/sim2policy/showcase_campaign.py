@@ -53,10 +53,12 @@ from sim2policy.campaign_state import (
     validate_transition,
 )
 from sim2policy.campaign_verify import (
+    ArtifactStoreEvidenceReader,
     EvidenceReader,
     classify_failure,
     verify_run_evidence,
 )
+from sim2policy.config import StorageConfig
 from sim2policy.execution_location import (
     ExecutionLocationError,
     LocationAttestation,
@@ -454,6 +456,29 @@ class Campaign:
                 return False
         return True
 
+    def _expected_running_instances(self) -> set[str]:
+        """Instances that are legitimately running and are not campaign compute.
+
+        The campaign controller itself executes on an approved Nebius
+        orchestration VM, so a cleanup audit that demanded zero running
+        instances could never pass while it was running. Its own attested
+        resource is therefore always expected, plus any persistent
+        infrastructure the operator declares by ID. Everything else running is
+        unaccounted and stops the campaign.
+        """
+        expected = {self._environment.get("SIM2POLICY_NEBIUS_RESOURCE_ID", "").strip()}
+        declared = self._environment.get("SIM2POLICY_EXPECTED_RUNNING_INSTANCES", "")
+        expected |= {item.strip() for item in declared.split(",")}
+        return {item for item in expected if item}
+
+    def _unaccounted_running(self, audit: Mapping[str, Any]) -> list[str]:
+        expected = self._expected_running_instances()
+        return sorted(
+            instance
+            for instance in audit.get("running_instances", [])
+            if instance and instance not in expected
+        )
+
     def _cloud_baseline(
         self, state: Mapping[str, Any]
     ) -> tuple[dict[str, Any] | None, list[str]]:
@@ -581,7 +606,9 @@ class Campaign:
             "cleanup_action": "delete campaign-owned compute, retain provider history and S3 evidence",
             "command": command,
             "subnet_id": self._environment.get("SIM2POLICY_SUBNET_ID", ""),
-            "environment": self._job_environment(run_id),
+            "environment": self._job_environment(
+                run_id, image_reference=f"{image['tag']}@{image['digest']}"
+            ),
             "secret_environment": self._job_secret_environment(),
             "registry_secret": self._environment.get("NEBIUS_REGISTRY_SECRET_VERSION", ""),
             "secret_selectors": self._secret_selectors(),
@@ -612,7 +639,7 @@ class Campaign:
                 selectors.append(value)
         return selectors
 
-    def _job_environment(self, run_id: str) -> dict[str, str]:
+    def _job_environment(self, run_id: str, *, image_reference: str = "") -> dict[str, str]:
         """Non-secret environment the job needs to start and to reach its bucket.
 
         The access key *ID* is an identifier, not a credential; its matching secret
@@ -638,7 +665,13 @@ class Campaign:
             "SIM2POLICY_NEBIUS_RESOURCE_ID": run_id,
             "SIM2POLICY_NEBIUS_REGION": storage["storage.region"],
             "SIM2POLICY_IMMUTABLE_REVISION": revision,
+            # The job cannot observe which image reference launched it, but its
+            # published resolved config must name the exact digest it ran, so the
+            # reviewed plan tells it.
+            "SIM2POLICY_RUNTIME_IMAGE": image_reference,
         }
+        if not environment["SIM2POLICY_RUNTIME_IMAGE"]:
+            raise CampaignError("the job's immutable image reference is not configured")
         if not environment["AWS_ACCESS_KEY_ID"]:
             raise CampaignError("artifact access key ID is not configured")
         if not revision:
@@ -698,12 +731,27 @@ class Campaign:
                 command += ["--set", f"{key}={value}"]
             return command
         module = f"sim2policy.hosted_{card['backend']}"
+        campaign = self.matrix.campaign
         command = [
             "python", "-m", module,
             "--config", card["config"],
             "--run-id", run_id,
             "--gallery-example-id", card["gallery_example_id"],
             "--matrix-digest", self.matrix.digest,
+            # Seed roles, ranking rule, and acceptance thresholds are the
+            # campaign's to declare, not the job's to infer. The finalizer records
+            # them as published evidence, and verification rejects a run that
+            # cannot show them.
+            "--seed-roles-json", json.dumps(
+                {
+                    "training": [seed],
+                    "selection": list(campaign["selection"]["seeds"]),
+                    "final": list(campaign["final"]["seeds"]),
+                },
+                sort_keys=True,
+            ),
+            "--ranking-explanation-json", json.dumps(dict(card["ranking"]), sort_keys=True),
+            "--acceptance-criteria-json", json.dumps(dict(card["acceptance"]), sort_keys=True),
             "--set", f"training.total_steps={steps}",
             "--set", f"checkpoint.every_steps={card['checkpoint_every_steps']}",
             "--set", f"seed={seed}",
@@ -1276,10 +1324,17 @@ class Campaign:
             unaccounted = [
                 job for job in audit.get("active_jobs", []) if job and job not in known_remote
             ]
-            cleanup_state = "PASS" if not unaccounted and not audit.get("running_instances") else "BLOCKED"
+            unaccounted_instances = self._unaccounted_running(audit)
+            cleanup_state = "PASS" if not unaccounted and not unaccounted_instances else "BLOCKED"
             self.store.write_json(
                 self.store.audit_path("cleanup.json"),
-                {"audit": audit, "unaccounted_jobs": unaccounted, "cleanup_state": cleanup_state},
+                {
+                    "audit": audit,
+                    "unaccounted_jobs": unaccounted,
+                    "unaccounted_instances": unaccounted_instances,
+                    "expected_running_instances": sorted(self._expected_running_instances()),
+                    "cleanup_state": cleanup_state,
+                },
             )
             for key, attempt in sorted((state.get("attempts") or {}).items()):
                 if not isinstance(attempt, dict):
@@ -1297,7 +1352,11 @@ class Campaign:
                     decision="BLOCK",
                     reason_code="UNACCOUNTED_RESOURCE",
                     next_command="handoff",
-                    extra={"unaccounted_jobs": unaccounted, "audit": audit},
+                    extra={
+                        "unaccounted_jobs": unaccounted,
+                        "unaccounted_instances": unaccounted_instances,
+                        "audit": audit,
+                    },
                 )
             return self.envelope(
                 code=EXIT_OK,
@@ -1318,14 +1377,28 @@ class Campaign:
                 next_command="handoff",
                 extra={"provider_error": self.store.safe(sanitize_exception(exc))},
             )
-        self.store.write_json(self.store.audit_path("cloud.json"), {"audit": audit, "at": utc_now()})
-        clean = not audit.get("active_jobs") and not audit.get("running_instances")
+        unaccounted_instances = self._unaccounted_running(audit)
+        expected = sorted(self._expected_running_instances())
+        self.store.write_json(
+            self.store.audit_path("cloud.json"),
+            {
+                "audit": audit,
+                "at": utc_now(),
+                "expected_running_instances": expected,
+                "unaccounted_instances": unaccounted_instances,
+            },
+        )
+        clean = not audit.get("active_jobs") and not unaccounted_instances
         return self.envelope(
             code=EXIT_OK if clean else EXIT_INVARIANT,
             decision="CLEAN" if clean else "UNACCOUNTED_RESOURCE",
             reason_code="CLOUD_AUDIT",
             next_command="status" if clean else "handoff",
-            extra={"audit": audit},
+            extra={
+                "audit": audit,
+                "expected_running_instances": expected,
+                "unaccounted_instances": unaccounted_instances,
+            },
         )
 
     # -- status and handoff (5.10) ------------------------------------------
@@ -1514,13 +1587,50 @@ def dispatch(campaign: Campaign, args: argparse.Namespace, attestation: Location
     raise CampaignError(f"unhandled command: {command}")
 
 
+def evidence_reader_factory_from_environment(
+    environment: Mapping[str, str] | None = None,
+) -> Any:
+    """Build prefix-bound readers over the campaign's durable artifact bucket.
+
+    `verify` runs on the orchestration VM and must read what the job published,
+    so the reader is constructed from the same non-secret destination the plan
+    records. Object credentials come from the VM's own configured chain, never
+    from the campaign state. Without a destination there is no reader, and
+    `verify` blocks rather than reporting an unverified run as verified.
+    """
+    source = os.environ if environment is None else environment
+    bucket = source.get("SIM2POLICY_ARTIFACT_BUCKET", "")
+    if not bucket:
+        return None
+    config = StorageConfig(
+        mode="s3",
+        bucket=bucket,
+        endpoint_url=source.get("SIM2POLICY_ARTIFACT_ENDPOINT") or None,
+        region=source.get("SIM2POLICY_ARTIFACT_REGION") or None,
+    )
+
+    def factory(run_id: str) -> EvidenceReader:
+        # Imported here so the CLI stays importable, and every other command
+        # stays usable, on a host without the object-storage dependency.
+        from sim2policy.storage import ArtifactStore
+
+        return ArtifactStoreEvidenceReader(ArtifactStore(config, run_id))
+
+    return factory
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     try:
         attestation = require_nebius_execution("campaign")
         args = build_parser().parse_args(argv)
         matrix = load_matrix(args.matrix)
         store = CampaignStore(args.state_root, args.campaign_id)
-        campaign = Campaign(store, matrix, provider=provider_from_environment())
+        campaign = Campaign(
+            store,
+            matrix,
+            provider=provider_from_environment(),
+            evidence_reader_factory=evidence_reader_factory_from_environment(),
+        )
         code, result = dispatch(campaign, args, attestation)
     except (CampaignError, MatrixError, ExecutionLocationError) as exc:
         # The message is redacted before printing: a matrix or path error can

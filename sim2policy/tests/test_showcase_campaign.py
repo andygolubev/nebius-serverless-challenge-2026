@@ -31,6 +31,7 @@ from sim2policy.showcase_campaign import (
     EXIT_OK,
     EXIT_REJECTED,
     Campaign,
+    evidence_reader_factory_from_environment,
 )
 from sim2policy.showcase_matrix import load_matrix
 
@@ -346,7 +347,7 @@ def campaign(tmp_path: Path):
     matrix = load_matrix(MATRIX)
     store = CampaignStore(tmp_path, "gallery-result-20260726")
 
-    def build(provider=None, evidence=None, **kwargs):
+    def build(provider=None, evidence=None, environment_extra=None, **kwargs):
         kwargs.setdefault("prober", FakeProber())
         instance = Campaign(
             store,
@@ -355,6 +356,7 @@ def campaign(tmp_path: Path):
             evidence_reader_factory=evidence,
             sleeper=lambda _s: None,
             environment={
+                **(environment_extra or {}),
                 "SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40,
                 "SIM2POLICY_BRANCH": "debug-portal",
                 "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
@@ -607,10 +609,12 @@ def test_watch_with_no_active_job_is_a_safe_no_op(campaign) -> None:
 # -- verify -----------------------------------------------------------------
 
 
-def _submitted_and_terminal(build, run_id: str, matrix, *, preferred: bool = True, documents=None):
+def _submitted_and_terminal(
+    build, run_id: str, matrix, *, preferred: bool = True, documents=None, environment_extra=None
+):
     provider = FakeProvider(states=["COMPLETED"])
     evidence = FakeEvidence(documents or _run_documents(run_id, matrix.digest, preferred=preferred))
-    instance = build(provider=provider, evidence=evidence)
+    instance = build(provider=provider, evidence=evidence, environment_extra=environment_extra)
     _code, planned = instance.plan("reacher", 0)
     instance.submit("reacher", 0, planned["plan"]["plan_digest"])
     instance.watch(poll_seconds=0, until_terminal=True)
@@ -666,6 +670,58 @@ def test_cleanup_blocks_on_an_unaccounted_resource(campaign) -> None:
     )
     code, envelope = instance.cleanup()
     assert code == EXIT_INVARIANT and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
+
+
+def test_the_cli_builds_an_evidence_reader_from_the_configured_destination() -> None:
+    """`verify` on the orchestration VM needs a real reader, not a test double."""
+    assert evidence_reader_factory_from_environment({}) is None
+    factory = evidence_reader_factory_from_environment(
+        {
+            "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
+            "SIM2POLICY_ARTIFACT_ENDPOINT": "https://storage.eu-north1.nebius.cloud",
+            "SIM2POLICY_ARTIFACT_REGION": "eu-north1",
+        }
+    )
+    assert factory is not None
+    reader = factory("showcase-gallery-result-20260726-reacher-s0")
+    assert hasattr(reader, "read_json") and hasattr(reader, "head")
+
+
+def test_cleanup_blocks_on_an_undeclared_running_instance(campaign) -> None:
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(build, run_id, matrix)
+    instance.verify("reacher", 0)
+    instance.provider = FakeProvider(
+        audit_result={"active_jobs": [], "running_instances": ["computeinstance-stranger"]}
+    )
+    code, envelope = instance.cleanup()
+    assert code == EXIT_INVARIANT and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
+    assert envelope["unaccounted_instances"] == ["computeinstance-stranger"]
+
+
+def test_cleanup_accounts_for_the_orchestration_vm_and_declared_infrastructure(campaign) -> None:
+    """The controller's own VM is always running; demanding zero never passes."""
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(
+        build,
+        run_id,
+        matrix,
+        environment_extra={
+            "SIM2POLICY_NEBIUS_RESOURCE_ID": "computeinstance-orchestrator",
+            "SIM2POLICY_EXPECTED_RUNNING_INSTANCES": "computeinstance-saas",
+        },
+    )
+    instance.verify("reacher", 0)
+    instance.provider = FakeProvider(
+        audit_result={
+            "active_jobs": [],
+            "running_instances": ["computeinstance-orchestrator", "computeinstance-saas"],
+        }
+    )
+    code, envelope = instance.cleanup()
+    assert code == EXIT_OK and envelope["decision"] == "CLEANED"
 
 
 def test_cleanup_passes_and_closes_the_attempt(campaign) -> None:
@@ -823,6 +879,33 @@ def test_plan_carries_the_execution_location_the_job_cannot_derive(campaign) -> 
     assert environment["SIM2POLICY_COMMAND_CLASS"] == "training"
     assert environment["SIM2POLICY_NEBIUS_RESOURCE_ID"] == planned["plan"]["run_id"]
     assert environment["SIM2POLICY_IMMUTABLE_REVISION"] == "git:" + "a" * 40
+
+
+def test_plan_carries_the_curation_evidence_the_job_cannot_invent(campaign) -> None:
+    """Seed roles, ranking, acceptance, and the image digest are campaign-owned.
+
+    A run whose published metrics omit them cannot pass verification, so they are
+    declared in the reviewed plan rather than left to the job.
+    """
+    build, _store, matrix = campaign
+    _code, planned = build().plan("reacher", 0)
+    plan = planned["plan"]
+    command = plan["command"]
+
+    seed_roles = json.loads(command[command.index("--seed-roles-json") + 1])
+    assert seed_roles["training"] == [0]
+    assert seed_roles["selection"] == list(matrix.campaign["selection"]["seeds"])
+    assert seed_roles["final"] == list(matrix.campaign["final"]["seeds"])
+    assert not set(seed_roles["selection"]) & set(seed_roles["final"])
+
+    ranking = json.loads(command[command.index("--ranking-explanation-json") + 1])
+    assert ranking["kind"] == "mean_reward"
+    acceptance = json.loads(command[command.index("--acceptance-criteria-json") + 1])
+    assert acceptance["hard"]["mean_reward"] == -10
+    assert acceptance["preferred"]["mean_reward"] == -7
+
+    assert plan["environment"]["SIM2POLICY_RUNTIME_IMAGE"] == plan["image_reference"]
+    assert "@sha256:" in plan["environment"]["SIM2POLICY_RUNTIME_IMAGE"]
 
 
 def test_plan_refuses_an_unconfigured_artifact_destination(campaign) -> None:

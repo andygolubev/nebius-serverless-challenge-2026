@@ -51,6 +51,9 @@ class FakeS3:
     def download_file(self, bucket: str, key: str, filename: str) -> None:
         Path(filename).write_bytes(self.objects[(bucket, key)])
 
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+        return {"ContentLength": len(self.objects[(Bucket, Key)])}
+
     def list_objects_v2(self, *, Bucket: str, Prefix: str, **_: Any) -> dict[str, Any]:
         keys = sorted(
             key for bucket, key in self.objects if bucket == Bucket and key.startswith(Prefix)
@@ -177,3 +180,15 @@ def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> Non
     with pytest.raises(StorageError):
         store.publish_checkpoint(second, second_root)
     assert json.loads(client.objects[("test", latest_key)]) == old_manifest
+
+
+def test_head_object_optional_reports_size_and_absence(tmp_path: Path) -> None:
+    """Campaign verification proves objects exist without downloading them."""
+    client = FakeS3()
+    store = ArtifactStore(s3_config(), "run-1", client=client, sleep=lambda _: None)
+    store.put_json("report/metrics.json", {"a": 1})
+
+    head = store.head_object_optional("report/metrics.json")
+    assert head is not None
+    assert head["size_bytes"] == len(client.objects[("test", store.key_for("report/metrics.json"))])
+    assert store.head_object_optional("report/absent.json") is None
