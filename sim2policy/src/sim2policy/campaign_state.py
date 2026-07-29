@@ -56,7 +56,9 @@ TRANSITIONS: dict[str, frozenset[str]] = {
     "VERIFIED": frozenset({"ACCEPTED", "REJECTED", "NEEDS_HUMAN", "CLEANED"}),
     "ACCEPTED": frozenset({"CLEANED", "NEEDS_HUMAN"}),
     "REJECTED": frozenset({"CLEANED", "NEEDS_HUMAN"}),
-    "NEEDS_HUMAN": frozenset({"CLEANED"}),
+    # PLANNED is reachable only for an attempt that never acquired a remote job;
+    # the caller proves that before re-planning, so no live job can be orphaned.
+    "NEEDS_HUMAN": frozenset({"CLEANED", "PLANNED"}),
     "CLEANED": frozenset(),
 }
 

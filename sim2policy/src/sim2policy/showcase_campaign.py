@@ -747,7 +747,18 @@ class Campaign:
                 "decision": None,
                 "reason_code": None,
             }
-            if existing is not None and existing.get("state") not in {"PLANNED", "PREFLIGHTED"}:
+            # A submission that never reached the provider leaves the attempt in
+            # NEEDS_HUMAN with no remote job. The runbook's `SUBMIT_NO_REMOTE_ID`
+            # row allows exactly one further submission of the same plan once the
+            # run name is proven absent, which `submit` already checks before it
+            # ever creates a second job. Refusing to re-plan here would instead
+            # force a whole new campaign ID for a failure that spent nothing, so
+            # a *jobless* NEEDS_HUMAN attempt stays replannable; one holding a
+            # remote ID does not.
+            replannable = {"PLANNED", "PREFLIGHTED"}
+            if existing is not None and existing.get("state") == "NEEDS_HUMAN" and not existing.get("remote_id"):
+                replannable = replannable | {"NEEDS_HUMAN"}
+            if existing is not None and existing.get("state") not in replannable:
                 return self.envelope(
                     code=EXIT_OK,
                     decision="ALREADY_PLANNED",

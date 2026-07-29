@@ -547,6 +547,30 @@ def test_a_lost_submission_with_no_matching_job_stops_for_a_human(campaign) -> N
     assert code == EXIT_NEEDS_HUMAN and envelope["reason_code"] == "SUBMIT_FAILED"
 
 
+def test_a_submission_that_never_created_a_job_can_be_replanned(campaign) -> None:
+    """A failure that spent nothing must not cost the whole campaign ID."""
+    build, *_ = campaign
+    instance = build(provider=FakeProvider(submit_error=True, existing_name="some-other-name"))
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+
+    code, envelope = instance.plan("reacher", 0)
+    assert code == EXIT_OK and envelope["decision"] == "PLAN_READY"
+    assert envelope["state"] == "PLANNED"
+
+
+def test_a_needs_human_attempt_holding_a_remote_job_is_not_replanned(campaign) -> None:
+    """The block only lifts for attempts with no remote job to reconcile."""
+    build, *_ = campaign
+    instance = build(provider=FakeProvider(states=["WOBBLING"]))
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+    instance.watch(poll_seconds=0)
+
+    code, envelope = instance.plan("reacher", 0)
+    assert code == EXIT_OK and envelope["decision"] == "ALREADY_PLANNED"
+
+
 # -- watch ------------------------------------------------------------------
 
 
