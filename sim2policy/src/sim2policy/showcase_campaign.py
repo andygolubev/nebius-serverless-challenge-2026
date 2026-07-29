@@ -100,6 +100,17 @@ def _digest(value: Any) -> str:
     ).hexdigest()
 
 
+def _compact_json(value: Any) -> str:
+    """Serialize a job argument with no whitespace and a stable key order.
+
+    The provider delivers container arguments as one joined string, so a value
+    containing spaces depends on how that string is split again. Emitting compact
+    JSON removes the question, and the stable order keeps the plan digest
+    reproducible.
+    """
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
 def _preflight_reason(checks: Mapping[str, bool], unaccounted: Sequence[Any]) -> str:
     """Name the most actionable failure so the handoff points at one thing to fix."""
     if not checks.get("no_active_job", True):
@@ -742,16 +753,15 @@ class Campaign:
             # campaign's to declare, not the job's to infer. The finalizer records
             # them as published evidence, and verification rejects a run that
             # cannot show them.
-            "--seed-roles-json", json.dumps(
+            "--seed-roles-json", _compact_json(
                 {
                     "training": [seed],
                     "selection": list(campaign["selection"]["seeds"]),
                     "final": list(campaign["final"]["seeds"]),
-                },
-                sort_keys=True,
+                }
             ),
-            "--ranking-explanation-json", json.dumps(dict(card["ranking"]), sort_keys=True),
-            "--acceptance-criteria-json", json.dumps(dict(card["acceptance"]), sort_keys=True),
+            "--ranking-explanation-json", _compact_json(dict(card["ranking"])),
+            "--acceptance-criteria-json", _compact_json(dict(card["acceptance"])),
             "--set", f"training.total_steps={steps}",
             "--set", f"checkpoint.every_steps={card['checkpoint_every_steps']}",
             "--set", f"seed={seed}",

@@ -904,6 +904,10 @@ def test_plan_carries_the_curation_evidence_the_job_cannot_invent(campaign) -> N
     assert acceptance["hard"]["mean_reward"] == -10
     assert acceptance["preferred"]["mean_reward"] == -7
 
+    # One joined argument string reaches the container, so no argument may
+    # contain whitespace that a naive split could break apart.
+    assert not any(" " in argument for argument in command)
+
     assert plan["environment"]["SIM2POLICY_RUNTIME_IMAGE"] == plan["image_reference"]
     assert "@sha256:" in plan["environment"]["SIM2POLICY_RUNTIME_IMAGE"]
 
