@@ -1129,19 +1129,40 @@ class Campaign:
                 self.store.evidence_path(f"verify-{key.replace(':', '-')}.json"), result.to_dict()
             )
             attempt["evidence_digest"] = _digest(result.to_dict())
-            provider_failed = terminal_state.upper() not in {"COMPLETED", "SUCCEEDED"}
-            if result.passed and not provider_failed:
+            provider_completed = terminal_state.upper() in {"COMPLETED", "SUCCEEDED"}
+            # A controller may cancel a provider job only after the provider has
+            # remained active beyond the missing-heartbeat stop.  If the durable
+            # run independently proves complete finalization, cancellation then
+            # describes the stale provider record, not the training outcome.
+            # This is deliberately narrower than accepting arbitrary cancelled
+            # jobs: it requires the prior watchdog stop plus every evidence check.
+            cancelled_after_heartbeat_stop = (
+                terminal_state.upper() == "CANCELLED"
+                and attempt.get("reason_code") in {"HEARTBEAT_LOST", "UNKNOWN_PROVIDER_STATE"}
+            )
+            if result.passed and (provider_completed or cancelled_after_heartbeat_stop):
                 attempt["state"] = "VERIFIED"
+                if cancelled_after_heartbeat_stop:
+                    attempt["cancellation_recovery"] = {
+                        "provider_terminal_state": terminal_state,
+                        "prior_stop_reason": attempt.get("reason_code"),
+                        "evidence_digest": attempt["evidence_digest"],
+                        "at": utc_now(),
+                    }
                 saved = self._save_attempt(state, key, attempt, command="verify")
                 return self.envelope(
                     code=EXIT_OK,
                     decision="VERIFIED",
-                    reason_code="EVIDENCE_COMPLETE",
+                    reason_code=(
+                        "EVIDENCE_COMPLETE_AFTER_CANCELLATION"
+                        if cancelled_after_heartbeat_stop
+                        else "EVIDENCE_COMPLETE"
+                    ),
                     next_command="cleanup",
                     attempt=saved,
                     extra={"verification": result.to_dict()},
                 )
-            classifier = classify_failure(result, provider_failed=provider_failed)
+            classifier = classify_failure(result, provider_failed=not provider_completed)
             attempt["state"] = "NEEDS_HUMAN"
             attempt["reason_code"] = classifier
             saved = self._save_attempt(state, key, attempt, command="verify", code=EXIT_REJECTED)

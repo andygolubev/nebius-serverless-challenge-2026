@@ -614,9 +614,16 @@ def test_watch_with_no_active_job_is_a_safe_no_op(campaign) -> None:
 
 
 def _submitted_and_terminal(
-    build, run_id: str, matrix, *, preferred: bool = True, documents=None, environment_extra=None
+    build,
+    run_id: str,
+    matrix,
+    *,
+    preferred: bool = True,
+    documents=None,
+    environment_extra=None,
+    states: list[str] | None = None,
 ):
-    provider = FakeProvider(states=["COMPLETED"])
+    provider = FakeProvider(states=states or ["COMPLETED"])
     evidence = FakeEvidence(documents or _run_documents(run_id, matrix.digest, preferred=preferred))
     instance = build(provider=provider, evidence=evidence, environment_extra=environment_extra)
     _code, planned = instance.plan("reacher", 0)
@@ -689,6 +696,38 @@ def test_a_stopped_attempt_can_be_verified_once_its_blocker_is_resolved(campaign
     resolved = build(provider=provider, evidence=FakeEvidence(documents))
     code, envelope = resolved.verify("reacher", 0)
     assert code == EXIT_OK and envelope["decision"] == "VERIFIED"
+
+
+def test_verify_recovers_only_complete_evidence_after_heartbeat_cancellation(campaign) -> None:
+    build, store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    documents = _run_documents(run_id, matrix.digest)
+    provider = FakeProvider(states=["CANCELLED"])
+    instance = build(provider=provider, evidence=FakeEvidence(documents))
+    _code, planned = instance.plan("reacher", 0)
+    instance.submit("reacher", 0, planned["plan"]["plan_digest"])
+    state = store.read()
+    attempt = state["attempts"]["reacher:0:base"]
+    attempt["state"] = "NEEDS_HUMAN"
+    attempt["reason_code"] = "HEARTBEAT_LOST"
+    store.write(state)
+    code, envelope = instance.verify("reacher", 0)
+    assert code == EXIT_OK
+    assert envelope["reason_code"] == "EVIDENCE_COMPLETE_AFTER_CANCELLATION"
+    persisted = store.read()["attempts"]["reacher:0:base"]
+    assert persisted["cancellation_recovery"]["prior_stop_reason"] == "HEARTBEAT_LOST"
+
+
+def test_verify_never_recovers_an_ordinary_cancelled_job(campaign) -> None:
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(
+        build, run_id, matrix, documents=_run_documents(run_id, matrix), states=["CANCELLED"]
+    )
+    code, envelope = instance.verify("reacher", 0)
+    assert code == EXIT_REJECTED
+    assert envelope["state"] == "NEEDS_HUMAN"
+    assert envelope["reason_code"] != "EVIDENCE_COMPLETE_AFTER_CANCELLATION"
 
 
 def test_verify_refuses_while_the_job_is_still_active(campaign) -> None:
