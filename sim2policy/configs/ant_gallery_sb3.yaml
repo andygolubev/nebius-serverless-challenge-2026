@@ -6,14 +6,15 @@ training:
   n_envs: 8
   device: cpu
   hyperparameters:
-    batch_size: 256
-    n_steps: 512
+    batch_size: 512
+    n_steps: 2048
     n_epochs: 10
-    gamma: 0.98
+    gamma: 0.99
     gae_lambda: 0.95
     learning_rate: 0.0003
     ent_coef: 0.0
     clip_range: 0.2
+    policy_kwargs: {net_arch: {pi: [256, 256], vf: [256, 256]}}
 checkpoint: {every_steps: 250000, keep: 3}
 evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
 success: {kind: mean_reward, threshold: 1000}
