@@ -1059,6 +1059,21 @@ def test_plan_carries_the_durable_artifact_destination(campaign) -> None:
     assert "storage.region=eu-north1" in command
 
 
+def test_every_example_enables_durable_storage_not_just_the_sb3_path(campaign) -> None:
+    """G1 builds its own command, and an ArtifactStore is inert unless mode is s3.
+
+    G1 trained for an hour twice and durably wrote nothing, because its branch
+    passed bucket/endpoint/region but never the mode that turns writes on.
+    """
+    build, *_ = campaign
+    instance = build()
+    for example, seed in (("reacher", 0), ("go1", 0), ("g1", 0)):
+        _code, planned = instance.plan(example, seed)
+        command = planned["plan"]["command"]
+        assert "storage.mode=s3" in command, f"{example} would write nothing durably"
+        assert "storage.bucket=sim2policy-artifacts" in command
+
+
 def test_plan_carries_the_execution_location_the_job_cannot_derive(campaign) -> None:
     """A workload entry point refuses to start without this; the job cannot infer it."""
     build, *_ = campaign

@@ -763,6 +763,11 @@ class Campaign:
                 "--rough-config", curriculum["rough_config"],
                 "--run-id", run_id,
                 "--image-digest", image_digest,
+                # The curriculum configs declare local storage, and an
+                # ArtifactStore is inert unless the mode is s3. Without this the
+                # run trains for hours and durably writes nothing, so every
+                # verification fails on an unreadable manifest.
+                "--set", "storage.mode=s3",
             ]
             for key, value in sorted(storage.items()):
                 command += ["--set", f"{key}={value}"]
