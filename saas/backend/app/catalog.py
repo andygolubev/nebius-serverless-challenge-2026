@@ -379,10 +379,10 @@ SHOWCASE_RUNS: dict[str, str] = {
     "go1-walker": f"{PENDING_RUN_PREFIX}go1-walker",
     "ant-explorer": f"{PENDING_RUN_PREFIX}ant-explorer",
     "halfcheetah-sprint": f"{PENDING_RUN_PREFIX}halfcheetah-sprint",
-    "hopper-balance": f"{PENDING_RUN_PREFIX}hopper-balance",
+    "hopper-balance": "showcase-gallery-result-20260730-07-hopper-s7",
     "walker2d-stride": f"{PENDING_RUN_PREFIX}walker2d-stride",
     "g1-rough-terrain": f"{PENDING_RUN_PREFIX}g1-rough-terrain",
-    "reacher-target": f"{PENDING_RUN_PREFIX}reacher-target",
+    "reacher-target": "showcase-gallery-result-20260730-07-reacher-s42",
 }
 
 _validated_runs: dict[str, str] | None = None
