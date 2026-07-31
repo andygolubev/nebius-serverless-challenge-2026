@@ -55,6 +55,37 @@ def test_resume_is_absent_unless_requested() -> None:
     assert "--resume" not in train
 
 
+def test_hosted_mjx_forwards_curation_evidence_to_finalization_only() -> None:
+    """The campaign emits these for every example, so MJX must accept them too.
+
+    Go1 died in under a second because argparse rejected flags the SB3 entrypoint
+    already understood; the two entrypoints share one campaign command builder and
+    must therefore share this argument surface.
+    """
+    train, finalize = build_commands(
+        [
+            "--config",
+            "configs/go1_mjx.yaml",
+            "--run-id",
+            "run-safe",
+            "--gallery-example-id",
+            "go1-walker",
+            "--seed-roles-json",
+            '{"training": [0], "selection": [101], "final": [0]}',
+            "--ranking-explanation-json",
+            '{"kind": "locomotion"}',
+            "--acceptance-criteria-json",
+            '{"hard": {"min_velocity": 0.5, "no_fall": true}}',
+        ]
+    )
+    assert "--seed-roles-json" not in train
+    assert finalize[finalize.index("--seed-roles-json") + 1] == (
+        '{"training": [0], "selection": [101], "final": [0]}'
+    )
+    assert finalize[finalize.index("--ranking-explanation-json") + 1] == '{"kind": "locomotion"}'
+    assert "--acceptance-criteria-json" in finalize
+
+
 def test_run_trains_then_finalizes_in_separate_processes() -> None:
     calls = []
 

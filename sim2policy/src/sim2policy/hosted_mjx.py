@@ -42,6 +42,11 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     parser.add_argument("--gallery-example-id")
     parser.add_argument("--selected-checkpoint-digest")
     parser.add_argument("--matrix-digest")
+    # Curation evidence the campaign owns and the finalizer records verbatim; the
+    # job never invents these, and without them a run cannot be accepted.
+    parser.add_argument("--seed-roles-json")
+    parser.add_argument("--ranking-explanation-json")
+    parser.add_argument("--acceptance-criteria-json")
     parser.add_argument("--runs-root", default="runs")
     parser.add_argument(
         "--resume",
@@ -68,6 +73,13 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
         finalize += ["--selected-checkpoint-digest", args.selected_checkpoint_digest]
     if args.matrix_digest:
         finalize += ["--matrix-digest", args.matrix_digest]
+    for flag, value in (
+        ("--seed-roles-json", args.seed_roles_json),
+        ("--ranking-explanation-json", args.ranking_explanation_json),
+        ("--acceptance-criteria-json", args.acceptance_criteria_json),
+    ):
+        if value:
+            finalize += [flag, value]
     finalize += overrides
     return train, finalize
 
