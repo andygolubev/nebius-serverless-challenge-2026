@@ -482,6 +482,31 @@ class Campaign:
         expected |= {item.strip() for item in declared.split(",")}
         return {item for item in expected if item}
 
+    def _sibling_campaign_ids(self) -> set[str]:
+        """Other campaigns whose jobs are legitimately running beside this one.
+
+        Campaigns are serialized internally, but several may run side by side on
+        separate provider machines. A sibling's job is accounted for, not stray;
+        without this an audit would call it unaccounted and stop both campaigns
+        the moment either finished an attempt.
+        """
+        declared = self._environment.get("SIM2POLICY_PARALLEL_CAMPAIGN_IDS", "")
+        return {item.strip() for item in declared.split(",") if item.strip()}
+
+    def _unaccounted_jobs(self, audit: Mapping[str, Any], known: set[Any]) -> list[str]:
+        """Active jobs that belong to neither this campaign nor a declared sibling."""
+        names = audit.get("active_job_names") or {}
+        prefixes = tuple(f"showcase-{item}-" for item in self._sibling_campaign_ids())
+        unaccounted = []
+        for job in audit.get("active_jobs", []):
+            if not job or job in known:
+                continue
+            name = str(names.get(job, "")) if isinstance(names, Mapping) else ""
+            if prefixes and name.startswith(prefixes):
+                continue
+            unaccounted.append(job)
+        return sorted(unaccounted)
+
     def _unaccounted_running(self, audit: Mapping[str, Any]) -> list[str]:
         expected = self._expected_running_instances()
         return sorted(
@@ -503,7 +528,7 @@ class Campaign:
             for item in (state.get("attempts") or {}).values()
             if isinstance(item, dict)
         }
-        unaccounted = [job for job in audit.get("active_jobs", []) if job and job not in known]
+        unaccounted = self._unaccounted_jobs(audit, known)
         return audit, unaccounted
 
     def _live_probes(
@@ -1409,9 +1434,7 @@ class Campaign:
                 for item in (state.get("attempts") or {}).values()
                 if isinstance(item, dict)
             }
-            unaccounted = [
-                job for job in audit.get("active_jobs", []) if job and job not in known_remote
-            ]
+            unaccounted = self._unaccounted_jobs(audit, known_remote)
             unaccounted_instances = self._unaccounted_running(audit)
             cleanup_state = "PASS" if not unaccounted and not unaccounted_instances else "BLOCKED"
             self.store.write_json(
@@ -1467,6 +1490,15 @@ class Campaign:
             )
         unaccounted_instances = self._unaccounted_running(audit)
         expected = sorted(self._expected_running_instances())
+        known_remote = {
+            item.get("remote_id")
+            for item in (self.store.read().get("attempts") or {}).values()
+            if isinstance(item, dict)
+        }
+        # This campaign must still leave nothing of its own running: a sibling's
+        # job is tolerated, but our own active job means cleanup is not finished.
+        own_active = sorted(job for job in audit.get("active_jobs", []) if job in known_remote)
+        unaccounted_jobs = self._unaccounted_jobs(audit, known_remote)
         self.store.write_json(
             self.store.audit_path("cloud.json"),
             {
@@ -1474,9 +1506,11 @@ class Campaign:
                 "at": utc_now(),
                 "expected_running_instances": expected,
                 "unaccounted_instances": unaccounted_instances,
+                "unaccounted_jobs": unaccounted_jobs,
+                "own_active_jobs": own_active,
             },
         )
-        clean = not audit.get("active_jobs") and not unaccounted_instances
+        clean = not own_active and not unaccounted_jobs and not unaccounted_instances
         return self.envelope(
             code=EXIT_OK if clean else EXIT_INVARIANT,
             decision="CLEAN" if clean else "UNACCOUNTED_RESOURCE",
@@ -1486,6 +1520,8 @@ class Campaign:
                 "audit": audit,
                 "expected_running_instances": expected,
                 "unaccounted_instances": unaccounted_instances,
+                "unaccounted_jobs": unaccounted_jobs,
+                "own_active_jobs": own_active,
             },
         )
 

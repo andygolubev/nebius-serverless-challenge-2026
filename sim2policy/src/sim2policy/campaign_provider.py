@@ -370,12 +370,21 @@ class NebiusCliProvider:
         instances = self._invoke(["compute", "instance", "list", "--parent-id", self._project_id])
         disks = self._invoke(["compute", "disk", "list", "--parent-id", self._project_id])
         addresses = self._invoke(["vpc", "allocation", "list", "--parent-id", self._project_id])
-        active_jobs = [
-            str(item.get("metadata", {}).get("id", ""))
+        active = [
+            item
             for item in jobs.get("items", [])
             if isinstance(item, dict)
             and str(item.get("status", {}).get("state", "")).upper() in ACTIVE_PROVIDER_STATES
         ]
+        active_jobs = [str(item.get("metadata", {}).get("id", "")) for item in active]
+        # Names carry the owning campaign, which is how an audit tells a sibling
+        # campaign's job apart from a genuinely stray one.
+        active_job_names = {
+            str(item.get("metadata", {}).get("id", "")): str(
+                item.get("metadata", {}).get("name", "")
+            )
+            for item in active
+        }
         running_instances = [
             str(item.get("metadata", {}).get("id", ""))
             for item in instances.get("items", [])
@@ -384,6 +393,7 @@ class NebiusCliProvider:
         ]
         return {
             "active_jobs": active_jobs,
+            "active_job_names": active_job_names,
             "running_instances": running_instances,
             "disk_count": len(disks.get("items", [])),
             "public_address_count": len(addresses.get("items", [])),

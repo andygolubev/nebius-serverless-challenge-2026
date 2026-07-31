@@ -783,6 +783,83 @@ def test_cleanup_blocks_on_an_unaccounted_resource(campaign) -> None:
     assert code == EXIT_INVARIANT and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
 
 
+def test_cleanup_accounts_for_a_declared_sibling_campaigns_job(campaign) -> None:
+    """Campaigns run side by side on separate machines; each is serial internally.
+
+    A sibling's job is accounted for. Without this, whichever campaign finished an
+    attempt first would call the other's job unaccounted and stop them both.
+    """
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(
+        build,
+        run_id,
+        matrix,
+        environment_extra={"SIM2POLICY_PARALLEL_CAMPAIGN_IDS": "gallery-go1-01,gallery-g1-01"},
+    )
+    instance.verify("reacher", 0)
+    instance.provider = FakeProvider(
+        audit_result={
+            "active_jobs": ["aijob-sibling"],
+            "active_job_names": {"aijob-sibling": "showcase-gallery-go1-01-go1-s0"},
+            "running_instances": [],
+        }
+    )
+    code, envelope = instance.cleanup()
+    assert code == EXIT_OK and envelope["reason_code"] == "CLEANUP_PASS"
+
+
+def test_a_stray_job_is_still_unaccounted_when_siblings_are_declared(campaign) -> None:
+    """Tolerating siblings must not blind the audit to a genuinely stray job."""
+    build, _store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(
+        build,
+        run_id,
+        matrix,
+        environment_extra={"SIM2POLICY_PARALLEL_CAMPAIGN_IDS": "gallery-go1-01"},
+    )
+    instance.verify("reacher", 0)
+    instance.provider = FakeProvider(
+        audit_result={
+            "active_jobs": ["aijob-stray"],
+            "active_job_names": {"aijob-stray": "someone-elses-experiment"},
+            "running_instances": [],
+        }
+    )
+    code, envelope = instance.cleanup()
+    assert code == EXIT_INVARIANT and envelope["reason_code"] == "UNACCOUNTED_RESOURCE"
+    assert envelope["unaccounted_jobs"] == ["aijob-stray"]
+
+
+def test_audit_cloud_still_requires_this_campaigns_own_job_to_be_stopped(campaign) -> None:
+    """A sibling may run; our own active job means our cleanup is not finished."""
+    build, store, matrix = campaign
+    run_id = "showcase-gallery-result-20260726-reacher-s0"
+    instance = _submitted_and_terminal(
+        build,
+        run_id,
+        matrix,
+        environment_extra={"SIM2POLICY_PARALLEL_CAMPAIGN_IDS": "gallery-go1-01"},
+    )
+    instance.verify("reacher", 0)
+    own = store.read()["attempts"]["reacher:0:base"]["remote_id"]
+    instance.provider = FakeProvider(
+        audit_result={
+            "active_jobs": [own, "aijob-sibling"],
+            "active_job_names": {
+                own: "showcase-gallery-result-20260726-reacher-s0",
+                "aijob-sibling": "showcase-gallery-go1-01-go1-s0",
+            },
+            "running_instances": [],
+        }
+    )
+    code, envelope = instance.audit_cloud()
+    assert code == EXIT_INVARIANT and envelope["decision"] == "UNACCOUNTED_RESOURCE"
+    assert envelope["own_active_jobs"] == [own]
+    assert envelope["unaccounted_jobs"] == []
+
+
 def test_the_cli_builds_an_evidence_reader_from_the_configured_destination() -> None:
     """`verify` on the orchestration VM needs a real reader, not a test double."""
     assert evidence_reader_factory_from_environment({}) is None
