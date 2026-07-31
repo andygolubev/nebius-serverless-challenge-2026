@@ -48,7 +48,7 @@ def _episodes(seeds: tuple[int, ...], *, reward: float, velocity: float, fell: b
 def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_path: Path) -> None:
     train_calls: list[tuple[str, Path | None]] = []
 
-    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None) -> Path:
+    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         train_calls.append((run_id, resume))
         directory = create_run_paths(run_id, runs_root).checkpoints
         for step in (100_000_000, 150_000_000, 200_000_000):
@@ -105,7 +105,7 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
     """The 100M gate fails, 150M passes: rough gets 450M - 150M, not 450M - 100M."""
     train_calls: list[tuple[str, Path | None]] = []
 
-    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None) -> Path:
+    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         train_calls.append((run_id, resume))
         directory = create_run_paths(run_id, runs_root).checkpoints
         if resume is None:
@@ -175,7 +175,7 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
 def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(tmp_path: Path) -> None:
     train_calls: list[tuple[str, Path | None]] = []
 
-    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None) -> Path:
+    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         train_calls.append((run_id, resume))
         directory = create_run_paths(run_id, runs_root).checkpoints
         if resume is None:
@@ -306,3 +306,63 @@ def test_a_curriculum_crash_is_recorded_durably_and_still_raises(monkeypatch, tm
     assert written["relative"] == "failure.json"
     assert written["payload"]["error_type"] == "RuntimeError"
     assert "xla ran out of memory" in written["payload"]["traceback"]
+
+
+def test_rough_resume_declares_the_flat_environment_it_transfers_from(tmp_path: Path) -> None:
+    """The curriculum's whole point is a flat->rough transfer across environments.
+
+    `train_mjx` refuses a resume from a different environment unless the caller
+    names it. Omitting that killed three H100 attempts after the flat phase had
+    already trained 200M steps: the crossing has to be declared, not assumed.
+    """
+    calls: list[dict[str, Any]] = []
+
+    def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
+        calls.append({"run_id": run_id, "resume": resume, **kwargs})
+        directory = create_run_paths(run_id, runs_root).checkpoints
+        steps = (100_000_000, 150_000_000, 200_000_000) if resume is None else (250_000_000,)
+        for step in steps:
+            _write_checkpoint(directory, config, "step", step)
+        return directory / f"step-{steps[-1]:012d}.zip"
+
+    def fake_evaluate_candidates(checkpoints, config, *, run_lineage, selection_seeds, final_seeds, episodes_per_seed, phase):
+        return [
+            EvaluationEvidence(
+                checkpoint_inventory(checkpoint, config, run_lineage=run_lineage, phase=phase),
+                "selection",
+                tuple(selection_seeds),
+                _episodes(tuple(selection_seeds), reward=500.0, velocity=0.9, fell=False),
+                1.0,
+                "test",
+            )
+            for checkpoint in checkpoints
+        ]
+
+    def fake_finalize(config_path, run_id, runs_root, overrides, **kwargs):
+        return {"metrics_json": "report/metrics.json"}
+
+    outcome: dict[str, Any] = {}
+    try:
+        outcome["result"] = run_g1_curriculum(
+            flat_config_path=FLAT_CONFIG,
+            rough_config_path=ROUGH_CONFIG,
+            run_id="showcase-g1-transfer",
+            runs_root=tmp_path,
+            matrix_digest="d" * 64,
+            image_digest="sha256:" + "e" * 64,
+            gallery_example_id="g1-rough-terrain",
+            selection_seeds=SELECTION_SEEDS,
+            final_seeds=FINAL_SEEDS,
+            selection_episodes_per_seed=2,
+            final_episodes_per_seed=4,
+            acceptance_criteria=ACCEPTANCE_CRITERIA,
+            train_phase=fake_train_phase,
+            evaluate_candidates_fn=fake_evaluate_candidates,
+            finalize_fn=fake_finalize,
+        )
+    except Exception as exc:  # noqa: BLE001 - reported below if the resume never happened
+        outcome["error"] = f"{type(exc).__name__}: {exc}"
+
+    rough = [c for c in calls if c["resume"] is not None]
+    assert rough, f"the rough phase never resumed; outcome={outcome}"
+    assert rough[0]["allowed_source_environment"] == "G1JoystickFlatTerrain"

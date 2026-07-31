@@ -168,7 +168,17 @@ def run_g1_curriculum(
     if rough_config.environment != ROUGH_ENVIRONMENT:
         raise CurriculumError("rough config does not declare the reviewed rough environment")
     rough_run_id = f"{run_id}-rough"
-    train_phase(rough_config, rough_run_id, runs_root, resume=flat_checkpoint_path)
+    # The rough phase resumes a flat-terrain checkpoint on purpose: that transfer is
+    # the curriculum. The resume guard rejects a checkpoint from another environment
+    # by default, which is right for an ordinary resume, so the one crossing this
+    # curriculum declares is named explicitly rather than the check being relaxed.
+    train_phase(
+        rough_config,
+        rough_run_id,
+        runs_root,
+        resume=flat_checkpoint_path,
+        allowed_source_environment=FLAT_ENVIRONMENT,
+    )
     rough_checkpoint_dir = create_run_paths(rough_run_id, runs_root).checkpoints
     rough_checkpoints = [path for _, path in list_step_checkpoints(rough_checkpoint_dir)]
     if not rough_checkpoints:
