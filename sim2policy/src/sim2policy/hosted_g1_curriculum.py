@@ -277,6 +277,33 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _record_failure(args: Any, exc: BaseException) -> None:
+    """Persist a sanitized crash record beside the run's other durable evidence.
+
+    Best effort by construction: a failure here must never replace the real
+    exception, which is the one worth seeing.
+    """
+    import traceback
+
+    from sim2policy.storage import ArtifactStore
+
+    try:
+        config = load_config(args.flat_config, _parse_overrides(args.set))
+        store = ArtifactStore(config.storage, args.run_id)
+        store.put_json(
+            "failure.json",
+            {
+                "run_id": args.run_id,
+                "phase": "curriculum",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "traceback": traceback.format_exc(),
+            },
+        )
+    except Exception:  # noqa: BLE001 - diagnostics must not mask the real failure
+        traceback.print_exc()
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     from sim2policy.execution_location import require_nebius_execution
 
@@ -287,21 +314,29 @@ def main(argv: Sequence[str] | None = None) -> None:
     matrix = load_matrix(args.matrix)
     card = matrix.card("g1")
     campaign = matrix.campaign
-    result = run_g1_curriculum(
-        flat_config_path=args.flat_config,
-        rough_config_path=args.rough_config,
-        run_id=args.run_id,
-        runs_root=args.runs_root,
-        matrix_digest=matrix.digest,
-        image_digest=args.image_digest,
-        gallery_example_id=card["gallery_example_id"],
-        selection_seeds=campaign["selection"]["seeds"],
-        final_seeds=campaign["final"]["seeds"],
-        selection_episodes_per_seed=campaign["selection"]["episodes_per_seed"],
-        final_episodes_per_seed=campaign["final"]["episodes_per_seed"],
-        acceptance_criteria=card["acceptance"],
-        config_overrides=_parse_overrides(args.set),
-    )
+    try:
+        result = run_g1_curriculum(
+            flat_config_path=args.flat_config,
+            rough_config_path=args.rough_config,
+            run_id=args.run_id,
+            runs_root=args.runs_root,
+            matrix_digest=matrix.digest,
+            image_digest=args.image_digest,
+            gallery_example_id=card["gallery_example_id"],
+            selection_seeds=campaign["selection"]["seeds"],
+            final_seeds=campaign["final"]["seeds"],
+            selection_episodes_per_seed=campaign["selection"]["episodes_per_seed"],
+            final_episodes_per_seed=campaign["final"]["episodes_per_seed"],
+            acceptance_criteria=card["acceptance"],
+            config_overrides=_parse_overrides(args.set),
+        )
+    except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised unchanged
+        # The curriculum runs for hours on an H100 and the provider keeps no
+        # readable container log, so an unrecorded crash is undiagnosable without
+        # spending another hour to reproduce it. Persist the failure where
+        # verification already looks, then let the original exception stand.
+        _record_failure(args, exc)
+        raise
     print(json.dumps({"outcome": result["outcome"]}, sort_keys=True))
     if result["outcome"] == "NEEDS_HUMAN":
         raise SystemExit(30)

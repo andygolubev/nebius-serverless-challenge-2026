@@ -64,10 +64,16 @@ def test_showcase_returns_200_with_an_empty_list_when_nothing_validates(client):
 
 def test_pinned_placeholders_resolve_to_no_run_at_all():
     # Placeholders are safe identifiers, so they pass validation, but they must never
-    # become a storage read.
+    # become a storage read. Accepted examples publish independently of the rest, so
+    # an example that has been curated resolves to its run while the others stay dark.
     assert set(catalog.validate_showcase_runs()) == set(GALLERY_ORDER)
     for example_id in GALLERY_ORDER:
-        assert catalog.resolve_showcase_run(example_id) is None
+        pinned = catalog.SHOWCASE_RUNS[example_id]
+        resolved = catalog.resolve_showcase_run(example_id)
+        if catalog.is_pending_run(pinned):
+            assert resolved is None
+        else:
+            assert resolved == pinned
 
 
 def test_showcase_needs_no_session_and_ignores_one(client, sender, login, published):

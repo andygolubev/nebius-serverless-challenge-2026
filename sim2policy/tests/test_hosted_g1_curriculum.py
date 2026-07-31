@@ -257,3 +257,52 @@ def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(
     assert call["seed_roles"] == {"selection": list(SELECTION_SEEDS), "final": list(FINAL_SEEDS)}
     assert call["ranking_explanation"]["kind"] == "locomotion"
     assert call["ranking_explanation"]["selected"]["effective_step"] == 25_000_000
+
+
+def test_a_curriculum_crash_is_recorded_durably_and_still_raises(monkeypatch, tmp_path) -> None:
+    """An H100 crash with no readable container log must leave a durable trace.
+
+    The recorded failure is a diagnostic, never a substitute: the original
+    exception has to reach the provider so the job still fails.
+    """
+    import sim2policy.hosted_g1_curriculum as hosted
+
+    written: dict[str, Any] = {}
+
+    class FakeStore:
+        def __init__(self, _config: Any, run_id: str) -> None:
+            written["run_id"] = run_id
+
+        def put_json(self, relative: str, payload: dict[str, Any]) -> str:
+            written["relative"] = relative
+            written["payload"] = payload
+            return relative
+
+    monkeypatch.setattr("sim2policy.storage.ArtifactStore", FakeStore)
+    monkeypatch.setattr(
+        hosted, "run_g1_curriculum", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("xla ran out of memory"))
+    )
+    monkeypatch.setenv("SIM2POLICY_EXECUTION_LOCATION", "nebius")
+    monkeypatch.setenv("SIM2POLICY_COMMAND_CLASS", "training")
+    monkeypatch.setenv("SIM2POLICY_NEBIUS_RESOURCE_ID", "showcase-g1-crash")
+    monkeypatch.setenv("SIM2POLICY_NEBIUS_REGION", "eu-north1")
+    monkeypatch.setenv("SIM2POLICY_IMMUTABLE_REVISION", "git:" + "a" * 40)
+
+    argv = [
+        "--matrix", str(ROOT / "configs/showcase_training_matrix.yaml"),
+        "--flat-config", str(FLAT_CONFIG),
+        "--rough-config", str(ROUGH_CONFIG),
+        "--run-id", "showcase-g1-crash",
+        "--runs-root", str(tmp_path),
+        "--image-digest", "sha256:" + "b" * 64,
+    ]
+    try:
+        hosted.main(argv)
+    except RuntimeError as exc:
+        assert "xla ran out of memory" in str(exc)
+    else:  # pragma: no cover - the crash must not be swallowed
+        raise AssertionError("the original exception did not propagate")
+
+    assert written["relative"] == "failure.json"
+    assert written["payload"]["error_type"] == "RuntimeError"
+    assert "xla ran out of memory" in written["payload"]["traceback"]
