@@ -56,6 +56,9 @@ class RenderingConfig:
     width: int = 640
     height: int = 480
     seed: int = 0
+    # Named model camera to render from. ``None`` lets the MJX backend pick the
+    # scene's own body-tracking camera so a walking robot stays in frame.
+    camera: str | None = None
 
 
 @dataclass(frozen=True)
@@ -183,6 +186,11 @@ def _validate(config: RunConfig) -> None:
         raise ConfigError("evaluation requires positive episodes and at least one seed")
     if config.rendering.frames < 10 or config.rendering.fps <= 0:
         raise ConfigError("rendering requires at least 10 frames and a positive fps")
+    if config.rendering.camera is not None:
+        if not config.rendering.camera.strip():
+            raise ConfigError("rendering camera must be a non-empty model camera name")
+        if config.backend != "mjx":
+            raise ConfigError("rendering camera selection is only supported by the MJX backend")
     if config.success.kind == "mean_reward" and config.success.threshold is None:
         raise ConfigError("mean_reward success requires threshold")
     if config.success.kind == "locomotion" and config.success.min_velocity is None:

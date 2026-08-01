@@ -112,6 +112,73 @@ def test_checkpoint_mismatch_rejected(tmp_path: Path, monkeypatch: pytest.Monkey
         render.render_sb3(checkpoint, config, tmp_path / "bad.mp4")
 
 
+class FakeModel:
+    def __init__(self, cameras: list[tuple[str, int]]) -> None:
+        self.ncam = len(cameras)
+        self.cam_mode = [mode for _, mode in cameras]
+        self.names = [name for name, _ in cameras]
+
+
+class FakeMujoco:
+    class mjtCamLight:
+        mjCAMLIGHT_FIXED = 0
+        mjCAMLIGHT_TRACK = 1
+        mjCAMLIGHT_TRACKCOM = 2
+        mjCAMLIGHT_TARGETBODY = 3
+        mjCAMLIGHT_TARGETBODYCOM = 4
+
+    class mjtObj:
+        mjOBJ_CAMERA = 7
+
+    @staticmethod
+    def mj_id2name(model: FakeModel, obj_type: int, index: int) -> str:
+        assert obj_type == FakeMujoco.mjtObj.mjOBJ_CAMERA
+        return model.names[index]
+
+
+def use_fake_mujoco(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_import(name: str) -> Any:
+        if name == "mujoco":
+            return FakeMujoco
+        raise ImportError(name)
+
+    monkeypatch.setattr("sim2policy.render.importlib.import_module", fake_import)
+
+
+def test_tracking_camera_prefers_the_scene_follow_camera(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    use_fake_mujoco(monkeypatch)
+    environment = type(
+        "Env",
+        (),
+        {
+            "mj_model": FakeModel(
+                [("closeup", 0), ("egocentric", 1), ("track", 2)]
+            )
+        },
+    )()
+    assert render.tracking_camera(environment) == "track"
+
+
+def test_tracking_camera_falls_back_to_any_tracking_camera(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    use_fake_mujoco(monkeypatch)
+    environment = type(
+        "Env", (), {"mj_model": FakeModel([("closeup", 0), ("egocentric", 1)])}
+    )()
+    assert render.tracking_camera(environment) == "egocentric"
+
+
+def test_tracking_camera_absent_from_a_fixed_camera_scene(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    use_fake_mujoco(monkeypatch)
+    environment = type("Env", (), {"mj_model": FakeModel([("closeup", 0)])})()
+    assert render.tracking_camera(environment) is None
+
+
 def test_render_mjx_uses_restored_policy_and_playground_renderer(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -169,6 +236,7 @@ def test_render_mjx_uses_restored_policy_and_playground_renderer(
 
     class Environment:
         action_size = 2
+        mj_model = FakeModel([("closeup", 0), ("track", 2)])
 
         def reset(self, key: int) -> State:
             del key
@@ -183,9 +251,9 @@ def test_render_mjx_uses_restored_policy_and_playground_renderer(
             del data
             return list(info["command"])
 
-        def render(self, trajectory: list[State], **size: int) -> list[Any]:
+        def render(self, trajectory: list[State], **options: Any) -> list[Any]:
             assert len(trajectory) == 10
-            assert size == {"height": 6, "width": 8}
+            assert options == {"height": 6, "width": 8, "camera": "track"}
             return [[[[0, 0, 0]]]] * 10
 
     @contextmanager
@@ -193,6 +261,7 @@ def test_render_mjx_uses_restored_policy_and_playground_renderer(
         del checkpoint, selected
         yield FakeJax(), Environment(), lambda obs, key: (0, {})
 
+    use_fake_mujoco(monkeypatch)
     monkeypatch.setattr("sim2policy.train_mjx.mjx_policy_session", session)
     monkeypatch.setattr(
         imageio,
