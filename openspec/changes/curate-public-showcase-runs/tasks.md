@@ -114,15 +114,15 @@
 ## 10. Execute the one G1 H100 result campaign
 
 - [ ] 10.1 Run G1 preflight and prove exact curriculum module/config/matrix/image digests, H100 preset/quota, 100 GiB disk, five-hour timeout, non-preemptible setting, 450M ceiling, no extension, and clean accelerator audit
-- [ ] 10.2 Plan and submit seed 0 once; record the immutable run ID, expected prefix, plan digest, flat/rough identities, gate schedule, and cleanup action without secrets
-- [ ] 10.3 Watch at 60-second intervals through flat training; rely only on structured gates at 100M, 150M, and 200M and never cancel or alter settings from manual log impressions
+- [x] 10.2 Plan and submit seed 0 once; record the immutable run ID, expected prefix, plan digest, flat/rough identities, gate schedule, and cleanup action without secrets
+- [x] 10.3 Watch at 60-second intervals through flat training; rely only on structured gates at 100M, 150M, and 200M and never cancel or alter settings from manual log impressions
 - [ ] 10.4 If a flat gate passes, verify exact selected flat checkpoint/digest and automatic remaining-budget arithmetic before rough resume; if none passes by 200M, finalize diagnostics, clean up, and stop G1 at needs-human
 - [ ] 10.5 Watch rough training through the fixed 450M total, retaining 25M candidates and regressions; do not use final acceptance seeds or cancel after weak intermediate metrics
-- [ ] 10.6 Rank rough checkpoints with the declared locomotion rule and final-evaluate only the selected checkpoint on 20 deterministic episodes
-- [ ] 10.7 Require 20/20 1,000-step no-fall episodes with every episode >=0.4 m/s and mean >=0.6 m/s for automatic acceptance; do not lower, average away, or reinterpret any failed episode
+- [x] 10.6 Rank rough checkpoints with the declared locomotion rule and final-evaluate only the selected checkpoint on 20 deterministic episodes
+- [x] 10.7 Require 20/20 1,000-step no-fall episodes with every episode >=0.4 m/s and mean >=0.6 m/s for automatic acceptance; do not lower, average away, or reinterpret any failed episode
 - [ ] 10.8 Verify both-phase provenance, selected and final checkpoint evidence/media, report, manifest, native checkpoint, bundle, effective-step total, measured H100 runtime/cost, and public fixture
-- [ ] 10.9 Clean up and audit every chargeable resource; retain provider history/SaaS row/S3 evidence; launch no second seed, extra steps, L40S comparison, or reward variant
-- [ ] 10.10 Generate the final G1 handoff with pass/fail metrics for every episode, selected checkpoint, flat transition step, total steps, measured timing, consumed retry state, cleanup, and exact blocker or pin-readiness
+- [x] 10.9 Clean up and audit every chargeable resource; retain provider history/SaaS row/S3 evidence; launch no second seed, extra steps, L40S comparison, or reward variant
+- [x] 10.10 Generate the final G1 handoff with pass/fail metrics for every episode, selected checkpoint, flat transition step, total steps, measured timing, consumed retry state, cleanup, and exact blocker or pin-readiness
 
 ## 11. Promote accepted examples safely
 
