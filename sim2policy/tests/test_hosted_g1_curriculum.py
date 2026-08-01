@@ -6,10 +6,12 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from sim2policy.checkpoint import checkpoint_inventory, checkpoint_path, write_checkpoint_metadata
 from sim2policy.checkpoint_selection import EvaluationEvidence
 from sim2policy.config import RunConfig, load_config
-from sim2policy.g1_curriculum import rough_budget
+from sim2policy.g1_curriculum import bounded_mjx_phase_steps, rough_budget
 from sim2policy.hosted_g1_curriculum import run_g1_curriculum
 from sim2policy.run import create_run_paths
 
@@ -169,7 +171,13 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
     assert lineage["rough"]["budget_effective_steps"] == rough_budget(150_000_000) == 300_000_000
     # The whole remaining budget was spent and the 450M ceiling is exactly met.
     assert lineage["provenance"]["measured_total_steps"] == 450_000_000
-    assert finalize_calls[0]["overrides"] == [("training.total_steps", 300_000_000)]
+    expected_request = bounded_mjx_phase_steps(
+        300_000_000,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    assert finalize_calls[0]["overrides"] == [("training.total_steps", expected_request)]
 
 
 def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(tmp_path: Path) -> None:
@@ -239,8 +247,8 @@ def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(
     remaining = rough_budget(100_000_000)
     assert result["phase_lineage"]["rough"]["budget_effective_steps"] == remaining
     assert result["phase_lineage"]["rough"]["selected_checkpoint_step"] == 25_000_000
-    assert result["phase_lineage"]["provenance"]["rough"]["effective_steps"] == 25_000_000
-    assert result["phase_lineage"]["provenance"]["measured_total_steps"] == 100_000_000 + 25_000_000
+    assert result["phase_lineage"]["provenance"]["rough"]["effective_steps"] == 50_000_000
+    assert result["phase_lineage"]["provenance"]["measured_total_steps"] == 100_000_000 + 50_000_000
 
     assert len(finalize_calls) == 1
     call = finalize_calls[0]
@@ -250,7 +258,17 @@ def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(
     # ranking requires.
     selected_inventory = checkpoint_inventory(
         checkpoint_path(create_run_paths("g1-passes-rough", tmp_path).checkpoints, "step", 25_000_000),
-        load_config(ROUGH_CONFIG, {"training.total_steps": remaining}),
+        load_config(
+            ROUGH_CONFIG,
+            {
+                "training.total_steps": bounded_mjx_phase_steps(
+                    remaining,
+                    checkpoint_every_steps=25_000_000,
+                    n_envs=8_192,
+                    unroll_length=20,
+                )
+            },
+        ),
         run_lineage="g1-passes-rough",
     )
     assert call["selected_checkpoint_digest"] == selected_inventory.sha256
@@ -306,6 +324,30 @@ def test_a_curriculum_crash_is_recorded_durably_and_still_raises(monkeypatch, tm
     assert written["relative"] == "failure.json"
     assert written["payload"]["error_type"] == "RuntimeError"
     assert "xla ran out of memory" in written["payload"]["traceback"]
+
+
+@pytest.mark.parametrize("outcome", ["REJECTED", "NEEDS_HUMAN", "ACCEPTED"])
+def test_finalized_curriculum_outcomes_exit_zero(monkeypatch, tmp_path, outcome: str) -> None:
+    """Business outcomes belong to campaign state, not the provider exit code."""
+    import sim2policy.hosted_g1_curriculum as hosted
+
+    monkeypatch.setattr(hosted, "run_g1_curriculum", lambda **_kwargs: {"outcome": outcome})
+    monkeypatch.setenv("SIM2POLICY_EXECUTION_LOCATION", "nebius")
+    monkeypatch.setenv("SIM2POLICY_COMMAND_CLASS", "training")
+    monkeypatch.setenv("SIM2POLICY_NEBIUS_RESOURCE_ID", "showcase-g1-outcome")
+    monkeypatch.setenv("SIM2POLICY_NEBIUS_REGION", "eu-north1")
+    monkeypatch.setenv("SIM2POLICY_IMMUTABLE_REVISION", "git:" + "a" * 40)
+
+    hosted.main(
+        [
+            "--matrix", str(ROOT / "configs/showcase_training_matrix.yaml"),
+            "--flat-config", str(FLAT_CONFIG),
+            "--rough-config", str(ROUGH_CONFIG),
+            "--run-id", "showcase-g1-outcome",
+            "--runs-root", str(tmp_path),
+            "--image-digest", "sha256:" + "b" * 64,
+        ]
+    )
 
 
 def test_rough_resume_declares_the_flat_environment_it_transfers_from(tmp_path: Path) -> None:

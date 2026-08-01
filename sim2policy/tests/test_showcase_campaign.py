@@ -468,6 +468,19 @@ def test_plan_is_reviewable_and_names_everything_the_runbook_requires(campaign) 
     assert envelope["next_command"].startswith("submit --example reacher --seed 0 --confirm-plan-digest")
 
 
+def test_g1_plan_declares_both_exact_phase_evidence_prefixes(campaign) -> None:
+    build, *_ = campaign
+    plan = build().build_plan("g1", 0)
+    run_id = "showcase-gallery-result-20260726-g1-s0"
+    assert plan["run_id"] == run_id
+    assert plan["evidence_run_ids"] == [f"{run_id}-rough", f"{run_id}-flat"]
+    assert plan["durable_prefix"] == f"sim2policy/{run_id}-rough/"
+    assert plan["durable_prefixes"] == [
+        f"sim2policy/{run_id}-rough/",
+        f"sim2policy/{run_id}-flat/",
+    ]
+
+
 def test_plan_refuses_a_seed_the_matrix_does_not_declare(campaign) -> None:
     build, *_ = campaign
     with pytest.raises(CampaignError, match="not declared"):
@@ -661,6 +674,34 @@ def test_verify_accepts_a_complete_prefix_and_is_idempotent(campaign) -> None:
 
     code, envelope = instance.verify("reacher", 0)
     assert code == EXIT_OK and envelope["decision"] == "ALREADY_VERIFIED"
+
+
+def test_verify_recovers_complete_g1_rough_evidence_after_provider_failure(campaign) -> None:
+    """A finalized hard-gate rejection is not a container crash.
+
+    The G1 hosted entry point historically returned campaign exit 20 after it
+    uploaded a complete rough result, so the provider recorded FAILED. Exact
+    child-prefix evidence is sufficient to recover that old attempt without
+    retraining or accepting the rejected policy.
+    """
+    build, store, matrix = campaign
+    job_run_id = "showcase-gallery-result-20260726-g1-s0"
+    evidence_run_id = f"{job_run_id}-rough"
+    instance = build(
+        provider=FakeProvider(states=["FAILED"]),
+        evidence=FakeEvidence(_run_documents(evidence_run_id, matrix.digest)),
+    )
+    _code, planned = instance.plan("g1", 0)
+    instance.submit("g1", 0, planned["plan"]["plan_digest"])
+    instance.watch(poll_seconds=0, until_terminal=True)
+
+    code, envelope = instance.verify("g1", 0)
+    assert code == EXIT_OK
+    assert envelope["decision"] == "VERIFIED"
+    assert envelope["reason_code"] == "EVIDENCE_COMPLETE_AFTER_PROVIDER_FAILURE"
+    persisted = store.read()["attempts"]["g1:0:base"]
+    assert persisted["evidence_run_id"] == evidence_run_id
+    assert persisted["provider_failure_recovery"]["provider_terminal_state"] == "FAILED"
 
 
 def test_verify_resolves_the_terminal_state_when_watch_was_interrupted(campaign) -> None:

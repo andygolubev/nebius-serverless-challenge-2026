@@ -3,16 +3,16 @@
 Exactly one Nebius job, one seed. This module trains `G1JoystickFlatTerrain`
 from scratch, evaluates deterministic gates at 100M/150M/200M steps, resumes
 the earliest passing flat checkpoint into no-push `G1JoystickRoughTerrain`
-for the remaining `450M - selected_flat_step` steps, ranks retained rough
+for the bounded remainder after its measured checkpoint step, ranks retained rough
 candidates, and finalizes exactly one explicit selected checkpoint.
 
 Invariants enforced by construction, not by a runtime check:
   - No automatic second seed or second curriculum job: this function is a
     single, non-looping pipeline over one `run_id`.
-  - No steps above the fixed 450M ceiling: the rough phase always trains to
-    `g1_curriculum.rough_budget(selected_flat_step)`, never `total_steps`.
+  - No steps above the fixed 450M ceiling: both phase requests are aligned to
+    whole MJX epochs and the rough budget subtracts the measured flat checkpoint.
   - No reward mutation or threshold relaxation: the only config override
-    ever applied here is `training.total_steps` for the rough resume: reward
+    ever applied here is bounded `training.total_steps` for the two phases: reward
     weights and `acceptance_criteria` (sourced from the campaign matrix) are
     never edited.
   - No final-set reselection: `evaluate_selected_final` is called exactly
@@ -36,7 +36,12 @@ from typing import Any
 
 from sim2policy import finalize as finalize_module
 from sim2policy import train_mjx
-from sim2policy.checkpoint import checkpoint_by_digest, list_step_checkpoints, nearest_checkpoint
+from sim2policy.checkpoint import (
+    checkpoint_by_digest,
+    list_step_checkpoints,
+    load_checkpoint_metadata,
+    nearest_checkpoint,
+)
 from sim2policy.checkpoint_selection import (
     EvaluationEvidence,
     acceptance_from_aggregate,
@@ -51,6 +56,7 @@ from sim2policy.g1_curriculum import (
     FLAT_GATES,
     ROUGH_ENVIRONMENT,
     CurriculumError,
+    bounded_mjx_phase_steps,
     flat_gate_result,
     provenance_chain,
     rough_budget,
@@ -88,7 +94,16 @@ def run_g1_curriculum(
     # The campaign supplies the durable artifact destination the same way it does
     # for the single-phase paths; both curriculum phases must write to it.
     overrides = dict(config_overrides or {})
-    flat_config: RunConfig = load_config(flat_config_path, overrides)
+    raw_flat_config: RunConfig = load_config(flat_config_path, overrides)
+    flat_steps = bounded_mjx_phase_steps(
+        raw_flat_config.training.total_steps,
+        checkpoint_every_steps=raw_flat_config.checkpoint.every_steps,
+        n_envs=raw_flat_config.training.n_envs,
+        unroll_length=int(raw_flat_config.training.hyperparameters["unroll_length"]),
+    )
+    flat_config: RunConfig = load_config(
+        flat_config_path, {**overrides, "training.total_steps": flat_steps}
+    )
     if flat_config.environment != FLAT_ENVIRONMENT:
         raise CurriculumError("flat config does not declare the reviewed flat environment")
 
@@ -136,6 +151,12 @@ def run_g1_curriculum(
             for item in gate_results
         ],
         "selected_step": selected_gate.step if selected_gate is not None else None,
+        "selected_checkpoint_step": (
+            gate_evidence[selected_gate.step].inventory.effective_step
+            if selected_gate is not None
+            else None
+        ),
+        "requested_effective_steps": flat_steps,
         "outcome": "passed" if selected_gate is not None else "failed",
     }
 
@@ -161,9 +182,19 @@ def run_g1_curriculum(
     flat_checkpoint_path = checkpoint_by_digest(flat_checkpoint_dir, selected_flat_inventory.sha256)
 
     # --- Phase 2: rough, resumed from the selected flat checkpoint. --------
-    remaining = rough_budget(selected_gate.step)
+    flat_effective_steps = selected_flat_inventory.effective_step
+    remaining = rough_budget(
+        selected_gate.step, checkpoint_effective_step=flat_effective_steps
+    )
+    raw_rough_config: RunConfig = load_config(rough_config_path, overrides)
+    rough_steps = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=raw_rough_config.checkpoint.every_steps,
+        n_envs=raw_rough_config.training.n_envs,
+        unroll_length=int(raw_rough_config.training.hyperparameters["unroll_length"]),
+    )
     rough_config: RunConfig = load_config(
-        rough_config_path, {**overrides, "training.total_steps": remaining}
+        rough_config_path, {**overrides, "training.total_steps": rough_steps}
     )
     if rough_config.environment != ROUGH_ENVIRONMENT:
         raise CurriculumError("rough config does not declare the reviewed rough environment")
@@ -172,7 +203,7 @@ def run_g1_curriculum(
     # the curriculum. The resume guard rejects a checkpoint from another environment
     # by default, which is right for an ordinary resume, so the one crossing this
     # curriculum declares is named explicitly rather than the check being relaxed.
-    train_phase(
+    rough_final_checkpoint = train_phase(
         rough_config,
         rough_run_id,
         runs_root,
@@ -180,6 +211,9 @@ def run_g1_curriculum(
         allowed_source_environment=FLAT_ENVIRONMENT,
     )
     rough_checkpoint_dir = create_run_paths(rough_run_id, runs_root).checkpoints
+    rough_effective_steps = load_checkpoint_metadata(rough_final_checkpoint).step
+    if rough_effective_steps > remaining:
+        raise CurriculumError("rough training exceeded its remaining-step budget")
     rough_checkpoints = [path for _, path in list_step_checkpoints(rough_checkpoint_dir)]
     if not rough_checkpoints:
         raise CurriculumError("rough training produced no retained checkpoint")
@@ -194,7 +228,7 @@ def run_g1_curriculum(
         phase="rough",
     )
     selected_rough = select_checkpoint(rough_candidates, kind="locomotion")
-    if selected_rough.inventory.effective_step > remaining:
+    if selected_rough.inventory.effective_step > rough_effective_steps:
         raise CurriculumError("selected rough checkpoint exceeds its remaining-step budget")
     ranking_explanation = explain_ranking(rough_candidates, selected_rough, kind="locomotion")
 
@@ -223,7 +257,9 @@ def run_g1_curriculum(
         flat_checkpoint_digest=selected_flat_inventory.sha256,
         rough_checkpoint_digest=selected_rough.inventory.sha256,
         selected_flat_step=selected_gate.step,
-        rough_effective_steps=selected_rough.inventory.effective_step,
+        flat_effective_steps=flat_effective_steps,
+        rough_effective_steps=rough_effective_steps,
+        rough_requested_steps=rough_steps,
         phase_outcomes={"flat": "passed", "rough": "trained"},
     )
     phase_lineage = {
@@ -235,6 +271,8 @@ def run_g1_curriculum(
             "selected_checkpoint_digest": selected_rough.inventory.sha256,
             "selected_checkpoint_step": selected_rough.inventory.effective_step,
             "budget_effective_steps": remaining,
+            "requested_effective_steps": rough_steps,
+            "trained_effective_steps": rough_effective_steps,
         },
         "provenance": provenance,
     }
@@ -243,7 +281,7 @@ def run_g1_curriculum(
         str(rough_config_path),
         rough_run_id,
         runs_root,
-        [("training.total_steps", remaining)],
+        [("training.total_steps", rough_steps)],
         gallery_example_id=gallery_example_id,
         selected_checkpoint_digest=selected_rough.inventory.sha256,
         matrix_digest=matrix_digest,
@@ -348,10 +386,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         _record_failure(args, exc)
         raise
     print(json.dumps({"outcome": result["outcome"]}, sort_keys=True))
-    if result["outcome"] == "NEEDS_HUMAN":
-        raise SystemExit(30)
-    if result["outcome"] == "REJECTED":
-        raise SystemExit(20)
+    # The hosted process completed its declared work for every returned outcome.
+    # Exit 20/30 belong to the campaign controller; using them inside a Nebius
+    # workload turns a valid finalized rejection into provider ContainerFailed.
+    # Only an exception before durable finalization should make the remote job fail.
 
 
 if __name__ == "__main__":

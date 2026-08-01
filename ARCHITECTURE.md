@@ -293,6 +293,10 @@ so it names `allowed_source_environment`; the resume guard otherwise rejects a c
 a different environment, which is the correct default for an ordinary resume. A crash writes a
 sanitized `failure.json` beside the run's other durable evidence, because the provider exposes no
 readable container log and an unrecorded failure after hours of accelerator time is undiagnosable.
+The plan declares the exact `-rough` and `-flat` phase evidence prefixes, and phase requests are
+aligned down to whole PPO epoch quanta so Brax's batch rounding cannot overshoot the fixed ceiling.
+Finalized `REJECTED` and `NEEDS_HUMAN` policies are successful workload completions; only the cloud
+campaign controller maps those business outcomes to exit 20/30.
 
 **The durable destination travels as a unit.** A campaign job's bucket, endpoint, region, *and*
 `storage.mode` are set together on every command path — SB3, MJX, and curriculum — and asserted per
@@ -318,8 +322,9 @@ checkpoints, which identifies a plateau rather than undertraining. A wider rollo
 larger policy/value heads cleared all three preferred targets at unchanged step budgets, so they
 publish on merit instead of as hard-floor overrides.
 
-G1 is the open example, and its run card is now provably inconsistent rather than merely unmet:
-flat terrain trained 200M steps in about an hour, while rough terrain manages roughly a tenth of that
-throughput, so the declared 450M ceiling and the declared timeout cannot both hold. Because the
-matrix is the contract, this is not repairable inside the campaign — it needs a new matrix that
-reconciles the two deliberately.
+G1 is the open example. Provider logs for its fourth attempt prove the job completed both training
+phases, candidate selection, four renders, montage, final evaluation, bundle creation, and upload in
+244 minutes, within the five-hour timeout, then emitted a deterministic `REJECTED` outcome. The old
+workload returned campaign exit 20 and the verifier looked at the parent prefix instead of the exact
+`-rough` prefix, so Nebius labeled the completed workload `FAILED` and the controller misclassified
+it as pre-checkpoint failure. The policy itself remains below the hard gate and unpublished.

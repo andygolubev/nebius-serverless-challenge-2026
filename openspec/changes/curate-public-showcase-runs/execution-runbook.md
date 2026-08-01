@@ -297,6 +297,11 @@ cannot prove belongs to this campaign. It stops with `NEEDS_HUMAN: UNACCOUNTED_R
 The agent compares this output to the applicable run card below. Any mismatch is exit 40 and no
 submission.
 
+For the two-phase G1 job, the plan declares both exact child prefixes: `RUN_ID-rough` is the final
+candidate prefix and `RUN_ID-flat` is the diagnostic prefix used only when the prerequisite never
+passes. Verification may resolve only those two plan-bound identities; fuzzy or unrelated cross-run
+fallback remains prohibited.
+
 ## 7. Standard attempt loop
 
 Use this loop for every base seed, extension, and G1 curriculum job:
@@ -463,6 +468,8 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
 - Hardware: `gpu-h100-sxm` / `1gpu-16vcpu-200gb`; disk: 100 GiB; non-preemptible;
   timeout: 5 hours.
 - Seed: 0 only; total ceiling: 450,000,000 effective steps across both phases.
+- MJX phase requests are rounded down to whole PPO epoch quanta before submission, and provenance
+  records requested and measured steps, so upstream batch rounding cannot exceed the ceiling.
 - Flat stage: no pushes; candidates at least every 25M; gates at 100M, 150M, 200M.
 - Flat transition: take the earliest checkpoint that passes the declared full-horizon gait
   prerequisite. If none passes by 200M, stop without rough training.

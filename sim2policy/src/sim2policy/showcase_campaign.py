@@ -586,6 +586,9 @@ class Campaign:
         run_id = validate_run_identity(
             f"showcase-{self.store.campaign_id}-{example}-s{seed}{suffix}"
         )
+        evidence_run_ids = (
+            [f"{run_id}-rough", f"{run_id}-flat"] if example == "g1" else [run_id]
+        )
         campaign = self.matrix.campaign
         hardware = dict(card["hardware"])
 
@@ -616,7 +619,12 @@ class Campaign:
             "seed": seed,
             "phase": phase,
             "run_id": run_id,
-            "durable_prefix": f"sim2policy/{run_id}/",
+            # G1 is one provider job with two deterministic phase prefixes. The
+            # rough result is the public candidate; the flat prefix is the exact
+            # diagnostic fallback when the prerequisite never passes.
+            "evidence_run_ids": evidence_run_ids,
+            "durable_prefix": f"sim2policy/{evidence_run_ids[0]}/",
+            "durable_prefixes": [f"sim2policy/{item}/" for item in evidence_run_ids],
             "backend": card["backend"],
             "module": command[2],
             "config": card["config"],
@@ -831,6 +839,7 @@ class Campaign:
                 "state": "PLANNED",
                 "plan_digest": plan["plan_digest"],
                 "run_id": plan["run_id"],
+                "evidence_run_ids": list(plan["evidence_run_ids"]),
                 "remote_id": (existing or {}).get("remote_id"),
                 "idempotency_key": _digest(
                     [self.store.campaign_id, example, seed, phase,
@@ -1107,7 +1116,7 @@ class Campaign:
                     next_command="cleanup",
                     attempt=attempt,
                 )
-            reader = self._evidence_reader(str(attempt["run_id"]))
+            evidence_run_id, reader = self._evidence_reader_for_attempt(attempt)
             if reader is None:
                 return self.envelope(
                     code=EXIT_NEEDS_HUMAN,
@@ -1159,6 +1168,8 @@ class Campaign:
                 self.store.evidence_path(f"verify-{key.replace(':', '-')}.json"), result.to_dict()
             )
             attempt["evidence_digest"] = _digest(result.to_dict())
+            if evidence_run_id is not None:
+                attempt["evidence_run_id"] = evidence_run_id
             provider_completed = terminal_state.upper() in {"COMPLETED", "SUCCEEDED"}
             # A controller may cancel a provider job only after the provider has
             # remained active beyond the missing-heartbeat stop.  If the durable
@@ -1170,12 +1181,26 @@ class Campaign:
                 terminal_state.upper() == "CANCELLED"
                 and attempt.get("reason_code") in {"HEARTBEAT_LOST", "UNKNOWN_PROVIDER_STATE"}
             )
-            if result.passed and (provider_completed or cancelled_after_heartbeat_stop):
+            completed_evidence_after_provider_failure = (
+                terminal_state.upper() in {"FAILED", "ERROR"} and result.passed
+            )
+            if result.passed and (
+                provider_completed
+                or cancelled_after_heartbeat_stop
+                or completed_evidence_after_provider_failure
+            ):
                 attempt["state"] = "VERIFIED"
                 if cancelled_after_heartbeat_stop:
                     attempt["cancellation_recovery"] = {
                         "provider_terminal_state": terminal_state,
                         "prior_stop_reason": attempt.get("reason_code"),
+                        "evidence_digest": attempt["evidence_digest"],
+                        "at": utc_now(),
+                    }
+                if completed_evidence_after_provider_failure:
+                    attempt["provider_failure_recovery"] = {
+                        "provider_terminal_state": terminal_state,
+                        "evidence_run_id": evidence_run_id,
                         "evidence_digest": attempt["evidence_digest"],
                         "at": utc_now(),
                     }
@@ -1186,7 +1211,11 @@ class Campaign:
                     reason_code=(
                         "EVIDENCE_COMPLETE_AFTER_CANCELLATION"
                         if cancelled_after_heartbeat_stop
-                        else "EVIDENCE_COMPLETE"
+                        else (
+                            "EVIDENCE_COMPLETE_AFTER_PROVIDER_FAILURE"
+                            if completed_evidence_after_provider_failure
+                            else "EVIDENCE_COMPLETE"
+                        )
                     ),
                     next_command="cleanup",
                     attempt=saved,
@@ -1210,6 +1239,37 @@ class Campaign:
             return None
         reader: EvidenceReader = self._evidence_reader_factory(run_id)
         return reader
+
+    def _evidence_reader_for_attempt(
+        self, attempt: Mapping[str, Any]
+    ) -> tuple[str | None, EvidenceReader | None]:
+        """Resolve only evidence prefixes declared by the immutable attempt plan.
+
+        Older G1 state predates ``evidence_run_ids`` but its hosted contract
+        already fixed the two child identities, so the same exact mapping is used
+        for recovery. This is not cross-run fallback: no caller-controlled or
+        fuzzy prefix is considered.
+        """
+        declared = attempt.get("evidence_run_ids")
+        if not isinstance(declared, list) or not all(
+            isinstance(item, str) and item for item in declared
+        ):
+            run_id = str(attempt["run_id"])
+            declared = (
+                [f"{run_id}-rough", f"{run_id}-flat"]
+                if attempt.get("example") == "g1"
+                else [run_id]
+            )
+        first: tuple[str | None, EvidenceReader | None] = (None, None)
+        for run_id in declared:
+            reader = self._evidence_reader(run_id)
+            if reader is None:
+                continue
+            if first[1] is None:
+                first = (run_id, reader)
+            if isinstance(reader.read_json("report/artifacts.json"), dict):
+                return run_id, reader
+        return first
 
     # -- select and extend (5.10) -------------------------------------------
 
@@ -1246,7 +1306,7 @@ class Campaign:
                     continue
                 if attempt.get("state") not in {"VERIFIED", "CLEANED", "ACCEPTED"}:
                     continue
-                reader = self._evidence_reader(str(attempt["run_id"]))
+                evidence_run_id, reader = self._evidence_reader_for_attempt(attempt)
                 if reader is None:
                     continue
                 metrics = reader.read_json("report/metrics.json") or {}
@@ -1257,7 +1317,7 @@ class Campaign:
                 candidates.append(
                     {
                         "attempt": key,
-                        "run_id": attempt["run_id"],
+                        "run_id": evidence_run_id or attempt["run_id"],
                         "seed": attempt.get("seed"),
                         "checkpoint_sha256": selected.get("sha256"),
                         "checkpoint_native_path": selected.get("native_path"),

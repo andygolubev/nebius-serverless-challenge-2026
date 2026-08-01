@@ -5,6 +5,7 @@ import pytest
 from sim2policy.g1_curriculum import (
     TOTAL_STEPS,
     CurriculumError,
+    bounded_mjx_phase_steps,
     flat_gate_result,
     provenance_chain,
     rough_budget,
@@ -58,3 +59,30 @@ def test_provenance_chain_rejects_rough_steps_over_its_remaining_budget() -> Non
             rough_effective_steps=rough_budget(100_000_000) + 1,
             phase_outcomes={"flat": "passed", "rough": "trained"},
         )
+
+
+def test_mjx_phase_requests_are_bounded_below_the_effective_step_ceiling() -> None:
+    flat = bounded_mjx_phase_steps(
+        200_000_000,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    assert flat == 199_229_440
+    remaining = rough_budget(200_000_000, checkpoint_effective_step=flat)
+    rough = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    assert rough == 250_511_360
+    assert flat + rough == 449_740_800 < TOTAL_STEPS
+
+
+def test_rough_budget_uses_the_checkpoint_step_not_only_the_gate_label() -> None:
+    assert rough_budget(
+        200_000_000, checkpoint_effective_step=199_229_440
+    ) == 250_770_560
+    with pytest.raises(CurriculumError, match="no later"):
+        rough_budget(200_000_000, checkpoint_effective_step=200_540_160)
