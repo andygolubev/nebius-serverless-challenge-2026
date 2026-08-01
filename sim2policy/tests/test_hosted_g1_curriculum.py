@@ -12,7 +12,7 @@ from sim2policy.checkpoint import checkpoint_inventory, checkpoint_path, write_c
 from sim2policy.checkpoint_selection import EvaluationEvidence
 from sim2policy.config import RunConfig, load_config
 from sim2policy.g1_curriculum import bounded_mjx_phase_steps, rough_budget
-from sim2policy.hosted_g1_curriculum import run_g1_curriculum
+from sim2policy.hosted_g1_curriculum import restore_existing_phase, run_g1_curriculum
 from sim2policy.run import create_run_paths
 
 ROOT = Path(__file__).parents[1]
@@ -47,6 +47,44 @@ def _episodes(seeds: tuple[int, ...], *, reward: float, velocity: float, fell: b
     )
 
 
+def test_existing_phase_recovery_downloads_completed_checkpoint_without_training(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    downloaded: list[tuple[str, tuple[str, ...]]] = []
+    run_config = load_config(
+        FLAT_CONFIG,
+        {
+            "training.total_steps": 199_229_440,
+            "storage.mode": "s3",
+            "storage.bucket": "artifacts",
+        },
+    )
+
+    class FakeStore:
+        def __init__(self, config: Any, run_id: str) -> None:
+            self.config = config
+            self.run_id = run_id
+
+        def get_json_optional(self, relative: str) -> dict[str, Any] | None:
+            assert relative == "report/runtime.json"
+            return {"outcome": "completed"}
+
+        def download_tree(self, run_root: Path, prefixes: tuple[str, ...]) -> list[Path]:
+            downloaded.append((self.run_id, prefixes))
+            checkpoint = _write_checkpoint(
+                run_root / "checkpoints", run_config, "final", 199_229_440
+            )
+            return [checkpoint, checkpoint.with_suffix(".zip.json")]
+
+    monkeypatch.setattr("sim2policy.hosted_g1_curriculum.ArtifactStore", FakeStore)
+    result = restore_existing_phase(run_config, "g1-recovery-flat", tmp_path)
+
+    assert result.name == "final-000199229440.zip"
+    assert downloaded == [
+        ("g1-recovery-flat", ("checkpoints", "tensorboard", "report"))
+    ]
+
+
 def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_path: Path) -> None:
     train_calls: list[tuple[str, Path | None]] = []
 
@@ -73,7 +111,7 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
     finalize_calls: list[dict[str, Any]] = []
 
     def fake_finalize(config_path, run_id, runs_root, overrides, **kwargs):
-        finalize_calls.append({"run_id": run_id, **kwargs})
+        finalize_calls.append({"run_id": run_id, "overrides": overrides, **kwargs})
         return {"metrics_json": "report/metrics.json"}
 
     result = run_g1_curriculum(
@@ -89,6 +127,7 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
         selection_episodes_per_seed=2,
         final_episodes_per_seed=4,
         acceptance_criteria=ACCEPTANCE_CRITERIA,
+        config_overrides={"storage.mode": "s3", "storage.bucket": "artifacts"},
         train_phase=fake_train_phase,
         evaluate_candidates_fn=fake_evaluate_candidates,
         finalize_fn=fake_finalize,
@@ -101,6 +140,11 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
     assert train_calls == [("g1-never-passes-flat", None)]
     assert len(finalize_calls) == 1
     assert "gallery_example_id" not in finalize_calls[0]
+    assert finalize_calls[0]["overrides"] == [
+        ("storage.mode", "s3"),
+        ("storage.bucket", "artifacts"),
+        ("training.total_steps", 199_229_440),
+    ]
 
 
 def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_path: Path) -> None:
@@ -157,6 +201,7 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
         selection_episodes_per_seed=2,
         final_episodes_per_seed=4,
         acceptance_criteria=ACCEPTANCE_CRITERIA,
+        config_overrides={"storage.mode": "s3", "storage.bucket": "artifacts"},
         train_phase=fake_train_phase,
         evaluate_candidates_fn=fake_evaluate_candidates,
         evaluate_final_fn=fake_evaluate_final,
@@ -177,7 +222,11 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
         n_envs=8_192,
         unroll_length=20,
     )
-    assert finalize_calls[0]["overrides"] == [("training.total_steps", expected_request)]
+    assert finalize_calls[0]["overrides"] == [
+        ("storage.mode", "s3"),
+        ("storage.bucket", "artifacts"),
+        ("training.total_steps", expected_request),
+    ]
 
 
 def test_earliest_passing_flat_gate_resumes_rough_and_selects_stable_checkpoint(tmp_path: Path) -> None:

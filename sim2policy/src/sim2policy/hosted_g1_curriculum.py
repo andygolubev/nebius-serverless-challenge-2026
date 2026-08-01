@@ -38,9 +38,11 @@ from sim2policy import finalize as finalize_module
 from sim2policy import train_mjx
 from sim2policy.checkpoint import (
     checkpoint_by_digest,
+    latest_checkpoint,
     list_step_checkpoints,
     load_checkpoint_metadata,
     nearest_checkpoint,
+    validate_checkpoint,
 )
 from sim2policy.checkpoint_selection import (
     EvaluationEvidence,
@@ -63,10 +65,55 @@ from sim2policy.g1_curriculum import (
     selected_flat_gate,
 )
 from sim2policy.run import create_run_paths
+from sim2policy.storage import ArtifactStore
 
 
 def _config_digest(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _finalize_overrides(overrides: dict[str, Any], total_steps: int) -> list[tuple[str, Any]]:
+    """Carry the durable destination into finalization and pin its phase budget."""
+    return [
+        *((key, value) for key, value in overrides.items() if key != "training.total_steps"),
+        ("training.total_steps", total_steps),
+    ]
+
+
+def restore_existing_phase(
+    config: RunConfig,
+    run_id: str,
+    runs_root: Path,
+    resume: Path | None = None,
+    *,
+    allowed_source_environment: str | None = None,
+    **_kwargs: Any,
+) -> Path:
+    """Restore a completed durable phase for evaluation/finalization-only recovery.
+
+    A provider-successful curriculum can still lose its final manifest if the
+    finalizer was accidentally configured for local storage. Recovery must reuse
+    the exact uploaded checkpoints instead of spending the training budget again.
+    """
+    if config.storage.mode != "s3":
+        raise CurriculumError("existing-phase recovery requires durable S3 storage")
+    if config.environment == FLAT_ENVIRONMENT and resume is not None:
+        raise CurriculumError("flat recovery must not receive a resume checkpoint")
+    if config.environment == ROUGH_ENVIRONMENT and (
+        resume is None or allowed_source_environment != FLAT_ENVIRONMENT
+    ):
+        raise CurriculumError("rough recovery requires the declared flat curriculum input")
+
+    store = ArtifactStore(config.storage, run_id)
+    runtime = store.get_json_optional("report/runtime.json") or {}
+    if runtime.get("outcome") != "completed":
+        raise CurriculumError(f"durable phase {run_id} has no completed runtime record")
+
+    paths = create_run_paths(run_id, runs_root)
+    store.download_tree(paths.root, ("checkpoints", "tensorboard", "report"))
+    final = latest_checkpoint(paths.checkpoints)
+    validate_checkpoint(final, config)
+    return final
 
 
 def run_g1_curriculum(
@@ -167,7 +214,7 @@ def run_g1_curriculum(
             str(flat_config_path),
             flat_run_id,
             runs_root,
-            [],
+            _finalize_overrides(overrides, flat_steps),
             matrix_digest=matrix_digest,
             phase_lineage={"flat": flat_phase_lineage, "rough": None},
         )
@@ -281,7 +328,7 @@ def run_g1_curriculum(
         str(rough_config_path),
         rough_run_id,
         runs_root,
-        [("training.total_steps", rough_steps)],
+        _finalize_overrides(overrides, rough_steps),
         gallery_example_id=gallery_example_id,
         selected_checkpoint_digest=selected_rough.inventory.sha256,
         matrix_digest=matrix_digest,
@@ -321,6 +368,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--image-digest", required=True)
+    parser.add_argument(
+        "--recover-existing",
+        action="store_true",
+        help="Reuse exact completed durable phase checkpoints and skip both training phases.",
+    )
     parser.add_argument("--set", action="append", default=[])
     return parser
 
@@ -355,8 +407,8 @@ def _record_failure(args: Any, exc: BaseException) -> None:
 def main(argv: Sequence[str] | None = None) -> None:
     from sim2policy.execution_location import require_nebius_execution
 
-    require_nebius_execution("training")
     args = build_parser().parse_args(argv)
+    require_nebius_execution("finalization" if args.recover_existing else "training")
     from sim2policy.showcase_matrix import load_matrix
 
     matrix = load_matrix(args.matrix)
@@ -377,6 +429,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             final_episodes_per_seed=campaign["final"]["episodes_per_seed"],
             acceptance_criteria=card["acceptance"],
             config_overrides=_parse_overrides(args.set),
+            train_phase=restore_existing_phase if args.recover_existing else train_mjx.train_mjx,
         )
     except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised unchanged
         # The curriculum runs for hours on an H100 and the provider keeps no
