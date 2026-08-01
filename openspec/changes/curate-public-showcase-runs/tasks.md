@@ -138,7 +138,7 @@
 ## 12. Close out and hand off
 
 - [ ] 12.1 Run a final cloud audit covering Serverless AI jobs, H100/L40S/CPU instances, builder, disks, public IPs, temporary security rules, durable prefixes, SaaS rows, and provider-history retention; stop/delete every chargeable VM
-- [ ] 12.2 Produce a final campaign table for all seven examples with state, selected run/checkpoint, base/extension steps, hard/preferred metrics, measured duration/cost, retry/extension use, public pin state, and cleanup result
-- [ ] 12.3 Record accepted pins, unpublished examples, exact blockers, commands/results, and safe next actions in `IMPLEMENTATION_LOG.MD` without credentials or secret selectors
-- [ ] 12.4 Update architecture/operator documentation for the campaign matrix, state machine, explicit checkpoint finalization, G1 curriculum, recovery, cleanup, and public acceptance flow
+- [x] 12.2 Produce a final campaign table for all seven examples with state, selected run/checkpoint, base/extension steps, hard/preferred metrics, measured duration/cost, retry/extension use, public pin state, and cleanup result
+- [x] 12.3 Record accepted pins, unpublished examples, exact blockers, commands/results, and safe next actions in `IMPLEMENTATION_LOG.MD` without credentials or secret selectors
+- [x] 12.4 Update architecture/operator documentation for the campaign matrix, state machine, explicit checkpoint finalization, G1 curriculum, recovery, cleanup, and public acceptance flow
 - [ ] 12.5 Re-run all executable gates on Nebius Cloud and retain their location attestations; on the shared host run only static Git/OpenSpec checks including `openspec validate curate-public-showcase-runs --strict`; check off tasks only after evidence exists and archive only after implementation and production verification are complete
