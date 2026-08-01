@@ -16,6 +16,29 @@ import {
   SimulatorDisclosure,
 } from "./ResultPanels";
 
+// The API reports measured runtime and cost as numbers, which is right for a
+// machine contract and unreadable on a public page: an unformatted value renders
+// as "1038.543337257" and "0.8510285680300418". Formatting stays here so the
+// payload keeps its precision.
+export function formatDuration(value: number | string): string {
+  const seconds = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(seconds)) return String(value);
+  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)} s`;
+  const minutes = Math.floor(seconds / 60);
+  const rest = Math.round(seconds % 60);
+  if (minutes < 60) return rest ? `${minutes} min ${rest} s` : `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h ${minutes % 60} min`;
+}
+
+export function formatCost(value: number | string): string {
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  // Sub-cent runs are real here, so they round up to the smallest shown unit
+  // rather than displaying as "$0.00".
+  return amount > 0 && amount < 0.01 ? "<$0.01" : `$${amount.toFixed(2)}`;
+}
+
 export function Showcase({
   onOpenExample,
   onSignIn,
@@ -110,8 +133,8 @@ function ShowcaseCard({ entry, onOpen }: { entry: ShowcaseEntry; onOpen: () => v
         <span className="badge">{entry.hardware_label}</span>
       </div>
       <dl className="gallery-card-facts">
-        <KeyValue label="Observed duration" value={entry.observed_duration} />
-        <KeyValue label="Observed cost" value={entry.observed_cost} />
+        <KeyValue label="Observed duration" value={formatDuration(entry.observed_duration)} />
+        <KeyValue label="Observed cost" value={formatCost(entry.observed_cost)} />
         <KeyValue label="Timesteps" value={formatTimesteps(entry.executed_config.total_timesteps)} />
         <KeyValue label="Expected" value={entry.expected_result} />
       </dl>
@@ -233,8 +256,8 @@ export function ShowcaseDetail({
             <dl className="compact-kv">
               <KeyValue label="Success criterion" value={detail.evaluation.criterion} />
               <KeyValue label="Primary metric" value={detail.evaluation.primary_metric} />
-              <KeyValue label="Observed duration" value={detail.observed_duration} />
-              <KeyValue label="Observed cost" value={detail.observed_cost} />
+              <KeyValue label="Observed duration" value={formatDuration(detail.observed_duration)} />
+              <KeyValue label="Observed cost" value={formatCost(detail.observed_cost)} />
             </dl>
             {bundle && <BundleCallout bundle={bundle} />}
           </div>
