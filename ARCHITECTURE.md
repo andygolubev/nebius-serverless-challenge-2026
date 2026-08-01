@@ -247,3 +247,56 @@ checkpoints, and a finalizer that downloads the durable run, restores progressio
 renders media, evaluates the final policy, writes reports/comparison data, and republishes the
 completed manifest. See `sim2policy/docs/submission-checklist.md` for the verified run and artifact
 references.
+
+## Curated showcase campaigns
+
+The public gallery is served from curated runs, and a campaign is what produces one. The controller
+(`sim2policy/src/sim2policy/showcase_campaign.py`) owns plan, submit, watch, verify, select, extend,
+accept, cleanup, and audit; the operator invokes documented commands and never infers a decision
+from live logs. Exit codes are stable: 0 completed the requested transition, 10 remote work is still
+active, 20 deterministic rejection, 30 a human decision is required, 40 an invariant or cleanup
+failure. Exit 30 and 40 are full stops.
+
+**The matrix is the contract.** `configs/showcase_training_matrix.yaml` declares seeds, step budgets,
+checkpoint cadence, hardware, timeouts, and acceptance thresholds. Its normalized digest is recorded
+in every plan and re-checked at verification, so an experiment cannot drift mid-campaign. Changing
+the matrix means a new campaign, not an edited one.
+
+**Per-attempt state** is `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`,
+`ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, `CLEANED`, persisted under a gitignored
+`.showcase-campaigns/<campaign-id>/` with atomic writes, an append-only journal, and an exclusive
+lock that fails rather than queues. `NEEDS_HUMAN` is a stop, not a grave: it may reach `VERIFIED`
+again, but only through a fresh verification proving complete durable evidence against a
+terminal-completed provider state.
+
+**Selection and extension.** All three base seeds run before selection, which ranks checkpoints on
+the declared selection seeds — never on the final-acceptance seeds, and never on training reward
+alone. If the leader meets the preferred target the extension is skipped; otherwise that seed alone
+continues from its exact selected checkpoint, exactly once. A result that clears the hard floor but
+misses the preferred target after its extension becomes `NEEDS_HUMAN` rather than being pinned
+automatically.
+
+**Parallel campaigns.** A campaign is serialized internally — one active remote job — but several may
+run side by side on separate provider machines. Each declares the others through
+`SIM2POLICY_PARALLEL_CAMPAIGN_IDS`, and jobs named for a declared sibling are accounted for rather
+than treated as stray. Without this the cloud audit, which runs after every terminal attempt, would
+see a sibling's job as an unaccounted resource and stop both campaigns. Two guarantees survive the
+change: an undeclared active job still stops the campaign, and `audit-cloud` still refuses to report
+clean while the campaign's own job is running. Seeds of one example cannot be split across
+campaigns, because selection ranks candidates within a single campaign.
+
+**The G1 curriculum** trains `G1JoystickFlatTerrain` from scratch, evaluates deterministic gates at
+100M/150M/200M steps, and resumes the earliest passing flat checkpoint into `G1JoystickRoughTerrain`
+for the remaining budget under a fixed 450M ceiling. That resume deliberately crosses environments,
+so it names `allowed_source_environment`; the resume guard otherwise rejects a checkpoint trained in
+a different environment, which is the correct default for an ordinary resume. A crash writes a
+sanitized `failure.json` beside the run's other durable evidence, because the provider exposes no
+readable container log and an unrecorded failure after hours of accelerator time is undiagnosable.
+
+**Publication.** `catalog.SHOWCASE_RUNS` pins each example to one curated run and is the showcase
+resolver's only source of run identity. Accepted examples publish independently, so an example that
+is still training or awaiting a human decision stays a placeholder while the rest ship. A promotion
+runs the full gate suite on Nebius compute — lint, types, runtime and backend suites, frontend tests
+and production build, plus a tracked-file secret and large-file scan — and deployment is verified
+through the workflow, the GitOps tag bump, the ArgoCD sync, the rolled pod, and the public endpoint
+rather than inferred from a push.
