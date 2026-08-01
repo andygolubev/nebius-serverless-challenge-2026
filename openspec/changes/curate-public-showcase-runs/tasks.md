@@ -92,24 +92,24 @@
 ## 8. Execute fresh SB3 campaigns sequentially
 
 - [x] 8.1 From the attested Nebius orchestration VM, initialize the campaign exactly as `execution-runbook.md` specifies, confirm matrix digest and order, run global preflight, and write the first sanitized handoff; the shared host only invokes/observes the cloud command
-- [ ] 8.2 Execute Reacher seed 0 through plan/submit/watch/verify/cleanup; record exact state/evidence/cleanup and run no other campaign job concurrently
-- [ ] 8.3 Execute Reacher seeds 7 and 42 with the identical matrix contract, verifying and cleaning each before the next
-- [ ] 8.4 Run Reacher selection; if required by structured `next_command`, extend only the winning seed to 1.5M; final-accept once and emit accepted/rejected/needs-human without improvisation
-- [ ] 8.5 Execute HalfCheetah seeds 0, 7, and 42 sequentially at 3M each, with verification/cleanup after each; select, optionally extend only the winner to 5M, and final-accept once
-- [ ] 8.6 Execute Ant seeds 0, 7, and 42 sequentially at 3M each; verify reward and episode-length evidence; select, optionally extend only the winner to 5M, and final-accept once
-- [ ] 8.7 Execute Hopper seeds 0, 7, and 42 sequentially at 5M each; verify stability evidence; select, optionally extend only the winner to 8M, and final-accept once
-- [ ] 8.8 Execute Walker2D seeds 0, 7, and 42 sequentially at 5M each; verify full-horizon evidence; select, optionally extend only the winner to 8M, and final-accept once
-- [ ] 8.9 After every terminal attempt, run the full cloud cleanup audit and stop the campaign on unknown resources, missing durable evidence, or incomplete cleanup
-- [ ] 8.10 After each example, generate a handoff containing consumed retries/extensions, winning checkpoint, hard/preferred result, measured runtime/cost, cleanup proof, and exact next command
+- [x] 8.2 Execute Reacher seed 0 through plan/submit/watch/verify/cleanup; record exact state/evidence/cleanup and run no other campaign job concurrently
+- [x] 8.3 Execute Reacher seeds 7 and 42 with the identical matrix contract, verifying and cleaning each before the next
+- [x] 8.4 Run Reacher selection; if required by structured `next_command`, extend only the winning seed to 1.5M; final-accept once and emit accepted/rejected/needs-human without improvisation
+- [x] 8.5 Execute HalfCheetah seeds 0, 7, and 42 sequentially at 3M each, with verification/cleanup after each; select, optionally extend only the winner to 5M, and final-accept once
+- [x] 8.6 Execute Ant seeds 0, 7, and 42 sequentially at 3M each; verify reward and episode-length evidence; select, optionally extend only the winner to 5M, and final-accept once
+- [x] 8.7 Execute Hopper seeds 0, 7, and 42 sequentially at 5M each; verify stability evidence; select, optionally extend only the winner to 8M, and final-accept once
+- [x] 8.8 Execute Walker2D seeds 0, 7, and 42 sequentially at 5M each; verify full-horizon evidence; select, optionally extend only the winner to 8M, and final-accept once
+- [x] 8.9 After every terminal attempt, run the full cloud cleanup audit and stop the campaign on unknown resources, missing durable evidence, or incomplete cleanup
+- [x] 8.10 After each example, generate a handoff containing consumed retries/extensions, winning checkpoint, hard/preferred result, measured runtime/cost, cleanup proof, and exact next command
 
 ## 9. Execute fresh Go1 H100 campaign
 
-- [ ] 9.1 Run Go1 preflight and prove H100 preset/quota, immutable MJX digest, 100 GiB disk, two-hour timeout, non-preemptible setting, 200M budget, and zero unaccounted accelerator resources
-- [ ] 9.2 Execute Go1 seed 0 at 200M with 10M checkpoints; verify per-episode selection evidence, all artifacts, and cleanup before continuing
-- [ ] 9.3 Execute Go1 seeds 7 and 42 under the identical contract, verifying and cleaning each independently
-- [ ] 9.4 Rank all Go1 checkpoints across seeds without final-set access; if preferred quality is missed, resume only the selected seed/checkpoint to 300M and consume the sole extension
-- [ ] 9.5 Final-evaluate the selected Go1 checkpoint exactly once on 20 episodes; require the per-episode 0.5 m/s/no-fall hard floor and 0.75 minimum/0.9 mean preferred target for automatic acceptance
-- [ ] 9.6 Verify selected/final progression media, exact checkpoint digest, report/manifest/bundle, measured H100 runtime/cost, public fixture, and cleanup audit; do not launch an L40S or further seed fallback
+- [x] 9.1 Run Go1 preflight and prove H100 preset/quota, immutable MJX digest, 100 GiB disk, two-hour timeout, non-preemptible setting, 200M budget, and zero unaccounted accelerator resources
+- [x] 9.2 Execute Go1 seed 0 at 200M with 10M checkpoints; verify per-episode selection evidence, all artifacts, and cleanup before continuing
+- [x] 9.3 Execute Go1 seeds 7 and 42 under the identical contract, verifying and cleaning each independently
+- [x] 9.4 Rank all Go1 checkpoints across seeds without final-set access; if preferred quality is missed, resume only the selected seed/checkpoint to 300M and consume the sole extension
+- [x] 9.5 Final-evaluate the selected Go1 checkpoint exactly once on 20 episodes; require the per-episode 0.5 m/s/no-fall hard floor and 0.75 minimum/0.9 mean preferred target for automatic acceptance
+- [x] 9.6 Verify selected/final progression media, exact checkpoint digest, report/manifest/bundle, measured H100 runtime/cost, public fixture, and cleanup audit; do not launch an L40S or further seed fallback
 
 ## 10. Execute the one G1 H100 result campaign
 
@@ -126,12 +126,12 @@
 
 ## 11. Promote accepted examples safely
 
-- [ ] 11.1 For each accepted example, run the curator against the exact fresh non-tenant run and produce a deterministic acceptance record with hard/preferred pass, immutable digests, selected checkpoint, public fixture, and cleanup proof
-- [ ] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
-- [ ] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
+- [x] 11.1 For each accepted example, run the curator against the exact fresh non-tenant run and produce a deterministic acceptance record with hard/preferred pass, immutable digests, selected checkpoint, public fixture, and cleanup proof
+- [x] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
+- [x] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
 - [ ] 11.4 For each promotion batch run complete runtime/backend/frontend suites, production builds, and executable secret/large-file scans on Nebius CPU compute with location attestations; run only static `git diff --check` and strict OpenSpec validation on the shared host
-- [ ] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
-- [ ] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
+- [x] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
+- [x] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
 - [ ] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
 - [ ] 11.8 Verify signed-in tenant custom training/history, private artifact isolation, and user jobs remain unchanged by public pins
 
