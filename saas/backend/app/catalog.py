@@ -377,10 +377,10 @@ PENDING_RUN_PREFIX = "pending-curated-run-"
 
 SHOWCASE_RUNS: dict[str, str] = {
     "go1-walker": "showcase-gallery-go1-20260731-08-go1-s42",
-    "ant-explorer": f"{PENDING_RUN_PREFIX}ant-explorer",
-    "halfcheetah-sprint": f"{PENDING_RUN_PREFIX}halfcheetah-sprint",
+    "ant-explorer": "showcase-gallery-ant-20260801-12-ant-s7",
+    "halfcheetah-sprint": "showcase-gallery-hc-20260801-11-halfcheetah-s7",
     "hopper-balance": "showcase-gallery-result-20260730-07-hopper-s7",
-    "walker2d-stride": f"{PENDING_RUN_PREFIX}walker2d-stride",
+    "walker2d-stride": "showcase-gallery-w2d-20260801-13-walker2d-s42",
     "g1-rough-terrain": f"{PENDING_RUN_PREFIX}g1-rough-terrain",
     "reacher-target": "showcase-gallery-result-20260730-07-reacher-s42",
 }
