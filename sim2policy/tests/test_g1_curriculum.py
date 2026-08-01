@@ -86,3 +86,19 @@ def test_rough_budget_uses_the_checkpoint_step_not_only_the_gate_label() -> None
     ) == 250_770_560
     with pytest.raises(CurriculumError, match="no later"):
         rough_budget(200_000_000, checkpoint_effective_step=200_540_160)
+
+
+def test_rough_budget_charges_all_flat_training_not_only_the_selected_checkpoint() -> None:
+    remaining = rough_budget(
+        100_000_000,
+        checkpoint_effective_step=99_614_720,
+        flat_trained_steps=199_229_440,
+    )
+    assert remaining == TOTAL_STEPS - 199_229_440
+
+    with pytest.raises(CurriculumError, match="cannot precede"):
+        rough_budget(
+            100_000_000,
+            checkpoint_effective_step=99_614_720,
+            flat_trained_steps=90_000_000,
+        )

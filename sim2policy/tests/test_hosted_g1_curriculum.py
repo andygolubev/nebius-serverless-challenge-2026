@@ -91,9 +91,9 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
     def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         train_calls.append((run_id, resume))
         directory = create_run_paths(run_id, runs_root).checkpoints
-        for step in (100_000_000, 150_000_000, 200_000_000):
+        for step in (100_000_000, 150_000_000, 199_229_440):
             _write_checkpoint(directory, config, "step", step)
-        return directory / "step-000200000000.zip"
+        return directory / "step-000199229440.zip"
 
     def fake_evaluate_candidates(checkpoints, config, *, run_lineage, selection_seeds, final_seeds, episodes_per_seed, phase):
         return [
@@ -148,18 +148,18 @@ def test_never_passing_flat_gate_stops_before_rough_and_records_diagnostics(tmp_
 
 
 def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_path: Path) -> None:
-    """The 100M gate fails, 150M passes: rough gets 450M - 150M, not 450M - 100M."""
+    """An early selected gate never refunds flat steps that were already trained."""
     train_calls: list[tuple[str, Path | None]] = []
 
     def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         train_calls.append((run_id, resume))
         directory = create_run_paths(run_id, runs_root).checkpoints
         if resume is None:
-            for step in (100_000_000, 150_000_000, 200_000_000):
+            for step in (100_000_000, 150_000_000, 199_229_440):
                 _write_checkpoint(directory, config, "step", step)
-            return directory / "step-000200000000.zip"
-        _write_checkpoint(directory, config, "final", 300_000_000)
-        return directory / "final-000300000000.zip"
+            return directory / "step-000199229440.zip"
+        _write_checkpoint(directory, config, "final", 250_000_000)
+        return directory / "final-000250000000.zip"
 
     def fake_evaluate_candidates(checkpoints, config, *, run_lineage, selection_seeds, final_seeds, episodes_per_seed, phase):
         result = []
@@ -213,11 +213,17 @@ def test_a_later_gate_passing_shortens_the_rough_budget_by_exactly_its_step(tmp_
     # The 100M gate was measured and failed; both are retained as honest evidence.
     assert [item["step"] for item in lineage["flat"]["gates"]] == [100_000_000, 150_000_000]
     assert [item["passed"] for item in lineage["flat"]["gates"]] == [False, True]
-    assert lineage["rough"]["budget_effective_steps"] == rough_budget(150_000_000) == 300_000_000
-    # The whole remaining budget was spent and the 450M ceiling is exactly met.
-    assert lineage["provenance"]["measured_total_steps"] == 450_000_000
+    assert lineage["flat"]["trained_effective_steps"] == 199_229_440
+    assert lineage["rough"]["budget_effective_steps"] == rough_budget(
+        150_000_000,
+        checkpoint_effective_step=150_000_000,
+        flat_trained_steps=199_229_440,
+    )
+    # Every flat step spent is charged even though the earlier 150M checkpoint
+    # is selected for the rough-terrain transfer.
+    assert lineage["provenance"]["measured_total_steps"] == 199_229_440 + 250_000_000
     expected_request = bounded_mjx_phase_steps(
-        300_000_000,
+        450_000_000 - 199_229_440,
         checkpoint_every_steps=25_000_000,
         n_envs=8_192,
         unroll_length=20,
@@ -411,7 +417,11 @@ def test_rough_resume_declares_the_flat_environment_it_transfers_from(tmp_path: 
     def fake_train_phase(config: RunConfig, run_id: str, runs_root: Path, resume: Path | None = None, **kwargs: Any) -> Path:
         calls.append({"run_id": run_id, "resume": resume, **kwargs})
         directory = create_run_paths(run_id, runs_root).checkpoints
-        steps = (100_000_000, 150_000_000, 200_000_000) if resume is None else (250_000_000,)
+        steps = (
+            (100_000_000, 150_000_000, 199_229_440)
+            if resume is None
+            else (250_000_000,)
+        )
         for step in steps:
             _write_checkpoint(directory, config, "step", step)
         return directory / f"step-{steps[-1]:012d}.zip"

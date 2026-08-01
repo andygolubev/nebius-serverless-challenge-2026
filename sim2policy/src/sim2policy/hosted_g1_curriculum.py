@@ -156,7 +156,10 @@ def run_g1_curriculum(
 
     # --- Phase 1: flat, from scratch. --------------------------------------
     flat_run_id = f"{run_id}-flat"
-    train_phase(flat_config, flat_run_id, runs_root)
+    flat_final_checkpoint = train_phase(flat_config, flat_run_id, runs_root)
+    flat_trained_steps = load_checkpoint_metadata(flat_final_checkpoint).step
+    if flat_trained_steps > flat_steps:
+        raise CurriculumError("flat training exceeded its bounded phase request")
     flat_checkpoint_dir = create_run_paths(flat_run_id, runs_root).checkpoints
 
     gate_results = []
@@ -204,6 +207,7 @@ def run_g1_curriculum(
             else None
         ),
         "requested_effective_steps": flat_steps,
+        "trained_effective_steps": flat_trained_steps,
         "outcome": "passed" if selected_gate is not None else "failed",
     }
 
@@ -231,7 +235,9 @@ def run_g1_curriculum(
     # --- Phase 2: rough, resumed from the selected flat checkpoint. --------
     flat_effective_steps = selected_flat_inventory.effective_step
     remaining = rough_budget(
-        selected_gate.step, checkpoint_effective_step=flat_effective_steps
+        selected_gate.step,
+        checkpoint_effective_step=flat_effective_steps,
+        flat_trained_steps=flat_trained_steps,
     )
     raw_rough_config: RunConfig = load_config(rough_config_path, overrides)
     rough_steps = bounded_mjx_phase_steps(
@@ -305,6 +311,7 @@ def run_g1_curriculum(
         rough_checkpoint_digest=selected_rough.inventory.sha256,
         selected_flat_step=selected_gate.step,
         flat_effective_steps=flat_effective_steps,
+        flat_trained_steps=flat_trained_steps,
         rough_effective_steps=rough_effective_steps,
         rough_requested_steps=rough_steps,
         phase_outcomes={"flat": "passed", "rough": "trained"},

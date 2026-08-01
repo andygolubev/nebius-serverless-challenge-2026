@@ -72,7 +72,10 @@ def selected_flat_gate(results: Iterable[FlatGateResult]) -> FlatGateResult | No
 
 
 def rough_budget(
-    selected_flat_step: int, *, checkpoint_effective_step: int | None = None
+    selected_flat_step: int,
+    *,
+    checkpoint_effective_step: int | None = None,
+    flat_trained_steps: int | None = None,
 ) -> int:
     if selected_flat_step not in FLAT_GATES:
         raise CurriculumError("rough resume requires one selected reviewed flat gate")
@@ -85,7 +88,12 @@ def rough_budget(
         raise CurriculumError(
             "selected flat checkpoint must be positive and no later than its reviewed gate"
         )
-    remaining = TOTAL_STEPS - effective_step
+    spent = effective_step if flat_trained_steps is None else flat_trained_steps
+    if spent < effective_step:
+        raise CurriculumError("flat training spend cannot precede the selected checkpoint")
+    if spent >= TOTAL_STEPS:
+        raise CurriculumError("flat training consumed the total G1 step ceiling")
+    remaining = TOTAL_STEPS - spent
     if remaining <= 0:
         raise CurriculumError("G1 curriculum would exceed its total-step ceiling")
     return remaining
@@ -132,13 +140,17 @@ def provenance_chain(
     selected_flat_step: int,
     phase_outcomes: dict[str, Any],
     flat_effective_steps: int | None = None,
+    flat_trained_steps: int | None = None,
     rough_effective_steps: int | None = None,
     rough_requested_steps: int | None = None,
     phase_timings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    measured_flat = flat_effective_steps or selected_flat_step
+    selected_flat = flat_effective_steps or selected_flat_step
+    measured_flat = flat_trained_steps or selected_flat
     budget = rough_budget(
-        selected_flat_step, checkpoint_effective_step=measured_flat
+        selected_flat_step,
+        checkpoint_effective_step=selected_flat,
+        flat_trained_steps=measured_flat,
     )
     if rough_requested_steps is not None and rough_requested_steps > budget:
         raise CurriculumError("rough phase request exceeds its remaining budget")
@@ -156,7 +168,8 @@ def provenance_chain(
             "config_digest": flat_config_digest,
             "output_checkpoint_digest": flat_checkpoint_digest,
             "gate_step": selected_flat_step,
-            "effective_steps": measured_flat,
+            "effective_steps": selected_flat,
+            "trained_effective_steps": measured_flat,
             "pushes_enabled": False,
             "outcome": phase_outcomes.get("flat"),
             "timing_seconds": (phase_timings or {}).get("flat"),
