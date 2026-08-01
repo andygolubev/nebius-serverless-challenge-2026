@@ -239,9 +239,10 @@ spans those phases and writes schema-v2 runtime telemetry with sample counts, me
 peak memory, and phase durations; start/end snapshots remain for compatibility but are not treated
 as whole-run utilization.
 
-Container images are built on CPU-only builders and consumed by separate ephemeral GPU AI Jobs.
-This keeps Docker compilation and registry upload off costly accelerator time. SB3 jobs use L40S;
-the flagship MJX job uses H100. The full Track
+Container images are built on CPU-only builders and consumed by separate ephemeral AI Jobs. This
+keeps Docker compilation and registry upload off costly accelerator time. The SB3 examples are
+CPU-vectorized and run on an allowlisted `cpu-d3` shape, which is both cheaper and faster for them
+than an accelerator; only the MJX workloads take a GPU, and the flagship uses H100. The full Track
 A flow uses `Go1JoystickFlatTerrain`, Brax PPO on MJX, immutable image digests, periodic S3
 checkpoints, and a finalizer that downloads the durable run, restores progression checkpoints,
 renders media, evaluates the final policy, writes reports/comparison data, and republishes the
@@ -293,6 +294,13 @@ a different environment, which is the correct default for an ordinary resume. A 
 sanitized `failure.json` beside the run's other durable evidence, because the provider exposes no
 readable container log and an unrecorded failure after hours of accelerator time is undiagnosable.
 
+**The durable destination travels as a unit.** A campaign job's bucket, endpoint, region, *and*
+`storage.mode` are set together on every command path — SB3, MJX, and curriculum — and asserted per
+path rather than for one representative example. The configs declare `mode: local`, and an
+`ArtifactStore` is inert unless the mode is `s3`, so a path that forwards the destination without the
+mode trains for its full budget and durably writes nothing. Nothing downstream can detect this except
+verification, which sees only an unreadable manifest.
+
 **Publication.** `catalog.SHOWCASE_RUNS` pins each example to one curated run and is the showcase
 resolver's only source of run identity. Accepted examples publish independently, so an example that
 is still training or awaiting a human decision stays a placeholder while the rest ship. A promotion
@@ -300,3 +308,18 @@ runs the full gate suite on Nebius compute — lint, types, runtime and backend 
 and production build, plus a tracked-file secret and large-file scan — and deployment is verified
 through the workflow, the GitOps tag bump, the ArgoCD sync, the rolled pod, and the public endpoint
 rather than inferred from a push.
+
+**Recorded outcome.** Six of the seven examples — Reacher, Hopper, Go1, HalfCheetah, Ant, and
+Walker2D — are pinned and serving publicly, each having cleared its hard floor *and* its preferred
+target with no extension consumed and no retry. Three of them reached that on a retune rather than
+more steps: measured evidence showed Ant and Walker2D already beating their reward targets and
+failing only on episode length, with their single extensions unable to beat their own base
+checkpoints, which identifies a plateau rather than undertraining. A wider rollout, larger batch, and
+larger policy/value heads cleared all three preferred targets at unchanged step budgets, so they
+publish on merit instead of as hard-floor overrides.
+
+G1 is the open example, and its run card is now provably inconsistent rather than merely unmet:
+flat terrain trained 200M steps in about an hour, while rough terrain manages roughly a tenth of that
+throughput, so the declared 450M ceiling and the declared timeout cannot both hold. Because the
+matrix is the contract, this is not repairable inside the campaign — it needs a new matrix that
+reconciles the two deliberately.
