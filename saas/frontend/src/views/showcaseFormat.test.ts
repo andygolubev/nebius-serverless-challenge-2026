@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatCost, formatDuration } from "./Showcase";
+import { formatCost, formatDuration, formatMetric } from "./Showcase";
 
-// The showcase payload carries measured runtime and cost as raw numbers. Rendering
-// them unformatted put "1038.543337257" and "0.8510285680300418" on the public page.
+// The showcase payload carries measured runtime, cost and metrics as raw numbers.
+// Rendering them unformatted put "1038.543337257", "0.8510285680300418" and
+// "0.9750489678259939" on the public page.
 describe("showcase measurement formatting", () => {
   it("renders measured runtime in human units", () => {
     expect(formatDuration(1038.543337257)).toBe("17 min 19 s");
@@ -22,8 +23,17 @@ describe("showcase measurement formatting", () => {
     expect(formatCost(0)).toBe("$0.00");
   });
 
+  it("renders the measured primary metric at a comparable precision", () => {
+    expect(formatMetric(0.9750489678259939)).toBe("0.975");
+    expect(formatMetric(31.887)).toBe("31.887");
+    expect(formatMetric(20)).toBe("20");
+    expect(formatMetric(null)).toBe("—");
+    expect(formatMetric(undefined)).toBe("—");
+  });
+
   it("passes through a value it cannot interpret rather than showing NaN", () => {
     expect(formatDuration("not-a-number")).toBe("not-a-number");
     expect(formatCost("unknown")).toBe("unknown");
+    expect(formatMetric("pending")).toBe("pending");
   });
 });

@@ -39,6 +39,16 @@ export function formatCost(value: number | string): string {
   return amount > 0 && amount < 0.01 ? "<$0.01" : `$${amount.toFixed(2)}`;
 }
 
+// The curated primary metric is a measured float too, so it lands on the page as
+// "0.9750489678259939" without help. Three decimals is enough to compare against a
+// published threshold, and trailing zeros are dropped so "20" does not read "20.000".
+export function formatMetric(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "—";
+  const amount = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(amount)) return String(value);
+  return String(Number(amount.toFixed(3)));
+}
+
 export function Showcase({
   onOpenExample,
   onSignIn,
@@ -255,7 +265,7 @@ export function ShowcaseDetail({
             </div>
             <dl className="compact-kv">
               <KeyValue label="Success criterion" value={detail.evaluation.criterion} />
-              <KeyValue label="Primary metric" value={detail.evaluation.primary_metric} />
+              <KeyValue label="Primary metric" value={formatMetric(detail.evaluation.primary_metric)} />
               <KeyValue label="Observed duration" value={formatDuration(detail.observed_duration)} />
               <KeyValue label="Observed cost" value={formatCost(detail.observed_cost)} />
             </dl>
