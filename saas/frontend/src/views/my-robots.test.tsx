@@ -273,13 +273,13 @@ describe("My Robots workspace", () => {
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
   });
 
-  it.each<{
+  const lifecycleErrorCases: Array<{
     caseId: string;
     setup: RobotSetup;
     action: string;
     status: number;
     message: string;
-  }>([
+  }> = [
     {
       caseId: "component:lifecycle-quota",
       setup: setupFixture(),
@@ -294,22 +294,26 @@ describe("My Robots workspace", () => {
       status: 409,
       message: "Prepare the current setup again",
     },
-  ])("[$caseId] shows sanitized lifecycle errors", async ({ setup, action, status, message }) => {
-    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      const path = String(input);
-      if (path === "/robot-samples") return json(samples);
-      if (path === "/environment-catalog") return json(catalog);
-      if (path === "/robots") return json([biped]);
-      if (path === "/robot-setups") return json([setup]);
-      if (path === `/robot-setups/${setup.id}`) return json(setup);
-      if (init?.method === "POST") return json({ detail: { message } }, status);
-      throw new Error(`unhandled ${init?.method ?? "GET"} ${path}`);
+  ];
+
+  for (const { caseId, setup, action, status, message } of lifecycleErrorCases) {
+    it(`[${caseId}] shows sanitized lifecycle errors`, async () => {
+      const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const path = String(input);
+        if (path === "/robot-samples") return json(samples);
+        if (path === "/environment-catalog") return json(catalog);
+        if (path === "/robots") return json([biped]);
+        if (path === "/robot-setups") return json([setup]);
+        if (path === `/robot-setups/${setup.id}`) return json(setup);
+        if (init?.method === "POST") return json({ detail: { message } }, status);
+        throw new Error(`unhandled ${init?.method ?? "GET"} ${path}`);
+      });
+      vi.stubGlobal("fetch", fetch);
+      render(<MyRobots />);
+      fireEvent.click(await screen.findByRole("button", { name: action }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
     });
-    vi.stubGlobal("fetch", fetch);
-    render(<MyRobots />);
-    fireEvent.click(await screen.findByRole("button", { name: action }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(message);
-  });
+  }
 
   it("[component:upload-errors] discovers both samples and keeps a server field error beside the upload", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

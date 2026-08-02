@@ -68,5 +68,6 @@ jobs:
         with:
           name: saas-form-smoke-${{ github.run_id }}-${{ github.run_attempt }}
           path: .form-validation-runs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7

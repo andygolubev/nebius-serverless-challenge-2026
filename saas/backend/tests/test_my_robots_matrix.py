@@ -213,7 +213,7 @@ def test_upload_diagnostics_and_active_quota_are_bounded(client, login) -> None:
         assert client.delete(f"/robots/{robot_id}", headers=headers).status_code == 204
 
 
-@pytest.mark.parametrize("case", SETUP_CASES, ids=lambda case: case.case_id)
+@pytest.mark.parametrize("case", SETUP_CASES, ids=[case.case_id for case in SETUP_CASES])
 def test_every_positive_setup_combination(client, login, monkeypatch, case) -> None:
     _enable_training(monkeypatch)
     headers = login(_email("setup-matrix"))
@@ -261,7 +261,9 @@ def test_every_positive_setup_combination(client, login, monkeypatch, case) -> N
     assert duplicate.json()["digest"] == setup["digest"]
 
 
-@pytest.mark.parametrize("case", PARAMETER_CASES, ids=lambda case: case.case_id)
+@pytest.mark.parametrize(
+    "case", PARAMETER_CASES, ids=[case.case_id for case in PARAMETER_CASES]
+)
 def test_every_object_parameter_boundary(client, login, case) -> None:
     headers = login(_email("parameter-matrix"))
     robot = _upload(client, headers, "biped")
@@ -296,7 +298,9 @@ def test_every_object_parameter_boundary(client, login, case) -> None:
         assert client.get("/robot-setups", headers=headers).json() == []
 
 
-@pytest.mark.parametrize("case", NON_FINITE_CASES, ids=lambda case: case.case_id)
+@pytest.mark.parametrize(
+    "case", NON_FINITE_CASES, ids=[case.case_id for case in NON_FINITE_CASES]
+)
 def test_non_finite_object_parameter_is_rejected(client, login, case) -> None:
     headers = login(_email("non-finite"))
     robot = _upload(client, headers, "biped")
@@ -318,7 +322,9 @@ def test_non_finite_object_parameter_is_rejected(client, login, case) -> None:
     assert client.get("/robot-setups", headers=headers).json() == []
 
 
-@pytest.mark.parametrize("case", CAPACITY_CASES, ids=lambda case: case.case_id)
+@pytest.mark.parametrize(
+    "case", CAPACITY_CASES, ids=[case.case_id for case in CAPACITY_CASES]
+)
 def test_every_scene_capacity_transition(client, login, case) -> None:
     headers = login(_email("capacity-matrix"))
     robot = _upload(client, headers, "quadruped")

@@ -2,6 +2,7 @@ import { expect, Page, APIRequestContext, test } from "@playwright/test";
 import path from "node:path";
 
 type Created = { robots: string[]; setups: string[] };
+const localApiBaseUrl = "http://127.0.0.1:8000";
 
 function workerSession(parallelIndex: number) {
   return {
@@ -43,7 +44,7 @@ async function uploadRobot(
   expect(response.status()).toBe(201);
   const robot = await response.json();
   created.robots.push(robot.id);
-  await expect(page.getByRole("heading", { name })).toBeVisible();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
   return robot;
 }
 
@@ -54,17 +55,17 @@ async function cleanupCreated(
 ) {
   const headers = { Authorization: `Bearer ${token}` };
   for (const setupId of [...created.setups].reverse()) {
-    const response = await request.delete(`/robot-setups/${setupId}`, { headers });
+    const response = await request.delete(`${localApiBaseUrl}/robot-setups/${setupId}`, { headers });
     expect([204, 404]).toContain(response.status());
   }
   for (const robotId of [...created.robots].reverse()) {
-    const response = await request.delete(`/robots/${robotId}`, { headers });
+    const response = await request.delete(`${localApiBaseUrl}/robots/${robotId}`, { headers });
     expect([204, 404]).toContain(response.status());
   }
 }
 
-test("[browser:upload-happy] canonical downloads, both upload paths, digest, and targeted deletion", async ({ page, request }, testInfo) => {
-  const session = await openWorkspace(page, testInfo.parallelIndex);
+test("[browser:upload-happy] canonical downloads, both upload paths, digest, and targeted deletion", async ({ page, request }) => {
+  const session = await openWorkspace(page, 0);
   const created: Created = { robots: [], setups: [] };
   try {
     const sampleCard = page.getByRole("heading", { name: "Sample quadruped" }).locator("xpath=ancestor::article");
@@ -101,8 +102,8 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
   }
 });
 
-test("[browser:builder-pairwise] every task, scene, object, bound, capacity, save, and reload path", async ({ page, request }, testInfo) => {
-  const session = await openWorkspace(page, testInfo.parallelIndex);
+test("[browser:builder-pairwise] every task, scene, object, bound, capacity, save, and reload path", async ({ page, request }) => {
+  const session = await openWorkspace(page, 1);
   const created: Created = { robots: [], setups: [] };
   try {
     await uploadRobot(page, "quadruped", "E2E matrix quadruped", created);
@@ -192,8 +193,8 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
   }
 });
 
-test("[browser:lifecycle] preparation reaches Ready and one idempotent Start opens a normal job", async ({ page, request }, testInfo) => {
-  const session = await openWorkspace(page, testInfo.parallelIndex);
+test("[browser:lifecycle] preparation reaches Ready and one idempotent Start opens a normal job", async ({ page, request }) => {
+  const session = await openWorkspace(page, 2);
   const created: Created = { robots: [], setups: [] };
   try {
     await uploadRobot(page, "biped", "E2E lifecycle biped", created);
@@ -217,16 +218,28 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
     await start.click();
     const startResponse = await startResponsePromise;
     expect(startResponse.status()).toBe(201);
+    const startedJob = await startResponse.json();
     await expect(page.getByText("Uploaded robot training")).toBeVisible();
     await expect(page.getByRole("button", { name: "← Back to jobs" })).toBeVisible();
+    let terminalStatus = "";
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const jobResponse = await request.get(`${localApiBaseUrl}/jobs/${startedJob.id}`, {
+        headers: { Authorization: `Bearer ${session.token}` },
+      });
+      expect(jobResponse.status()).toBe(200);
+      terminalStatus = (await jobResponse.json()).status;
+      if (["completed", "failed"].includes(terminalStatus)) break;
+      await page.waitForTimeout(250);
+    }
+    expect(terminalStatus).toBe("completed");
   } finally {
     await cleanupCreated(request, session.token, created);
   }
 });
 
-test("[browser:keyboard-mobile] complete form remains keyboard-operable at 375 pixels", async ({ page, request }, testInfo) => {
+test("[browser:keyboard-mobile] complete form remains keyboard-operable at 375 pixels", async ({ page, request }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  const session = await openWorkspace(page, testInfo.parallelIndex);
+  const session = await openWorkspace(page, 3);
   const created: Created = { robots: [], setups: [] };
   try {
     await uploadRobot(page, "biped", "E2E mobile biped", created);

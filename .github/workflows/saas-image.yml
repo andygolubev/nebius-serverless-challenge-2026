@@ -63,6 +63,7 @@ jobs:
         with:
           name: form-backend-${{ matrix.shard }}
           path: .form-validation-runs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
@@ -95,6 +96,7 @@ jobs:
         with:
           name: form-component-${{ strategy.job-index }}
           path: .form-validation-runs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
@@ -140,6 +142,7 @@ jobs:
         with:
           name: form-local-browser-${{ strategy.job-index }}
           path: .form-validation-runs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 
@@ -180,6 +183,7 @@ jobs:
         with:
           name: form-validation-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: .form-validation-runs/
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
 

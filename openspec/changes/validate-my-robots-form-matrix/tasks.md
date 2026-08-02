@@ -2,16 +2,16 @@
 
 - [x] 1.1 Add gitignored validation-run directories and document the stable case ID, result status, catalog fingerprint, timing, resource identity, cleanup, and sanitized diagnostic schemas.
 - [x] 1.2 Implement catalog/sample-driven case generators with independent assertions for the current robot types, five compatibility edges, four scenes, four object types, scene capacities, 28 parameter definitions, and eight V1-eligible combinations.
-- [ ] 1.3 Implement an explicit inventory mapping every My Robots control and lifecycle state to one or more stable scenario IDs, with a completeness failure for unmapped catalog values or controls.
-- [ ] 1.4 Implement deterministic shard selection, bounded per-case timeouts, result merging, duplicate/missing case detection, and JSON-to-Markdown summary generation.
+- [x] 1.3 Implement an explicit inventory mapping every My Robots control and lifecycle state to one or more stable scenario IDs, with a completeness failure for unmapped catalog values or controls.
+- [x] 1.4 Implement deterministic shard selection, bounded per-case timeouts, result merging, duplicate/missing case detection, and JSON-to-Markdown summary generation.
 - [x] 1.5 Add report/artifact secret and private-model-content scans that block publication while preserving only sanitized reproduction evidence.
 
 ## 2. Backend Matrix
 
 - [x] 2.1 Parametrize both canonical upload samples through the declared robot-type paths and verify upload diagnostics, validation summaries, idempotency, quotas, download digests, ownership, and soft deletion.
-- [ ] 2.2 Execute all 20 compatible no-optional-object and 80 single-default-object setup cases against the API and assert normalization, digest/idempotency, scene composition, persistence, and readiness reason.
+- [x] 2.2 Execute all 20 compatible no-optional-object and 80 single-default-object setup cases against the API and assert normalization, digest/idempotency, scene composition, persistence, and readiness reason.
 - [x] 2.3 Cover every incompatible robot/task edge, unknown identifier/field, cross-tenant reference, and stable training-ineligibility reason without partial persistence.
-- [ ] 2.4 Cover every object parameter at default/minimum/maximum and invalid just-outside/non-finite inputs, asserting exact field diagnostics and no saved setup.
+- [x] 2.4 Cover every object parameter at default/minimum/maximum and invalid just-outside/non-finite inputs, asserting exact field diagnostics and no saved setup.
 - [x] 2.5 Cover exact and one-over object capacity for every scene preset, including preset objects in the six-object total.
 - [ ] 2.6 Cover all eight V1 eligibility combinations plus optional-object, unsupported-task, unsupported-scene, stale fingerprint, preparation failure/retry, quota, and idempotent training-start projections with mock orchestration.
 - [ ] 2.7 Verify backend shards run concurrently against isolated temporary databases/tenants and merge into the complete expected case set.
@@ -47,7 +47,7 @@
 
 - [x] 6.1 Run the complete backend matrix, record every deterministic product defect or infrastructure blocker in `IMPLEMENTATION_LOG.MD`, add minimal regressions, repair the owning backend boundary, and rerun the affected shards.
 - [x] 6.2 Run the complete component and local-browser matrices, add minimal regressions for each deterministic defect, repair the owning frontend/full-stack boundary, and rerun the affected shards.
-- [ ] 6.3 Run the merged cheap gate, frontend production build, strict OpenSpec validation, `git diff --check`, and tracked-file secret/large-artifact scans; record exact commands and results.
+- [x] 6.3 Run the merged cheap gate, frontend production build, strict OpenSpec validation, `git diff --check`, and tracked-file secret/large-artifact scans; record exact commands and results.
 - [ ] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
 - [ ] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [ ] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.

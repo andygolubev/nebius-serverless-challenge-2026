@@ -16,13 +16,13 @@ if os.environ.get("SAAS_VALIDATION_LOCAL") != "1":
 
 _temporary_database = tempfile.TemporaryDirectory(prefix="saas-form-validation-")
 atexit.register(_temporary_database.cleanup)
-os.environ.setdefault("SAAS_DB_PATH", f"{_temporary_database.name}/saas.db")
-os.environ.setdefault("SAAS_ORCHESTRATION_BACKEND", "mock")
-os.environ.setdefault("SAAS_EMAIL_BACKEND", "mock")
-os.environ.setdefault("CUSTOM_ROBOT_TRAINING_ENABLED", "true")
-os.environ.setdefault("CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS", "4")
-os.environ.setdefault("CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS", "4")
-os.environ.setdefault("CUSTOM_ROBOT_MAX_DAILY_STARTS", "40")
+os.environ["SAAS_DB_PATH"] = f"{_temporary_database.name}/saas.db"
+os.environ["SAAS_ORCHESTRATION_BACKEND"] = "mock"
+os.environ["SAAS_EMAIL_BACKEND"] = "mock"
+os.environ["CUSTOM_ROBOT_TRAINING_ENABLED"] = "true"
+os.environ["CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS"] = "4"
+os.environ["CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS"] = "4"
+os.environ["CUSTOM_ROBOT_MAX_DAILY_STARTS"] = "40"
 
 from app import main  # noqa: E402
 from app.store import Session  # noqa: E402
