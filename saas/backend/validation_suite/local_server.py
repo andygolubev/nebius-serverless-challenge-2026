@@ -142,6 +142,7 @@ def stale_validation_preparation(
                 stale.tenant_id,
             ),
         )
+        main._custom_store._conn.commit()
     return {"setup_id": setup_id, "state": "stale"}
 
 
