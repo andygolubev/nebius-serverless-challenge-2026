@@ -952,6 +952,27 @@ def _config_file_digest(path: str | Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def _reviewed_resume_source_environment(
+    target_config: RunConfig,
+    source_config_path: str | Path | None,
+    overrides: dict[str, Any],
+) -> str | None:
+    """Resolve an explicit reviewed source when a target accepts multiple parents."""
+    candidates = sorted(
+        source
+        for source, target in REVIEWED_RESUME_TRANSITIONS
+        if target == target_config.environment
+    )
+    if source_config_path is not None:
+        source_environment = load_config(source_config_path, overrides).environment
+        if (source_environment, target_config.environment) not in REVIEWED_RESUME_TRANSITIONS:
+            raise RuntimeError("resume source and target are not a reviewed transition")
+        return source_environment
+    if len(candidates) > 1:
+        raise RuntimeError("ambiguous cross-environment resume requires a source config")
+    return candidates[0] if candidates else None
+
+
 def _build_cli_g1_transition(
     *,
     resume: Path,
@@ -1041,15 +1062,13 @@ def main(argv: Sequence[str] | None = None) -> None:
     if config.backend != "mjx":
         raise SystemExit("selected config is not an MJX config")
     resume = None
-    allowed_source_environment = next(
-        (
-            source
-            for source, target in REVIEWED_RESUME_TRANSITIONS
-            if target == config.environment
-        ),
-        None,
-    )
+    allowed_source_environment = None
     if args.resume:
+        allowed_source_environment = _reviewed_resume_source_environment(
+            config,
+            args.g1_transition_source_config,
+            dict(args.overrides),
+        )
         if args.resume == "remote":
             paths = create_run_paths(args.run_id, args.runs_root)
             resume = ArtifactStore(config.storage, args.resume_run_id or args.run_id).resume_latest(

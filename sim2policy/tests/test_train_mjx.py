@@ -22,6 +22,7 @@ from sim2policy.train_mjx import (
     _environment_overrides,
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
+    _reviewed_resume_source_environment,
     build_playground_command,
     classify_g1_termination,
     evaluate_mjx,
@@ -129,6 +130,29 @@ def test_cli_g1_transition_is_persisted_and_binds_fresh_learner_state(
         "prng_state",
     ]
     assert (tmp_path / "runs/rough-run/report/g1-transition.json").is_file()
+
+
+def test_reviewed_resume_source_uses_explicit_transition_config() -> None:
+    rough = load_config(ROOT / "configs/g1_forward_rough_mjx.yaml")
+
+    assert _reviewed_resume_source_environment(
+        rough,
+        ROOT / "configs/g1_forward_flat_mjx.yaml",
+        {},
+    ) == "G1ForwardFlatTerrain"
+    assert _reviewed_resume_source_environment(
+        rough,
+        ROOT / "configs/g1_flat_mjx.yaml",
+        {},
+    ) == "G1JoystickFlatTerrain"
+    with pytest.raises(RuntimeError, match="ambiguous cross-environment resume"):
+        _reviewed_resume_source_environment(rough, None, {})
+    with pytest.raises(RuntimeError, match="not a reviewed transition"):
+        _reviewed_resume_source_environment(
+            rough,
+            ROOT / "configs/go1_mjx.yaml",
+            {},
+        )
 
 
 def test_initial_worker_parses_playground_impl_before_config_access() -> None:
