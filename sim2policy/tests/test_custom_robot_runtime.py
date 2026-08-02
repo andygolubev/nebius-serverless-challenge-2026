@@ -9,8 +9,8 @@ from sim2policy.custom_robot_contract import (
     ADAPTER_VERSION,
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
-    SCHEMA_VERSION,
     SCENE_CONTRACTS,
+    SCHEMA_VERSION,
     canonical_json,
     preparation_fingerprint,
     sha256_bytes,
@@ -175,7 +175,10 @@ def test_custom_primitives_compose_and_recovery_reset_is_bounded(monkeypatch) ->
         "objects": objects,
     }
     composed = compose_server_mjcf(_robot("sample-quadruped.xml").decode(), setup)
-    assert all(f"server_object_{index}_{item['object_type']}" in composed for index, item in enumerate(objects))
+    assert all(
+        f"server_object_{index}_{item['object_type']}" in composed
+        for index, item in enumerate(objects)
+    )
     env = CustomRobotEnv(_robot("sample-quadruped.xml").decode(), setup, render_mode="rgb_array")
     observation, _ = env.reset(seed=19)
     _, upright, _, _ = env._root_features()
@@ -310,7 +313,8 @@ def test_normalized_primitive_contract_rejects_tampering_before_compilation() ->
         "height": 0.35, "source": "custom",
     }
     manifest, robot, setup = _documents(objects=[valid])
-    assert validate_documents(manifest, robot, setup, source_prefix="safe").setup["objects"] == [valid]
+    normalized = validate_documents(manifest, robot, setup, source_prefix="safe")
+    assert normalized.setup["objects"] == [valid]
     for bad in (
         {**valid, "height": 1.6},
         {**valid, "source": "uploaded"},
