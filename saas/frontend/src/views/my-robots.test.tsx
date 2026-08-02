@@ -34,6 +34,22 @@ function workspaceFetch({ robots = [], setups = [], upload, createSetup }: { rob
   });
 }
 
+function keyboardFill(control: HTMLElement, value: string) {
+  control.focus();
+  fireEvent.keyDown(control, { key: "a", code: "KeyA", metaKey: true });
+  fireEvent.input(control, { target: { value } });
+  fireEvent.keyUp(control, { key: "a", code: "KeyA", metaKey: true });
+}
+
+function keyboardActivate(control: HTMLElement, key: "Enter" | " " = "Enter") {
+  control.focus();
+  fireEvent.keyDown(control, { key, code: key === "Enter" ? "Enter" : "Space" });
+  // jsdom does not implement the browser's default keyboard-to-click action for
+  // native controls, so dispatch that default action explicitly between key events.
+  fireEvent.click(control);
+  fireEvent.keyUp(control, { key, code: key === "Enter" ? "Enter" : "Space" });
+}
+
 beforeEach(() => {
   localStorage.setItem("sim2policy.session", "test-token");
   vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:test"), revokeObjectURL: vi.fn() });
@@ -70,6 +86,8 @@ describe("My Robots workspace", () => {
     expect(Object.values(controlInventory).every((caseIds) => caseIds.length > 0)).toBe(true);
     const implementedCaseIds = new Set([
       "component:upload-required",
+      "component:upload-quadruped",
+      "component:upload-biped",
       "component:upload-errors",
       "component:model-card",
       "component:model-download",
@@ -77,6 +95,7 @@ describe("My Robots workspace", () => {
       "component:builder-review",
       "component:setup-errors",
       "component:setup-delete",
+      "component:setup-persistence",
       "component:lifecycle-preparing",
       "component:lifecycle-start",
       "component:lifecycle-retry",
@@ -103,6 +122,8 @@ describe("My Robots workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
     expect(screen.getByText("Give this robot a recognizable name.")).toBeVisible();
     expect(screen.getByText("Choose one MJCF .xml file.")).toBeVisible();
+    expect(screen.getByLabelText("Robot name")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("MJCF XML")).toHaveAttribute("aria-invalid", "true");
 
     const bipedRadio = screen.getByRole("radio", { name: "Biped" });
     fireEvent.click(bipedRadio);
@@ -113,6 +134,8 @@ describe("My Robots workspace", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
     expect(screen.getByText("The file must end in .xml.")).toBeVisible();
+    expect(screen.getByLabelText("Robot name")).toHaveAttribute("aria-invalid", "false");
+    expect(screen.getByLabelText("MJCF XML")).toHaveAttribute("aria-invalid", "true");
 
     fireEvent.change(screen.getByLabelText("MJCF XML"), {
       target: { files: [new File(["<mujoco/>"], "robot.xml", { type: "application/xml" })] },
@@ -124,9 +147,45 @@ describe("My Robots workspace", () => {
     expect((upload as FormData).get("robot_type")).toBe("biped");
   });
 
+  for (const type of ["quadruped", "biped"] as const) {
+    it(`[component:upload-${type}] submits the ${type} radio path and renders its successful model card`, async () => {
+      const uploaded = {
+        ...(type === "quadruped" ? quadruped : biped),
+        id: `uploaded-${type}`,
+        name: `Uploaded ${type}`,
+      };
+      const fetch = workspaceFetch({ upload: uploaded });
+      vi.stubGlobal("fetch", fetch);
+      render(<MyRobots />);
+      await screen.findByText("Sample quadruped");
+
+      const radio = screen.getByRole("radio", { name: type === "quadruped" ? "Quadruped" : "Biped" });
+      fireEvent.click(radio);
+      expect(radio).toBeChecked();
+      fireEvent.change(screen.getByLabelText("Robot name"), { target: { value: uploaded.name } });
+      fireEvent.change(screen.getByLabelText("MJCF XML"), {
+        target: { files: [new File(["model"], `${type}.xml`, { type: "application/xml" })] },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
+
+      const card = (await screen.findByRole("heading", { name: uploaded.name })).closest("article")!;
+      const uploadCall = fetch.mock.calls.find(
+        ([path, init]) => String(path) === "/robots" && init?.method === "POST",
+      );
+      const form = uploadCall?.[1]?.body as FormData;
+      expect(form.get("name")).toBe(uploaded.name);
+      expect(form.get("robot_type")).toBe(type);
+      expect((form.get("file") as File).name).toBe(`${type}.xml`);
+      expect(within(card).getByRole("button", { name: "Build environment" })).toBeEnabled();
+    });
+  }
+
   it("[component:model-download] downloads samples and models and cancels deletion safely", async () => {
     const fetch = workspaceFetch({ robots: [biped] });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    const downloads: string[] = [];
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      downloads.push(this.download);
+    });
     vi.stubGlobal("fetch", fetch);
     render(<MyRobots />);
     const sampleHeading = await screen.findByText("Sample quadruped");
@@ -136,6 +195,7 @@ describe("My Robots workspace", () => {
     const modelCard = modelHeading.closest("article")!;
     fireEvent.click(within(modelCard).getByRole("button", { name: "Download XML" }));
     await waitFor(() => expect(click).toHaveBeenCalledTimes(2));
+    expect([...downloads].sort()).toEqual(["sample-quadruped.xml", biped.filename].sort());
     fireEvent.click(within(modelCard).getByRole("button", { name: "Delete model" }));
     expect(within(modelCard).getByText("Delete this version?")).toBeVisible();
     fireEvent.click(within(modelCard).getByRole("button", { name: "Cancel" }));
@@ -148,10 +208,16 @@ describe("My Robots workspace", () => {
     render(<MyRobots />);
     fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
     for (const task of catalog.task_templates) {
-      expect(screen.getByRole("radio", { name: new RegExp(task.label) })).toBeVisible();
+      const choice = screen.getByRole("radio", { name: new RegExp(task.label) });
+      expect(choice).toBeVisible();
+      fireEvent.click(choice);
+      expect(choice).toHaveAttribute("aria-checked", "true");
     }
     for (const scene of catalog.scene_presets) {
-      expect(screen.getByRole("radio", { name: new RegExp(scene.label) })).toBeVisible();
+      const choice = screen.getByRole("radio", { name: new RegExp(scene.label) });
+      expect(choice).toBeVisible();
+      fireEvent.click(choice);
+      expect(choice).toHaveAttribute("aria-checked", "true");
     }
     const objectType = screen.getByLabelText("Object type");
     expect(within(objectType).getAllByRole("option")).toHaveLength(4);
@@ -205,6 +271,8 @@ describe("My Robots workspace", () => {
         expect(save).toBeDisabled();
         fireEvent.change(input, { target: { value: String(parameter.maximum + 1) } });
         expect(input).toHaveAttribute("aria-invalid", "true");
+        fireEvent.change(input, { target: { value: String(parameter.minimum - 1) } });
+        expect(input).toHaveAttribute("aria-invalid", "true");
         fireEvent.change(input, { target: { value: String(parameter.default) } });
       }
       expect(save).toBeEnabled();
@@ -243,6 +311,40 @@ describe("My Robots workspace", () => {
     fireEvent.click(within(targetCard).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(screen.queryByText(target.name)).not.toBeInTheDocument());
     expect(screen.getByText(retained.name)).toBeVisible();
+    expect(fetch.mock.calls.filter(
+      ([path, init]) => String(path) === `/robot-setups/${target.id}` && init?.method === "DELETE",
+    )).toHaveLength(1);
+    expect(fetch.mock.calls.some(
+      ([path, init]) => String(path) === `/robot-setups/${retained.id}` && init?.method === "DELETE",
+    )).toBe(false);
+  });
+
+  it("[component:setup-persistence] renders the normalized saved summary again after reload", async () => {
+    const persisted = setupFixture({
+      id: "setup-persisted",
+      name: "Persisted normalized setup",
+      task_template_id: "walk-forward",
+      scene_preset_id: "ramp-course",
+      objects: [flatObject("box", "custom")],
+      digest: "6".repeat(64),
+    });
+    const fetch = workspaceFetch({ robots: [biped], setups: [persisted] });
+    vi.stubGlobal("fetch", fetch);
+
+    const first = render(<MyRobots />);
+    let card = (await screen.findByRole("heading", { name: persisted.name })).closest("article")!;
+    expect(within(card).getByText(/Warehouse biped · Walk Forward · Ramp Course/)).toBeVisible();
+    expect(within(card).getByText("1 scene objects")).toBeVisible();
+    expect(within(card).getByTitle(persisted.digest)).toHaveTextContent(`${persisted.digest.slice(0, 12)}…`);
+    expect(within(card).getByRole("status")).toHaveTextContent("Preparation required before training");
+
+    first.unmount();
+    render(<MyRobots />);
+    card = (await screen.findByRole("heading", { name: persisted.name })).closest("article")!;
+    expect(within(card).getByRole("button", { name: "Prepare for training" })).toBeEnabled();
+    expect(fetch.mock.calls.filter(
+      ([path, init]) => String(path) === "/robot-setups" && (init?.method ?? "GET") === "GET",
+    )).toHaveLength(2);
   });
 
   it("[component:lifecycle-preparing] renders a disabled preparing action", async () => {
@@ -345,6 +447,11 @@ describe("My Robots workspace", () => {
     const card = name.closest("article")!;
     expect(within(card).getByText("Model validated")).toBeVisible();
     expect(within(card).getByText(/Model file and structure validated/)).toBeVisible();
+    expect(within(card).getByText("Bodies").nextElementSibling).toHaveTextContent(String(uploaded.validation.body_count));
+    expect(within(card).getByText("Joints").nextElementSibling).toHaveTextContent(String(uploaded.validation.joint_count));
+    expect(within(card).getByText("Actuators").nextElementSibling).toHaveTextContent(String(uploaded.validation.actuator_count));
+    expect(within(card).getByText("Geoms").nextElementSibling).toHaveTextContent(String(uploaded.validation.geom_count));
+    expect(within(card).getByTitle(uploaded.digest)).toHaveTextContent(uploaded.digest);
     const uploadCall = fetch.mock.calls.find(([, init]) => init?.method === "POST")!;
     expect(uploadCall[1]?.body).toBeInstanceOf(FormData);
     expect((uploadCall[1]?.headers as Headers).has("Content-Type")).toBe(false);
@@ -352,12 +459,15 @@ describe("My Robots workspace", () => {
     fireEvent.click(within(card).getByRole("button", { name: "Delete model" }));
     fireEvent.click(within(card).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(screen.queryByText(uploaded.name)).not.toBeInTheDocument());
+    expect(fetch.mock.calls.filter(
+      ([path, init]) => String(path) === `/robots/${uploaded.id}` && init?.method === "DELETE",
+    )).toHaveLength(1);
   });
 
   it("[component:builder-review] filters tasks by robot type, enforces object bounds, and saves a normalized setup", async () => {
     const saved: RobotSetup = {
-      id: "setup-1", name: "Warehouse biped setup", robot_id: biped.id, robot_name: biped.name,
-      robot_type: "biped", task_template_id: "stand-balance", scene_preset_id: "flat-arena",
+      id: "setup-1", name: "Reviewed warehouse", robot_id: biped.id, robot_name: biped.name,
+      robot_type: "biped", task_template_id: "walk-forward", scene_preset_id: "ramp-course",
       objects: [flatObject("box", "custom")], digest: "d".repeat(64), created_at: "2026-07-13T00:00:00Z",
       readiness: "validated", trainable: false, reason: "not-prepared",
       training_readiness: "not_prepared", can_prepare: true, can_start_training: false,
@@ -372,10 +482,14 @@ describe("My Robots workspace", () => {
     fireEvent.click(build);
     expect(screen.getByRole("radiogroup", { name: "Locomotion task" })).toBeVisible();
     expect(screen.getByRole("radio", { name: /Stand and balance/ })).toBeVisible();
+    expect(screen.getByRole("radio", { name: /Walk forward/ })).toBeVisible();
     expect(screen.queryByRole("radio", { name: /Recover from a fall/ })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/object file/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/url/i)).not.toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Setup name"), { target: { value: saved.name } });
+    fireEvent.click(screen.getByRole("radio", { name: /Walk forward/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ramp course/ }));
     fireEvent.click(screen.getByRole("button", { name: "Add object" }));
     const height = screen.getByLabelText(/Height/);
     fireEvent.change(height, { target: { value: "3" } });
@@ -383,6 +497,8 @@ describe("My Robots workspace", () => {
     fireEvent.change(height, { target: { value: "0.3" } });
     const save = screen.getByRole("button", { name: "Save validated setup" });
     expect(save).toBeEnabled();
+    expect(screen.getAllByRole("heading", { name: saved.name }).length).toBeGreaterThan(0);
+    expect(screen.getByText(`${biped.name} · Walk Forward · Ramp course · 2 objects`)).toBeVisible();
     save.focus();
     expect(save).toHaveFocus();
     fireEvent.click(save);
@@ -391,10 +507,10 @@ describe("My Robots workspace", () => {
       ([path, init]) => String(path) === "/robot-setups" && init?.method === "POST",
     );
     expect(JSON.parse(String(setupCall?.[1]?.body))).toEqual({
-      name: "Warehouse biped setup",
+      name: saved.name,
       robot_id: biped.id,
-      task_template_id: "stand-balance",
-      scene_preset_id: "flat-arena",
+      task_template_id: "walk-forward",
+      scene_preset_id: "ramp-course",
       objects: [{
         object_type: "box",
         x: 2,
@@ -413,14 +529,55 @@ describe("My Robots workspace", () => {
 
   it("[component:keyboard-mobile] renders the full workflow at a 375px viewport using native keyboard controls", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, value: 375 });
     window.dispatchEvent(new Event("resize"));
-    vi.stubGlobal("fetch", workspaceFetch({ robots: [biped] }));
+    const uploaded = { ...biped, id: "keyboard-biped", name: "Keyboard biped" };
+    const saved = setupFixture({
+      id: "keyboard-setup",
+      name: "Keyboard setup",
+      robot_id: uploaded.id,
+      robot_name: uploaded.name,
+      task_template_id: "walk-forward",
+      scene_preset_id: "ramp-course",
+    });
+    const fetch = workspaceFetch({ upload: uploaded, createSetup: saved });
+    vi.stubGlobal("fetch", fetch);
     const { container } = render(<MyRobots />);
-    await screen.findByText("Warehouse biped");
-    fireEvent.click(screen.getByRole("button", { name: "Build environment" }));
+    await screen.findByText("Sample quadruped");
+
+    const name = screen.getByLabelText("Robot name");
+    keyboardFill(name, uploaded.name);
+    const bipedChoice = screen.getByRole("radio", { name: "Biped" });
+    keyboardActivate(bipedChoice, " ");
+    expect(bipedChoice).toBeChecked();
+    const file = screen.getByLabelText("MJCF XML");
+    file.focus();
+    expect(file).toHaveFocus();
+    fireEvent.change(file, {
+      target: { files: [new File(["model"], "keyboard.xml", { type: "application/xml" })] },
+    });
+    keyboardActivate(screen.getByRole("button", { name: "Validate model" }));
+
+    const modelCard = (await screen.findByRole("heading", { name: uploaded.name })).closest("article")!;
+    keyboardActivate(within(modelCard).getByRole("button", { name: "Build environment" }));
+    keyboardFill(screen.getByLabelText("Setup name"), saved.name);
+    const walk = screen.getByRole("radio", { name: /Walk forward/ });
+    keyboardActivate(walk, " ");
+    expect(walk).toHaveAttribute("aria-checked", "true");
+    const ramp = screen.getByRole("radio", { name: /Ramp course/ });
+    keyboardActivate(ramp, " ");
+    expect(ramp).toHaveAttribute("aria-checked", "true");
+    keyboardActivate(screen.getByRole("button", { name: "Save validated setup" }));
+    expect(await screen.findByText(/Setup saved\./)).toBeVisible();
+
     const choices = screen.getAllByRole("radio");
     expect(choices.every((choice) => choice.tagName === "BUTTON" || choice.tagName === "INPUT")).toBe(true);
     expect(container.querySelectorAll('input[type="file"]')).toHaveLength(1);
+    expect(container.querySelectorAll("button:not([disabled]), input:not([disabled]), select:not([disabled])").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("heading", { name: saved.name }).length).toBeGreaterThanOrEqual(2);
+    expect(fetch.mock.calls.some(
+      ([path, init]) => String(path) === "/robot-setups" && init?.method === "POST",
+    )).toBe(true);
     expect(
       Array.from(container.querySelectorAll<HTMLElement>("[style]")).every((element) => !element.style.width.endsWith("px")),
     ).toBe(true);

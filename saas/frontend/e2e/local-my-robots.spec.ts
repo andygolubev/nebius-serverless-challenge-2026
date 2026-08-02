@@ -1,4 +1,5 @@
-import { expect, Page, APIRequestContext, test } from "@playwright/test";
+import { createHash } from "node:crypto";
+import { expect, Page, APIRequestContext, Download, test } from "@playwright/test";
 import path from "node:path";
 
 type Created = { robots: string[]; setups: string[] };
@@ -64,6 +65,44 @@ async function cleanupCreated(
   }
 }
 
+async function downloadSha256(download: Download) {
+  const stream = await download.createReadStream();
+  const hash = createHash("sha256");
+  for await (const chunk of stream) hash.update(chunk);
+  return hash.digest("hex");
+}
+
+async function setHarnessModes(
+  request: APIRequestContext,
+  token: string,
+  modes: { preparation?: "success" | "fail-once" | "hold"; training?: "success" | "fail-once" },
+) {
+  const response = await request.post(`${localApiBaseUrl}/_validation/modes`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: modes,
+  });
+  expect(response.status()).toBe(200);
+}
+
+async function saveOpenBuilder(
+  page: Page,
+  created: Created,
+  options: { name: string; task?: string; scene?: string },
+) {
+  await page.getByLabel("Setup name").fill(options.name);
+  if (options.task) await page.getByRole("radio", { name: new RegExp(options.task) }).click();
+  if (options.scene) await page.getByRole("radio", { name: new RegExp(options.scene) }).click();
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/robot-setups") && response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Save validated setup" }).click();
+  const response = await responsePromise;
+  expect(response.status()).toBe(201);
+  const setup = await response.json();
+  created.setups.push(setup.id);
+  return setup;
+}
+
 test("[browser:upload-happy] canonical downloads, both upload paths, digest, and targeted deletion", async ({ page, request }) => {
   const session = await openWorkspace(page, 0);
   const created: Created = { robots: [], setups: [] };
@@ -73,6 +112,15 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
     await sampleCard.getByRole("button", { name: "Download XML" }).click();
     const sampleDownload = await downloadPromise;
     expect(sampleDownload.suggestedFilename()).toBe("sample-quadruped.xml");
+    const samples = await request.get(`${localApiBaseUrl}/robot-samples`, {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    expect(samples.status()).toBe(200);
+    const sampleMetadata = (await samples.json()).find(
+      (sample: { id: string }) => sample.id === "sample-quadruped",
+    );
+    expect(sampleMetadata).toBeTruthy();
+    expect(await downloadSha256(sampleDownload)).toBe(sampleMetadata.digest);
 
     const quadruped = await uploadRobot(page, "quadruped", "E2E quadruped", created);
     const biped = await uploadRobot(page, "biped", "E2E biped", created);
@@ -84,7 +132,9 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
     await expect(bipedCard.getByText("SHA-256")).toBeVisible();
     const modelDownloadPromise = page.waitForEvent("download");
     await bipedCard.getByRole("button", { name: "Download XML" }).click();
-    expect((await modelDownloadPromise).suggestedFilename()).toBe("sample-biped.xml");
+    const modelDownload = await modelDownloadPromise;
+    expect(modelDownload.suggestedFilename()).toBe("sample-biped.xml");
+    expect(await downloadSha256(modelDownload)).toBe(biped.digest);
     await bipedCard.getByRole("button", { name: "Build environment" }).click();
     await expect(page.getByRole("radiogroup", { name: "Locomotion task" }).getByRole("radio")).toHaveCount(2);
     await expect(page.getByRole("radio", { name: /Recover from a fall/ })).toHaveCount(0);
@@ -103,10 +153,11 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
 });
 
 test("[browser:builder-pairwise] every task, scene, object, bound, capacity, save, and reload path", async ({ page, request }) => {
+  test.setTimeout(120_000);
   const session = await openWorkspace(page, 1);
   const created: Created = { robots: [], setups: [] };
   try {
-    await uploadRobot(page, "quadruped", "E2E matrix quadruped", created);
+    const quadruped = await uploadRobot(page, "quadruped", "E2E matrix quadruped", created);
     const catalogResponse = await request.get("/environment-catalog", {
       headers: { Authorization: `Bearer ${session.token}` },
     });
@@ -153,22 +204,35 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
       expect(setupResponse.status()).toBe(201);
       const setup = await setupResponse.json();
       created.setups.push(setup.id);
-      expect(setup.task_template_id).toBe(
+      const taskId =
         task === "Recover from a fall"
           ? "recover-from-fall"
           : task === "Walk forward"
             ? "walk-forward"
-            : "stand-balance",
-      );
-      expect(setup.scene_preset_id).toBe(
+            : "stand-balance";
+      const sceneId =
         scene === "Flat arena"
           ? "flat-arena"
           : scene === "Ramp course"
             ? "ramp-course"
             : scene === "Hurdle course"
               ? "hurdle-course"
-              : "step-course",
+              : "step-course";
+      expect(setup.task_template_id).toBe(taskId);
+      expect(setup.scene_preset_id).toBe(sceneId);
+      const expectedObject = Object.fromEntries(
+        object.parameters.map((parameter: { name: string; default: number }) => [parameter.name, parameter.default]),
       );
+      expect(setupResponse.request().postDataJSON()).toEqual({
+        name: "E2E matrix quadruped setup",
+        robot_id: quadruped.id,
+        task_template_id: taskId,
+        scene_preset_id: sceneId,
+        objects: [{ object_type: objectType, ...expectedObject }],
+      });
+      expect(setup.objects.filter((item: { source: string }) => item.source === "custom")).toEqual([
+        { object_type: objectType, source: "custom", ...expectedObject },
+      ]);
       await expect(page.getByText(/Setup saved\./)).toBeVisible();
       const preset = catalog.scene_presets.find((item: { label: string }) => item.label === scene);
       if (!preset) throw new Error(`catalog scene ${scene} is missing`);
@@ -179,6 +243,20 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
       await expect(page.getByRole("button", { name: "Add object" })).toBeDisabled();
       const removeButtons = page.getByRole("button", { name: "Remove" });
       while ((await removeButtons.count()) > 0) await removeButtons.first().click();
+    }
+    await page.getByRole("button", { name: "Close builder" }).click();
+    await uploadRobot(page, "biped", "E2E matrix biped", created);
+    const bipedCard = page.getByRole("heading", { name: "E2E matrix biped" }).locator("xpath=ancestor::article");
+    await bipedCard.getByRole("button", { name: "Build environment" }).click();
+    for (const [task, scene] of [
+      ["Stand and balance", "Flat arena"],
+      ["Walk forward", "Ramp course"],
+    ] as const) {
+      await saveOpenBuilder(page, created, {
+        name: `E2E biped ${task}`,
+        task,
+        scene,
+      });
     }
     await page.reload();
     await page.getByRole("button", { name: "My Robots" }).click();
@@ -193,7 +271,8 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
   }
 });
 
-test("[browser:lifecycle] preparation reaches Ready and one idempotent Start opens a normal job", async ({ page, request }) => {
+test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and idempotent training paths", async ({ page, request }) => {
+  test.setTimeout(120_000);
   const session = await openWorkspace(page, 2);
   const created: Created = { robots: [], setups: [] };
   try {
@@ -219,6 +298,15 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
     const startResponse = await startResponsePromise;
     expect(startResponse.status()).toBe(201);
     const startedJob = await startResponse.json();
+    const repeatedStart = await request.post(
+      `${localApiBaseUrl}/robot-setups/${created.setups[0]}/training-jobs`,
+      {
+        headers: { Authorization: `Bearer ${session.token}` },
+        data: startResponse.request().postDataJSON(),
+      },
+    );
+    expect(repeatedStart.status()).toBe(201);
+    expect((await repeatedStart.json()).id).toBe(startedJob.id);
     await expect(page.getByText("Uploaded robot training")).toBeVisible();
     await expect(page.getByRole("button", { name: "← Back to jobs" })).toBeVisible();
     let terminalStatus = "";
@@ -248,6 +336,79 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
     await setupCard.getByRole("button", { name: "Train again" }).click();
     await setupCard.getByRole("button", { name: "Cancel" }).click();
     await expect(setupCard.getByRole("button", { name: "Train again" })).toBeVisible();
+
+    const reusableModelCard = page
+      .getByRole("heading", { name: "E2E lifecycle biped" })
+      .locator("xpath=ancestor::article");
+    await reusableModelCard.getByRole("button", { name: "Build environment" }).click();
+    const failedSetup = await saveOpenBuilder(page, created, {
+      name: "E2E failed preparation",
+      task: "Walk forward",
+      scene: "Ramp course",
+    });
+    await setHarnessModes(request, session.token, { preparation: "fail-once" });
+    const failedBuilder = page.locator(".builder");
+    await failedBuilder.getByRole("button", { name: "Prepare for training" }).click();
+    const failedReadiness = failedBuilder.locator(".setup-training-actions").getByRole("status");
+    await expect(failedReadiness).toContainText("Preparation failed");
+    await expect(failedReadiness).toContainText("Render Probe Failed");
+    await failedBuilder.getByRole("button", { name: "Retry preparation" }).click();
+    await expect(failedBuilder.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15_000 });
+
+    const staleResponse = await request.post(
+      `${localApiBaseUrl}/_validation/robot-setups/${failedSetup.id}/stale-preparation`,
+      { headers: { Authorization: `Bearer ${session.token}` } },
+    );
+    expect(staleResponse.status()).toBe(200);
+    await page.reload();
+    await page.getByRole("button", { name: "My Robots" }).click();
+    const staleCard = page
+      .getByRole("heading", { name: "E2E failed preparation" })
+      .locator("xpath=ancestor::article");
+    await expect(staleCard.getByRole("status")).toContainText("Preparation required");
+    await expect(staleCard.getByRole("button", { name: "Prepare for training" })).toBeEnabled();
+    const staleStart = await request.post(
+      `${localApiBaseUrl}/robot-setups/${failedSetup.id}/training-jobs`,
+      {
+        headers: { Authorization: `Bearer ${session.token}` },
+        data: { idempotency_key: "browser-stale-start" },
+      },
+    );
+    expect(staleStart.status()).toBe(409);
+
+    await staleCard.getByRole("button", { name: "Prepare for training" }).click();
+    await expect(staleCard.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15_000 });
+    await setHarnessModes(request, session.token, { training: "fail-once" });
+    await staleCard.getByRole("button", { name: "Start training" }).click();
+    await expect(page.getByRole("alert").getByRole("heading", { name: "Failed during submission" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("mock training submission failed");
+
+    await page.getByRole("button", { name: "My Robots" }).click();
+    const quotaModelCard = page
+      .getByRole("heading", { name: "E2E lifecycle biped" })
+      .locator("xpath=ancestor::article");
+    await quotaModelCard.getByRole("button", { name: "Build environment" }).click();
+    const firstQuotaSetup = await saveOpenBuilder(page, created, {
+      name: "E2E held preparation",
+      task: "Stand and balance",
+      scene: "Flat arena",
+    });
+    const secondQuotaSetup = await saveOpenBuilder(page, created, {
+      name: "E2E quota preparation",
+      task: "Walk forward",
+      scene: "Hurdle course",
+    });
+    await setHarnessModes(request, session.token, { preparation: "hold" });
+    const heldCard = page
+      .getByRole("heading", { name: firstQuotaSetup.name })
+      .locator("xpath=ancestor::article");
+    await heldCard.getByRole("button", { name: "Prepare for training" }).click();
+    await expect(heldCard.getByRole("button", { name: "Preparing…" })).toBeDisabled();
+    const quotaCard = page
+      .getByRole("heading", { name: secondQuotaSetup.name })
+      .locator("xpath=ancestor::article");
+    await quotaCard.getByRole("button", { name: "Prepare for training" }).click();
+    await expect(quotaCard.getByRole("alert")).toContainText("preparation capacity is currently in use");
   } finally {
     await cleanupCreated(request, session.token, created);
   }
@@ -264,7 +425,43 @@ test("[browser:keyboard-mobile] complete form remains keyboard-operable at 375 p
     const modelCard = page.getByRole("heading", { name: "E2E mobile biped" }).locator("xpath=ancestor::article");
     await modelCard.getByRole("button", { name: "Build environment" }).focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("radiogroup", { name: "Locomotion task" })).toBeVisible();
+    const builder = page.locator(".builder");
+    await expect(builder.getByRole("radiogroup", { name: "Locomotion task" })).toBeVisible();
+    await builder.getByLabel("Setup name").focus();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+    await page.keyboard.type("E2E keyboard setup");
+    const task = builder.getByRole("radio", { name: /Walk forward/ });
+    await task.focus();
+    await page.keyboard.press("Space");
+    await expect(task).toHaveAttribute("aria-checked", "true");
+    const scene = builder.getByRole("radio", { name: /Step course/ });
+    await scene.focus();
+    await page.keyboard.press("Space");
+    await expect(scene).toHaveAttribute("aria-checked", "true");
+    const objectType = builder.getByLabel("Object type");
+    await objectType.focus();
+    await page.keyboard.press("End");
+    await expect(objectType).toHaveValue("step");
+    await builder.getByRole("button", { name: "Add object" }).focus();
+    await page.keyboard.press("Enter");
+    const height = builder.getByRole("spinbutton", { name: /^Height / });
+    await height.focus();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+    await page.keyboard.type("999");
+    await expect(height).toHaveAttribute("aria-invalid", "true");
+    await expect(builder.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+A" : "Control+A");
+    await page.keyboard.type("0.2");
+    await expect(height).toHaveAttribute("aria-invalid", "false");
+    const setupResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/robot-setups") && response.request().method() === "POST",
+    );
+    await builder.getByRole("button", { name: "Save validated setup" }).focus();
+    await page.keyboard.press("Enter");
+    const setupResponse = await setupResponsePromise;
+    expect(setupResponse.status()).toBe(201);
+    created.setups.push((await setupResponse.json()).id);
+    await expect(builder.locator(".alert-success")).toContainText("Setup saved");
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(1);
   } finally {

@@ -15,17 +15,28 @@ on:
         type: boolean
 
 concurrency:
-  group: saas-form-smoke-${{ github.ref }}
+  # The repository currently has one deployed smoke tenant. Serialize every
+  # dispatch across refs so model/setup quotas and cleanup cannot race.
+  group: saas-form-smoke-test-tenant
   cancel-in-progress: false
 
 jobs:
   no-cost-deployed-smoke:
     runs-on: ubuntu-latest
+    environment: saas-form-smoke
     timeout-minutes: 20
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Validate approved deployed origin
+        env:
+          REQUESTED_BASE_URL: ${{ inputs.base_url }}
+        run: |
+          if [ "$REQUESTED_BASE_URL" != "https://sim-policy-trainer-challenge.info" ]; then
+            echo "Refusing to use the test-tenant session with an unapproved origin" >&2
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -51,19 +62,14 @@ jobs:
           SAAS_SMOKE_BEARER_TOKEN: ${{ secrets.SAAS_SMOKE_BEARER_TOKEN }}
           SAAS_SMOKE_PRESERVE_RESOURCES: ${{ inputs.preserve_resources }}
           SAAS_SMOKE_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
-        run: |
-          if [ "$SAAS_SMOKE_BASE_URL" != "https://sim-policy-trainer-challenge.info" ]; then
-            echo "Refusing to send the masked test session to an unapproved origin" >&2
-            exit 1
-          fi
-          npm run test:e2e:deployed
+        run: npm run test:e2e:deployed -- --grep "deployed:no-cost-smoke"
       - name: Scan validation evidence
-        id: evidence-scan
+        id: evidence_scan
         if: always()
         working-directory: saas/backend
         run: python -m validation_suite.report scan ../../.form-validation-runs
       - name: Upload sanitized evidence
-        if: always() && steps.evidence-scan.outcome == 'success'
+        if: always() && steps.evidence_scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: saas-form-smoke-${{ github.run_id }}-${{ github.run_attempt }}
