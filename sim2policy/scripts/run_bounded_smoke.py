@@ -68,6 +68,8 @@ def _build_command(args: argparse.Namespace) -> list[str]:
     """The bounded job command, mirroring the campaign's own argument array."""
     if args.device_probe:
         return ["python", "-c", DEVICE_PROBE]
+    if args.g1_contract_probe:
+        return ["python", "scripts/smoke_gallery_container.py", "--backend", "mjx"]
     storage = [
         "--set", "storage.mode=s3",
         "--set", f"storage.bucket={args.bucket}",
@@ -95,6 +97,13 @@ def _build_command(args: argparse.Namespace) -> list[str]:
         command += ["--resume", args.resume]
     if args.resume_run_id:
         command += ["--resume-run-id", args.resume_run_id]
+    if args.g1_transition:
+        command += [
+            "--g1-transition-source-config", args.transition_source_config,
+            "--g1-transition-matrix-digest", args.matrix_digest,
+            "--g1-transition-image-digest", args.image_digest,
+            "--g1-transition-remaining-budget", str(args.steps),
+        ]
     command += [
         "--set", f"training.total_steps={args.steps}",
         "--set", f"checkpoint.every_steps={args.checkpoint_every}",
@@ -172,7 +181,9 @@ def _reader_available(store: ArtifactStore) -> tuple[bool, str | None]:
     return True, None
 
 
-def _cloud_checks(store: ArtifactStore) -> dict[str, Any]:
+def _cloud_checks(
+    store: ArtifactStore, *, require_transition: bool, require_g1_telemetry: bool
+) -> dict[str, Any]:
     """Read the run back from durable storage, the way the campaign verifier does."""
     readable, reader_error = _reader_available(store)
     if not readable:
@@ -188,8 +199,33 @@ def _cloud_checks(store: ArtifactStore) -> dict[str, Any]:
     status = store.get_json_optional("metadata/status.json") or {}
     artifacts = store.get_json_optional("report/artifacts.json") or {}
     metrics = store.get_json_optional("report/metrics.json") or {}
+    transition = store.get_json_optional("report/g1-transition.json") or {}
     names = set((artifacts.get("artifacts") or {}).keys())
     run_status = str(status.get("status", ""))
+    episodes = metrics.get("episodes") or []
+    telemetry_ok = bool(episodes) and all(
+        item.get("termination_reason")
+        in {
+            "horizon",
+            "torso_inversion",
+            "foot_foot_contact",
+            "foot_shin_contact",
+            "nan_state",
+            "unknown_environment_done",
+        }
+        and isinstance(item.get("termination_causes"), list)
+        and bool(item["termination_causes"])
+        for item in episodes
+        if isinstance(item, dict)
+    )
+    transition_ok = bool(transition) and transition.get("target_environment") == (
+        "G1ForwardRoughTerrain"
+    ) and transition.get("restore", {}).get("reinitialized_components") == [
+        "optimizer_state",
+        "learner_step",
+        "rollout_state",
+        "prng_state",
+    ]
     return {
         "artifact_store_readable": True,
         "objects_present": present,
@@ -200,6 +236,8 @@ def _cloud_checks(store: ArtifactStore) -> dict[str, Any]:
         "checkpoint": bool((metrics.get("selected_checkpoint") or {}).get("sha256")),
         "artifact_names": sorted(names),
         "has_final_policy": "final_policy" in names,
+        "g1_termination_telemetry": telemetry_ok if require_g1_telemetry else True,
+        "g1_transition": transition_ok if require_transition else True,
     }
 
 
@@ -222,6 +260,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Submit a seconds-long accelerator assertion instead of a training phase.",
     )
+    parser.add_argument(
+        "--g1-contract-probe",
+        action="store_true",
+        help="Construct both fixed-forward G1 environments and verify 1,000-step invariance.",
+    )
+    parser.add_argument(
+        "--g1-transition",
+        action="store_true",
+        help="Require and verify the immutable fixed-forward flat-to-rough transition.",
+    )
+    parser.add_argument(
+        "--transition-source-config",
+        default="configs/g1_forward_flat_mjx.yaml",
+    )
+    parser.add_argument("--matrix-digest", default="")
     parser.add_argument(
         "--phase",
         default="default",
@@ -261,6 +314,16 @@ def main(argv: list[str] | None = None) -> int:
         help="Controller-side deadline; defaults to the job timeout plus five minutes.",
     )
     args = parser.parse_args(argv)
+
+    if args.device_probe and args.g1_contract_probe:
+        parser.error("device and G1 contract probes are mutually exclusive")
+    if args.g1_transition and (
+        args.runtime != "mjx"
+        or args.resume != "remote"
+        or not args.resume_run_id
+        or not args.matrix_digest
+    ):
+        parser.error("G1 transition smoke requires MJX remote resume and a matrix digest")
 
     attestation = require_nebius_execution("smoke")
     validate_run_identity(args.run_id)
@@ -307,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
             checks["idempotent_reentry"] = False
 
     cloud: dict[str, Any] = {}
-    if checks.get("terminal_success") and not args.device_probe:
+    if checks.get("terminal_success") and not (args.device_probe or args.g1_contract_probe):
         store = ArtifactStore(
             StorageConfig(
                 mode="s3",
@@ -318,9 +381,17 @@ def main(argv: list[str] | None = None) -> int:
             ),
             args.run_id,
         )
-        cloud = _cloud_checks(store)
+        cloud = _cloud_checks(
+            store,
+            require_transition=args.g1_transition,
+            require_g1_telemetry="g1_forward_" in args.config,
+        )
         for name in ("durable_upload", "cloud_side_read", "finalization", "checkpoint"):
             checks[name] = bool(cloud.get(name))
+        if "g1_forward_" in args.config:
+            checks["g1_termination_telemetry"] = bool(cloud.get("g1_termination_telemetry"))
+        if args.g1_transition:
+            checks["g1_transition"] = bool(cloud.get("g1_transition"))
 
     # Nothing chargeable may survive the smoke. AI jobs are ephemeral, so this
     # asserts the absence of any active job or running instance we did not expect.

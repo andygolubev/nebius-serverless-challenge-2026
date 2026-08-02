@@ -46,6 +46,234 @@ afterEach(() => {
 });
 
 describe("My Robots workspace", () => {
+  it("[component:catalog-completeness] keeps the catalog and control inventory complete", () => {
+    expect(catalog.task_templates.map((task) => task.id)).toEqual([
+      "stand-balance",
+      "walk-forward",
+      "recover-from-fall",
+    ]);
+    expect(catalog.scene_presets.map((scene) => scene.id)).toEqual([
+      "flat-arena",
+      "ramp-course",
+      "hurdle-course",
+      "step-course",
+    ]);
+    expect(catalog.object_types.map((object) => object.id)).toEqual([
+      "box",
+      "ramp",
+      "hurdle",
+      "step",
+    ]);
+    expect(catalog.object_types.every((object) => object.parameters.length === 7)).toBe(true);
+    expect(catalog.object_types.flatMap((object) => object.parameters)).toHaveLength(28);
+    expect(Object.keys(controlInventory)).toHaveLength(32);
+    expect(Object.values(controlInventory).every((caseIds) => caseIds.length > 0)).toBe(true);
+  });
+
+  it("[component:upload-required] validates required fields, extension, and both declared type paths", async () => {
+    const fetch = workspaceFetch({ upload: biped });
+    vi.stubGlobal("fetch", fetch);
+    render(<MyRobots />);
+    await screen.findByText("Sample quadruped");
+    fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
+    expect(screen.getByText("Give this robot a recognizable name.")).toBeVisible();
+    expect(screen.getByText("Choose one MJCF .xml file.")).toBeVisible();
+
+    const bipedRadio = screen.getByRole("radio", { name: "Biped" });
+    fireEvent.click(bipedRadio);
+    expect(bipedRadio).toBeChecked();
+    fireEvent.change(screen.getByLabelText("Robot name"), { target: { value: "Radio biped" } });
+    fireEvent.change(screen.getByLabelText("MJCF XML"), {
+      target: { files: [new File(["bad"], "robot.txt", { type: "text/plain" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
+    expect(screen.getByText("The file must end in .xml.")).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("MJCF XML"), {
+      target: { files: [new File(["<mujoco/>"], "robot.xml", { type: "application/xml" })] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Validate model" }));
+    await screen.findByText("Warehouse biped");
+    const upload = fetch.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body;
+    expect(upload).toBeInstanceOf(FormData);
+    expect((upload as FormData).get("robot_type")).toBe("biped");
+  });
+
+  it("[component:model-download] downloads samples and models and cancels deletion safely", async () => {
+    const fetch = workspaceFetch({ robots: [biped] });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.stubGlobal("fetch", fetch);
+    render(<MyRobots />);
+    const sampleHeading = await screen.findByText("Sample quadruped");
+    const sampleCard = sampleHeading.closest("article")!;
+    fireEvent.click(within(sampleCard).getByRole("button", { name: "Download XML" }));
+    const modelHeading = await screen.findByText(biped.name);
+    const modelCard = modelHeading.closest("article")!;
+    fireEvent.click(within(modelCard).getByRole("button", { name: "Download XML" }));
+    await waitFor(() => expect(click).toHaveBeenCalledTimes(2));
+    fireEvent.click(within(modelCard).getByRole("button", { name: "Delete model" }));
+    expect(within(modelCard).getByText("Delete this version?")).toBeVisible();
+    fireEvent.click(within(modelCard).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText(biped.name)).toBeVisible();
+    expect(fetch.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
+  });
+
+  it("[component:choice-inventory] renders every compatible task, scene, object, parameter, and close action", async () => {
+    vi.stubGlobal("fetch", workspaceFetch({ robots: [quadruped] }));
+    render(<MyRobots />);
+    fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
+    for (const task of catalog.task_templates) {
+      expect(screen.getByRole("radio", { name: new RegExp(task.label) })).toBeVisible();
+    }
+    for (const scene of catalog.scene_presets) {
+      expect(screen.getByRole("radio", { name: new RegExp(scene.label) })).toBeVisible();
+    }
+    const objectType = screen.getByLabelText("Object type");
+    expect(within(objectType).getAllByRole("option")).toHaveLength(4);
+    for (const object of catalog.object_types) {
+      fireEvent.change(objectType, { target: { value: object.id } });
+      fireEvent.click(screen.getByRole("button", { name: "Add object" }));
+      expect(screen.getAllByRole("spinbutton")).toHaveLength(7);
+      for (const parameter of object.parameters) {
+        expect(screen.getByLabelText(new RegExp(parameter.label))).toBeVisible();
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Close builder" }));
+    expect(screen.queryByRole("heading", { name: `Set up ${quadruped.name}` })).not.toBeInTheDocument();
+  });
+
+  it.each(catalog.scene_presets)(
+    "[component:capacity-$id] disables Add object at the exact six-object total for $label",
+    async (scene) => {
+      vi.stubGlobal("fetch", workspaceFetch({ robots: [quadruped] }));
+      render(<MyRobots />);
+      fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
+      fireEvent.click(screen.getByRole("radio", { name: new RegExp(scene.label) }));
+      const add = screen.getByRole("button", { name: "Add object" });
+      const available = catalog.max_objects - scene.objects.length;
+      for (let index = 0; index < available; index += 1) fireEvent.click(add);
+      expect(add).toBeDisabled();
+      expect(screen.getByText(new RegExp(`· ${catalog.max_objects} objects$`))).toBeVisible();
+      fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+      expect(add).toBeEnabled();
+    },
+  );
+
+  it.each(catalog.object_types)(
+    "[component:parameter-$id] enforces empty, minimum, maximum, and out-of-range values for $label",
+    async (object) => {
+      vi.stubGlobal("fetch", workspaceFetch({ robots: [biped] }));
+      render(<MyRobots />);
+      fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
+      fireEvent.change(screen.getByLabelText("Object type"), { target: { value: object.id } });
+      fireEvent.click(screen.getByRole("button", { name: "Add object" }));
+      const save = screen.getByRole("button", { name: "Save validated setup" });
+      for (const parameter of object.parameters) {
+        const input = screen.getByLabelText(new RegExp(parameter.label));
+        fireEvent.change(input, { target: { value: String(parameter.minimum) } });
+        expect(input).toHaveAttribute("aria-invalid", "false");
+        fireEvent.change(input, { target: { value: String(parameter.maximum) } });
+        expect(input).toHaveAttribute("aria-invalid", "false");
+        fireEvent.change(input, { target: { value: "" } });
+        expect(input).toHaveAttribute("aria-invalid", "true");
+        expect(save).toBeDisabled();
+        fireEvent.change(input, { target: { value: String(parameter.maximum + 1) } });
+        expect(input).toHaveAttribute("aria-invalid", "true");
+        fireEvent.change(input, { target: { value: String(parameter.default) } });
+      }
+      expect(save).toBeEnabled();
+    },
+  );
+
+  it("[component:setup-errors] preserves builder state on a field-level save error", async () => {
+    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/robot-setups" && init?.method === "POST") {
+        return json({ detail: { field: "objects.0", message: "server rejected object" } }, 422);
+      }
+      return workspaceFetch({ robots: [biped] })(input, init);
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<MyRobots />);
+    fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
+    fireEvent.change(screen.getByLabelText("Setup name"), { target: { value: "Preserved setup" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add object" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save validated setup" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("server rejected object");
+    expect(screen.getByDisplayValue("Preserved setup")).toBeVisible();
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(7);
+  });
+
+  it("[component:setup-delete] cancels then confirms setup deletion without changing another row", async () => {
+    const target = setupFixture({ id: "setup-target", name: "Delete target" });
+    const retained = setupFixture({ id: "setup-retained", name: "Keep me" });
+    const fetch = workspaceFetch({ robots: [biped], setups: [target, retained] });
+    vi.stubGlobal("fetch", fetch);
+    render(<MyRobots />);
+    const targetCard = (await screen.findByText(target.name)).closest("article")!;
+    fireEvent.click(within(targetCard).getByRole("button", { name: "Delete setup" }));
+    fireEvent.click(within(targetCard).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText(target.name)).toBeVisible();
+    fireEvent.click(within(targetCard).getByRole("button", { name: "Delete setup" }));
+    fireEvent.click(within(targetCard).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByText(target.name)).not.toBeInTheDocument());
+    expect(screen.getByText(retained.name)).toBeVisible();
+  });
+
+  it("[component:lifecycle-preparing] renders a disabled preparing action", async () => {
+    const preparing = setupFixture({
+      id: "setup-preparing",
+      reason: "preparing",
+      training_readiness: "preparing",
+      can_prepare: false,
+      current_preparation: {
+        id: "preparing-1",
+        setup_id: "setup-preparing",
+        robot_id: biped.id,
+        fingerprint: "f".repeat(64),
+        state: "preparing",
+        phase: "compile",
+        created_at: "2026-07-13T00:00:00Z",
+        updated_at: "2026-07-13T00:00:00Z",
+        failure_phase: null,
+        failure_reason: null,
+        report_sha256: null,
+        report_ready: false,
+        can_retry: false,
+      },
+    });
+    vi.stubGlobal("fetch", workspaceFetch({ robots: [biped], setups: [preparing] }));
+    render(<MyRobots />);
+    expect(await screen.findByText("Preparing · Compile")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
+  });
+
+  it.each([
+    ["component:lifecycle-quota", setupFixture(), "Prepare for training", 429, "Preparation capacity is in use"],
+    [
+      "component:lifecycle-stale",
+      setupFixture({ trainable: true, reason: "ready", training_readiness: "ready", can_prepare: false, can_start_training: true }),
+      "Start training",
+      409,
+      "Prepare the current setup again",
+    ],
+  ])("[%s] shows sanitized lifecycle errors", async (_caseId, setup, action, status, message) => {
+    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/robot-samples") return json(samples);
+      if (path === "/environment-catalog") return json(catalog);
+      if (path === "/robots") return json([biped]);
+      if (path === "/robot-setups") return json([setup]);
+      if (path === `/robot-setups/${setup.id}`) return json(setup);
+      if (init?.method === "POST") return json({ detail: { message } }, status);
+      throw new Error(`unhandled ${init?.method ?? "GET"} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+    render(<MyRobots />);
+    fireEvent.click(await screen.findByRole("button", { name: action as string }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message as string);
+  });
+
   it("discovers both samples and keeps a server field error beside the upload", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/robots" && init?.method === "POST") {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
+import hashlib
 import importlib
 import inspect
 import json
@@ -34,6 +35,12 @@ from sim2policy.g1_forward_env import (
     is_g1_forward_environment,
     register_g1_forward_environments,
     upstream_environment,
+)
+from sim2policy.g1_transition import (
+    TRANSITION_RELATIVE_PATH,
+    build_transition_record,
+    verify_transition_record,
+    write_immutable_local,
 )
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
@@ -933,8 +940,77 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--resume", nargs="?", const="latest")
     parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
+    parser.add_argument("--g1-transition-source-config")
+    parser.add_argument("--g1-transition-matrix-digest")
+    parser.add_argument("--g1-transition-image-digest")
+    parser.add_argument("--g1-transition-remaining-budget", type=int)
     parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     return parser
+
+
+def _config_file_digest(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _build_cli_g1_transition(
+    *,
+    resume: Path,
+    config: RunConfig,
+    config_path: str | Path,
+    source_config_path: str | Path | None,
+    source_run_id: str,
+    run_id: str,
+    runs_root: Path,
+    matrix_digest: str | None,
+    image_digest: str | None,
+    remaining_budget: int | None,
+) -> dict[str, Any]:
+    """Bind a standard hosted rough smoke to the same transition contract as G1."""
+    supplied = (source_config_path, matrix_digest, image_digest, remaining_budget)
+    if any(value is None for value in supplied):
+        raise RuntimeError("fixed-forward G1 cross-environment resume requires transition evidence")
+    assert source_config_path is not None
+    assert matrix_digest is not None
+    assert image_digest is not None
+    assert remaining_budget is not None
+    if config.environment != G1_FORWARD_ROUGH_ENVIRONMENT:
+        raise RuntimeError("G1 transition evidence is valid only for fixed-forward rough terrain")
+    metadata = load_checkpoint_metadata(resume)
+    if metadata.environment != G1_FORWARD_FLAT_ENVIRONMENT:
+        raise RuntimeError("G1 transition parent is not fixed-forward flat terrain")
+    paths = create_run_paths(run_id, runs_root)
+    trainer_load_path = str(paths.root / "resume" / resume.stem)
+    source_store = ArtifactStore(config.storage, source_run_id)
+    record = build_transition_record(
+        parent_checkpoint=resume,
+        parent_object_key=source_store.key_for(f"checkpoints/{resume.name}"),
+        parent_sidecar_key=source_store.key_for(
+            f"checkpoints/{resume.with_suffix('.zip.json').name}"
+        ),
+        target_run_id=run_id,
+        trainer_load_path=trainer_load_path,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=_config_file_digest(source_config_path),
+        rough_config_digest=_config_file_digest(config_path),
+        measured_flat_steps=metadata.step,
+        remaining_rough_budget=remaining_budget,
+        requested_rough_steps=config.training.total_steps,
+    )
+    write_immutable_local(paths.root / TRANSITION_RELATIVE_PATH, record)
+    ArtifactStore(config.storage, run_id).put_immutable_json(TRANSITION_RELATIVE_PATH, record)
+    verify_transition_record(
+        record,
+        parent_checkpoint=resume,
+        target_config=config,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=_config_file_digest(source_config_path),
+        rough_config_digest=_config_file_digest(config_path),
+        target_run_id=run_id,
+        trainer_load_path=trainer_load_path,
+    )
+    return record
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -987,6 +1063,24 @@ def main(argv: Sequence[str] | None = None) -> None:
                 if args.resume == "latest"
                 else Path(args.resume)
             )
+    transition_record = None
+    if (
+        resume is not None
+        and allowed_source_environment == G1_FORWARD_FLAT_ENVIRONMENT
+        and config.environment == G1_FORWARD_ROUGH_ENVIRONMENT
+    ):
+        transition_record = _build_cli_g1_transition(
+            resume=resume,
+            config=config,
+            config_path=args.config,
+            source_config_path=args.g1_transition_source_config,
+            source_run_id=args.resume_run_id or args.run_id,
+            run_id=args.run_id,
+            runs_root=args.runs_root,
+            matrix_digest=args.g1_transition_matrix_digest,
+            image_digest=args.g1_transition_image_digest,
+            remaining_budget=args.g1_transition_remaining_budget,
+        )
     state = RunStateStore(config.storage, args.run_id, args.runs_root)
     try:
         final = train_mjx(
@@ -996,6 +1090,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             resume=resume,
             state=state,
             allowed_source_environment=allowed_source_environment,
+            transition_record=transition_record,
         )
     except (RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         state.update_status(STATUS_FAILED, error=str(exc))

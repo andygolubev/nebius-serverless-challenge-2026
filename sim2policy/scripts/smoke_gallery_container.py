@@ -17,7 +17,11 @@ SB3_CONFIGS = (
     "walker2d_sb3.yaml",
     "reacher_sb3.yaml",
 )
-MJX_CONFIGS = ("go1_mjx.yaml", "g1_mjx.yaml")
+MJX_CONFIGS = (
+    "go1_mjx.yaml",
+    "g1_forward_flat_mjx.yaml",
+    "g1_forward_rough_mjx.yaml",
+)
 
 
 def smoke_sb3() -> None:
@@ -54,6 +58,10 @@ def smoke_mjx() -> None:
         local_forward_velocity,
         validate_mjx_environment,
     )
+    from sim2policy.g1_forward_env import (
+        is_g1_forward_environment,
+        upstream_environment,
+    )
 
     # Importing Playground's CLI module defines the Abseil flags consumed by
     # get_rl_config. Match the initial-policy worker's production import order.
@@ -62,7 +70,7 @@ def smoke_mjx() -> None:
     for name in MJX_CONFIGS:
         config = load_config(ROOT / "configs" / name)
         _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
-        ppo_params = playground_train.get_rl_config(config.environment)
+        ppo_params = playground_train.get_rl_config(upstream_environment(config.environment))
         hyperparameters = dict(config.training.hyperparameters)
         hyperparameters.pop("impl", None)
         hyperparameters.pop("playground_config_overrides", None)
@@ -95,6 +103,23 @@ def smoke_mjx() -> None:
         velocity = local_forward_velocity(environment, state)
         if not math.isfinite(velocity):
             raise RuntimeError(f"MJX gallery locomotion contract failed: {name}")
+        if is_g1_forward_environment(config.environment):
+            step = jax.jit(environment.step)
+            action = jax.numpy.zeros(environment.action_size)
+            for index in range(1, 1001):
+                state = step(state, action)
+                command = jax.device_get(state.info["command"])
+                if command.shape != (3,) or not jax.numpy.allclose(
+                    command, jax.numpy.asarray([1.0, 0.0, 0.0])
+                ):
+                    raise RuntimeError(
+                        f"fixed-forward command changed at step {index}: {name}"
+                    )
+            reason, causes = classify_g1_termination(
+                environment, state, terminated=bool(state.done)
+            )
+            if not reason or not causes:
+                raise RuntimeError(f"G1 termination telemetry failed: {name}")
         print(f"gallery environment ok: {name} {probe} local_velocity={velocity:.3f}")
 
 
@@ -107,3 +132,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+        classify_g1_termination,

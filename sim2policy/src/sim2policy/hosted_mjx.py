@@ -55,6 +55,10 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
         help="Resume training: 'remote' pulls this run's latest durable checkpoint.",
     )
     parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
+    parser.add_argument("--g1-transition-source-config")
+    parser.add_argument("--g1-transition-matrix-digest")
+    parser.add_argument("--g1-transition-image-digest")
+    parser.add_argument("--g1-transition-remaining-budget", type=int)
     parser.add_argument("--set", action="append", default=[])
     args = parser.parse_args(argv)
 
@@ -65,6 +69,14 @@ def build_commands(argv: Sequence[str]) -> tuple[list[str], list[str]]:
     resume = ["--resume", args.resume] if args.resume else []
     if args.resume_run_id:
         resume += ["--resume-run-id", args.resume_run_id]
+    for flag, value in (
+        ("--g1-transition-source-config", args.g1_transition_source_config),
+        ("--g1-transition-matrix-digest", args.g1_transition_matrix_digest),
+        ("--g1-transition-image-digest", args.g1_transition_image_digest),
+        ("--g1-transition-remaining-budget", args.g1_transition_remaining_budget),
+    ):
+        if value is not None:
+            resume += [flag, str(value)]
     train = [sys.executable, "-m", "sim2policy.train_mjx", *shared, *resume, *overrides]
     finalize = [sys.executable, "-m", "sim2policy.finalize", *shared]
     if args.gallery_example_id:
