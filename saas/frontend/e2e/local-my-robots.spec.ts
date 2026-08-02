@@ -394,6 +394,14 @@ test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and 
       await page.waitForTimeout(250);
     }
     expect(freshPreparationState).toBe("accepted");
+    const refreshedSetupResponse = await request.get(
+      `${localApiBaseUrl}/robot-setups/${failedSetup.id}`,
+      { headers: { Authorization: `Bearer ${session.token}` } },
+    );
+    expect(refreshedSetupResponse.status()).toBe(200);
+    const refreshedSetup = await refreshedSetupResponse.json();
+    expect(refreshedSetup.training_readiness).toBe("ready");
+    expect(refreshedSetup.can_start_training).toBeTruthy();
     await page.reload();
     await page.getByRole("button", { name: "My Robots" }).click();
     await expect(staleCard.getByRole("button", { name: "Start training" })).toBeVisible();
