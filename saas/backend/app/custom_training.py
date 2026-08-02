@@ -15,16 +15,23 @@ from typing import Any
 
 from .models import PreparationAttempt, PreparationSummary, RobotAsset, RobotSetup
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v1"
-SCENE_VERSION = "custom-locomotion-scenes-v1"
+REWARD_VERSION = "locomotion-rewards-v2"
+SCENE_VERSION = "custom-locomotion-scenes-v2"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v1"
 
-SUPPORTED_TASKS = frozenset({"stand-balance", "walk-forward"})
-SUPPORTED_SCENES = frozenset({"flat-arena", "ramp-course"})
+SUPPORTED_TASKS = frozenset({"stand-balance", "walk-forward", "recover-from-fall"})
+SUPPORTED_SCENES = frozenset(
+    {"flat-arena", "ramp-course", "hurdle-course", "step-course"}
+)
 SUPPORTED_ROBOT_TYPES = frozenset({"biped", "quadruped"})
+TASK_ROBOT_TYPES = {
+    "stand-balance": SUPPORTED_ROBOT_TYPES,
+    "walk-forward": SUPPORTED_ROBOT_TYPES,
+    "recover-from-fall": frozenset({"quadruped"}),
+}
 
 REASON_FEATURE_DISABLED = "custom-training-not-enabled"
 REASON_UNSUPPORTED_ROBOT_TYPE = "unsupported-robot-type"
@@ -114,21 +121,21 @@ def eligibility(setup: RobotSetup, *, enabled: bool = True) -> Eligibility:
         return Eligibility(False, REASON_UNSUPPORTED_ROBOT_TYPE)
     if setup.task_template_id not in SUPPORTED_TASKS:
         return Eligibility(False, REASON_UNSUPPORTED_TASK)
+    if setup.robot_type not in TASK_ROBOT_TYPES[setup.task_template_id]:
+        return Eligibility(False, REASON_UNSUPPORTED_TASK)
     if setup.scene_preset_id not in SUPPORTED_SCENES:
         return Eligibility(False, REASON_UNSUPPORTED_SCENE)
-    if any(item.source == "custom" for item in setup.objects):
-        return Eligibility(False, REASON_OPTIONAL_OBJECTS)
     return Eligibility(True, REASON_NOT_PREPARED)
 
 
 def canonical_normalized_setup(setup: RobotSetup) -> dict[str, Any]:
-    """Training input excludes preset scene objects; the scene version owns them."""
+    """Serialize only the closed, server-normalized world contract."""
     return {
         "schema_version": SCHEMA_VERSION,
         "robot_type": setup.robot_type,
         "task_template_id": setup.task_template_id,
         "scene_preset_id": setup.scene_preset_id,
-        "objects": [],
+        "objects": [item.model_dump(mode="json") for item in setup.objects],
     }
 
 

@@ -34,15 +34,17 @@ from sim2policy.custom_robot_job import (
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def _documents():
-    robot = (ROOT / "saas" / "samples" / "robots" / "sample-biped.xml").read_bytes()
+def _documents(
+    *, robot_name: str = "sample-biped.xml", task: str = "stand-balance"
+):
+    robot = (ROOT / "saas" / "samples" / "robots" / robot_name).read_bytes()
     setup = canonical_json(
         {
             "objects": [],
-            "robot_type": "biped",
+            "robot_type": "quadruped" if "quadruped" in robot_name else "biped",
             "scene_preset_id": "flat-arena",
             "schema_version": SCHEMA_VERSION,
-            "task_template_id": "stand-balance",
+            "task_template_id": task,
         }
     )
     runtime = "registry.example/sim2policy@sha256:" + "a" * 64
@@ -217,6 +219,43 @@ def test_reduced_training_publishes_complete_checksummed_simulator_bundle(
     assert "robot_id" not in bundled_setup
     assert "id" not in bundled_config["robot"]
     assert "id" not in bundled_config["preparation"]
+
+
+def test_recovery_training_saves_and_reloads_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_video(_model, _documents, output: Path) -> dict[str, int]:
+        output.write_bytes(b"bounded-recovery-video")
+        return {"frames": 2, "size_bytes": output.stat().st_size}
+
+    monkeypatch.setattr("sim2policy.custom_robot_job._render_video", fake_video)
+    profile = replace(
+        TRAINING_PROFILE,
+        total_timesteps=64,
+        n_envs=1,
+        checkpoint_every_steps=32,
+        evaluation_every_steps=32,
+        progress_evaluation_episodes=1,
+        progress_evaluation_seeds=(101,),
+        evaluation_episodes=1,
+        evaluation_seeds=(11,),
+        ppo_n_steps=64,
+        ppo_batch_size=32,
+        ppo_n_epochs=1,
+    )
+    metrics = run_training(
+        _documents(
+            robot_name="sample-quadruped.xml",
+            task="recover-from-fall",
+        ),
+        Publisher("recovery-run-test", "run", tmp_path),
+        profile=profile,
+    )
+    assert metrics["training"]["timesteps"] == 64
+    assert (tmp_path / "checkpoints" / "final.zip").is_file()
+    assert (tmp_path / "videos" / "final.mp4").read_bytes() == b"bounded-recovery-video"
+    resolved = json.loads((tmp_path / "report" / "resolved-config.json").read_text())
+    assert resolved["setup"]["task_template_id"] == "recover-from-fall"
 
 
 def test_entrypoint_sanitizes_input_failure_without_traceback(

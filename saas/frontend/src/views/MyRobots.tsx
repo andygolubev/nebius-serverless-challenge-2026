@@ -383,6 +383,7 @@ export function MyRobots({
           }
           onPrepare={prepareSetup}
           onStart={startTraining}
+          onOpenJob={onJobStarted}
           onBrowseExamples={onBrowseExamples}
           busySetupId={setupBusy}
           setupError={setupError}
@@ -417,6 +418,7 @@ export function MyRobots({
                   error={setupError[setup.id]}
                   onPrepare={prepareSetup}
                   onStart={startTraining}
+                  onOpenJob={onJobStarted}
                   onBrowseExamples={onBrowseExamples}
                 />
                 {deleteSetupId === setup.id ? (
@@ -465,6 +467,7 @@ function SetupTrainingActions({
   error,
   onPrepare,
   onStart,
+  onOpenJob,
   onBrowseExamples,
 }: {
   setup: RobotSetup;
@@ -472,16 +475,46 @@ function SetupTrainingActions({
   error?: string;
   onPrepare: (setup: RobotSetup, retry?: boolean) => void;
   onStart: (setup: RobotSetup) => void;
+  onOpenJob: (id: string) => void;
   onBrowseExamples: () => void;
 }) {
+  const [confirmRerun, setConfirmRerun] = useState(false);
   const preparing = setup.training_readiness === "preparing";
   const failed = setup.training_readiness === "preparation_failed";
+  const latestJob = setup.latest_training_job;
+  const terminalJob = latestJob && ["completed", "failed"].includes(latestJob.status) ? latestJob : null;
+  const activeJob = latestJob && !terminalJob ? latestJob : null;
   return (
     <div className="setup-training-actions">
       <span className={`readiness-state ${setup.training_readiness}`} role="status">
         {readinessCopy(setup)}
       </span>
-      {setup.can_start_training ? (
+      {latestJob && (
+        <button className="btn btn-ghost" onClick={() => onOpenJob(latestJob.id)}>
+          {activeJob
+            ? "View training job"
+            : latestJob.status === "completed"
+              ? "View completed result"
+              : "View failed run"}
+        </button>
+      )}
+      {activeJob ? (
+        <span>Training · {humanize(activeJob.status)}</span>
+      ) : setup.can_start_training && terminalJob ? (
+        <div className="training-job-actions">
+          {confirmRerun ? (
+            <span className="confirm-actions">
+              <span>Start another paid training run?</span>
+              <button className="btn" disabled={busy} onClick={() => { setConfirmRerun(false); onStart(setup); }}>
+                {busy ? "Starting…" : "Confirm new training run"}
+              </button>
+              <button className="btn btn-ghost" disabled={busy} onClick={() => setConfirmRerun(false)}>Cancel</button>
+            </span>
+          ) : (
+            <button className="btn" disabled={busy} onClick={() => setConfirmRerun(true)}>Train again</button>
+          )}
+        </div>
+      ) : setup.can_start_training ? (
         <button className="btn" disabled={busy} onClick={() => onStart(setup)}>
           {busy ? "Starting…" : "Start training"}
         </button>
@@ -520,6 +553,7 @@ function EnvironmentBuilder({
   onClose,
   onPrepare,
   onStart,
+  onOpenJob,
   onBrowseExamples,
   busySetupId,
   setupError,
@@ -531,6 +565,7 @@ function EnvironmentBuilder({
   onClose: () => void;
   onPrepare: (setup: RobotSetup, retry?: boolean) => void;
   onStart: (setup: RobotSetup) => void;
+  onOpenJob: (id: string) => void;
   onBrowseExamples: () => void;
   busySetupId: string | null;
   setupError: Record<string, string>;
@@ -642,7 +677,7 @@ function EnvironmentBuilder({
         <legend><span>3</span> Optional catalog objects</legend>
         <p className="builder-hint">Add up to {catalog.max_objects} total objects, including the {scene?.objects.length ?? 0} in this preset.</p>
         <p className="builder-hint">
-          Custom training V1 supports Stand Balance or Walk Forward on Flat Arena or Ramp Course with no optional objects.
+          Every valid catalog task, terrain, and bounded primitive setup can run the fixed preparation and CPU training profile.
         </p>
         <div className="add-object-row">
           <label htmlFor="object-type">Object type</label>
@@ -722,6 +757,7 @@ function EnvironmentBuilder({
               error={setupError[currentSaved.id]}
               onPrepare={onPrepare}
               onStart={onStart}
+              onOpenJob={onOpenJob}
               onBrowseExamples={onBrowseExamples}
             />
           )}

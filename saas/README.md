@@ -188,16 +188,17 @@ Robot upload still deliberately returns structural validation only:
 {"readiness":"validated","trainable":false,"reason":"custom-training-not-enabled"}
 ```
 
-A saved setup additionally derives `training_readiness`. Training V1 admits only biped/quadruped,
-Stand Balance/Walk Forward, Flat Arena/Ramp Course, and no tenant-added objects. The user first
+A saved setup additionally derives `training_readiness`. Training V2 admits every catalog-valid
+setup: biped Stand Balance/Walk Forward, quadruped Stand Balance/Walk Forward/Recover From Fall,
+all four scene presets, and bounded Box/Ramp/Hurdle/Step objects within the six-object total. The user first
 clicks **Prepare for training**. A bounded `cpu-d3` worker uses the immutable generic SB3 image to
 verify exact S3 inputs, compile the robot in a server-owned scene, run deterministic rollout/render
 gates, and smoke-test PPO save/reload. An accepted fingerprint enables **Start training**, which
 creates a normal Job with the fixed `custom-ppo-quick` CPU profile. Preparation means technical
 compatibility, not that the policy will reach the task threshold.
 
-The frozen V1 preparation shape is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; all
-eight canonical combinations measured about 3m42s–3m57s end to end. `custom-ppo-quick` uses
+The frozen preparation shape is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; the eight
+historical V1 anchor combinations measured about 3m42s–3m57s end to end. `custom-ppo-quick` uses
 `cpu-d3` / `8vcpu-32gb`, 100 GiB, eight vector environments, 100k steps, and a one-hour cap; the
 same matrix measured about 3m31s–3m49s and roughly $0.01 per attempt at the 2026-07-14 list rate.
 These are observed bounds for the exact immutable profile, not a promise that 100k steps converges.

@@ -2,7 +2,7 @@
 
 The My Robots page spans four boundaries: React form behavior, FastAPI validation and persistence, asynchronous preparation/training state, and the deployed browser/API path. Existing tests cover representative uploads, compatibility rules, scenes, object rejection, and several lifecycle states, but their fixtures are hand-written and no single run proves that every current catalog value appears in a scenario. The live form also hides the environment builder until an upload succeeds, so a shallow page smoke misses most controls.
 
-The current server-owned catalog has two declared robot types; five compatible robot-type/task pairs; four scenes; four optional object types; seven bounded parameters per object; a six-total-object limit; and eight V1 preparation-eligible robot/task/scene combinations. Exhaustively multiplying every possible object list and continuous numeric value is neither finite nor useful. The suite therefore needs exhaustive coverage of discrete choices and contract boundaries, with pairwise selection only at the slow browser layer.
+The current server-owned catalog has two declared robot types; five compatible robot-type/task pairs; four scenes; four optional object types; seven bounded parameters per object; and a six-total-object limit. The original V1 gate admitted only eight robot/task/scene combinations and rejected every tenant-added object. Live UI testing proved that the builder still saves the rejected configurations, producing `Unsupported Task`, `Unsupported Scene`, and `Optional Objects Not Supported` cards. The accepted contract is now that every catalog-valid setup the builder saves is preparation- and training-capable. Exhaustively multiplying every possible object list and continuous numeric value is neither finite nor useful, so cheap layers remain exhaustive over discrete choices and bounds while the slow browser layer remains pairwise.
 
 Constraints include tenant ownership, 20 active models and 50 active setups per tenant, secret bearer sessions, soft deletion, asynchronous remote jobs, and the requirement to stop/delete cloud compute after use. Generated run evidence is local and gitignored. The existing public API remains the system under test; no test-only production endpoint or authentication bypass is introduced.
 
@@ -16,14 +16,27 @@ Constraints include tenant ownership, 20 active models and 50 active setups per 
 - Run independent cheap cases in parallel, aggregate all failures, and leave deterministic evidence that makes each failure directly reproducible.
 - Separate no-cost validation from remote preparation and training so a skipped cost gate is reported honestly instead of being treated as passed.
 - Make defect repair regression-first and require the relevant shard plus the full cheap gate to pass afterward.
+- Make every valid builder configuration trainable through server-owned composition and fixed policy code, including Recover From Fall, all four terrain presets, and all bounded optional primitives.
 
 **Non-Goals:**
 
 - Infer morphology from the declared biped/quadruped radio choice; the current contract treats robot type as validated tenant metadata.
 - Exhaust every ordering or repetition of up to six optional objects, or every real number inside a parameter range.
-- Change the task, scene, object, preparation, or fixed training catalogs.
+- Add arbitrary task code, uploaded scenes, meshes, plugins, scripts, URLs, or tenant-defined reward logic.
 - Add a production test backdoor, expose credentials in reports, or make paid training part of ordinary CI.
 - Use this form suite as proof of policy convergence; remote preparation proves compatibility and training completion reports measured outcomes separately.
+
+### Unsupported-state inventory and expanded capability mapping
+
+The former readiness gate emitted three user-visible unsupported categories. Each is removed for catalog-valid setup payloads and retained only in historical regression coverage:
+
+| Former message | Builder configurations that produced it | Expanded contract |
+| --- | --- | --- |
+| `Unsupported Task` | quadruped + Recover From Fall + any scene/object combination | bounded fallen-state reset, recovery reward/success criteria, evaluation, checkpoint reload, and rendering |
+| `Unsupported Scene` | either robot family + Stand Balance/Walk Forward, or quadruped Recover From Fall, on Hurdle Course or Step Course | deterministic server-owned Hurdle/Step terrain composition with preset objects included in the six-object bound |
+| `Optional Objects Not Supported` | any compatible model/task/scene plus one or more tenant-selected Box, Ramp, Hurdle, or Step primitives | strict normalized primitive schema and deterministic server-owned composition of bounded position, yaw, width, depth, and height |
+
+Concrete deployed reproductions include biped Stand Balance on Hurdle Course with an added Step, quadruped Recover From Fall on Step Course with an added Hurdle, and quadruped Stand Balance on Flat Arena with an added Ramp. All are valid builder configurations and therefore must project `not_prepared`, `preparing`, `preparation_failed`, or `ready`, never an unsupported-capability state.
 
 ## Decisions
 
@@ -36,7 +49,7 @@ Backend parametrization will read the real serialized environment catalog and ca
 - each of the 4 optional object types at defaults for every base setup (80 one-object cases), with readiness reasons derived from the real eligibility contract;
 - each object parameter at default, minimum, maximum, just below minimum, just above maximum, empty/non-numeric browser state, and non-finite API input where representable;
 - exact capacity and one-over-capacity cases for all four scene preset sizes; and
-- all 8 V1-eligible combinations plus representative cases for every stable ineligibility reason.
+- the eight formerly V1-eligible combinations as regression anchors plus all 92 formerly unsupported catalog-valid combinations, with ineligibility reserved for genuine invalid/disabled/source-unavailable states.
 
 The frontend uses the same catalog-shaped fixture and asserts that every catalog identifier appears in its coverage manifest. A catalog addition therefore fails with an uncovered-value diagnostic instead of silently reducing coverage. Stable identifiers, not display text alone, tie backend, component, browser, and report rows together.
 
@@ -85,9 +98,19 @@ A failure report contains its layer, case ID, selected catalog values, expected 
 
 Machine-readable JSON is authoritative; a Markdown summary is generated from it. Both report passed/failed/skipped/not-run counts, catalog coverage, timings, retries, created/deleted resource IDs, and cleanup/audit outcomes. Reports and browser media are gitignored; only durable test code and documentation are committed.
 
+### 7. Admit capabilities from the normalized builder contract
+
+The control plane no longer maintains a second fixed allowlist narrower than the environment catalog. Admission requires a supported declared robot family, a task compatible with that family, a known scene, a normalized object list within the catalog bounds, an enabled runtime, and a current accepted preparation fingerprint. The normalized training input carries all resolved preset and custom primitive objects. The runtime independently validates the closed schema, finite numeric bounds, source values, object count, and known identifiers before composing MuJoCo geometry.
+
+The scene/reward/schema versions change with this expansion so historical accepted preparations cannot silently authorize a materially different world. Fingerprints continue to bind robot digest, setup digest, immutable runtime image, adapter, reward, and preparation-profile versions. No tenant MJCF world element, code, asset, URL, mesh, texture, plugin, or reward expression is accepted.
+
+Recover From Fall is quadruped-only because that is the compatibility edge exposed by the catalog. Reset samples a bounded side-fallen free-root orientation and bounded joint noise; falling is not terminal for this task. Success requires regaining minimum height and uprightness with bounded root speed. Stand Balance and Walk Forward retain their existing reset and termination behavior.
+
+The UI treats a completed job as durable setup history: it links to that result and requires explicit confirmation before requesting a new paid run. Idempotency still protects a single submission, while active and daily quotas remain authoritative server responses.
+
 ## Risks / Trade-offs
 
-- [Catalog-derived tests could reproduce the same server bug in expected values] → Keep independent invariants for exact known task compatibility, scene/object IDs, capacity, and V1 eligibility counts in addition to generated rows.
+- [Catalog-derived tests could reproduce the same server bug in expected values] → Keep independent invariants for exact known task compatibility, scene/object IDs, capacity, the eight historical V1 anchors, and the complete 100-case preparation-admission count in addition to generated rows.
 - [Pairwise browser cases may miss a higher-order UI interaction] → Always include full happy paths for both robot types, every state transition, all individual controls, and promote any discovered interaction to a regression case.
 - [Production mutation can consume tenant quotas or delete retained evidence] → Use dedicated test tenants, exact created-ID tracking, preflight quota checks, and explicit preservation versus cleanup mode; never delete user-owned preexisting rows.
 - [Browser artifacts can leak tenant identity or authorization data] → Disable secret-bearing traces in deployed mode, sanitize structured output, keep artifacts gitignored, and fail secret scans before publication.

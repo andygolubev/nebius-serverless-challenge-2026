@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sim2policy/custom-robot/policy-bundle-manifest/v1",
+  "$id": "sim2policy/custom-robot/policy-bundle-manifest/v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "kind", "fingerprint", "backend", "profile", "simulator_only", "members"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "kind": {"const": "custom-robot-policy-bundle"},
     "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "backend": {"const": "sb3"},

@@ -237,10 +237,8 @@ def test_every_positive_setup_combination(client, login, monkeypatch, case) -> N
     }[case.scene_id]
     assert len(setup["objects"]) == preset_count + len(objects)
     assert setup["reason"] == case.expected_reason
-    assert setup["training_readiness"] == (
-        "not_prepared" if case.expected_reason == "not-prepared" else "ineligible"
-    )
-    assert setup["can_prepare"] is (case.expected_reason == "not-prepared")
+    assert setup["training_readiness"] == "not_prepared"
+    assert setup["can_prepare"] is True
     assert setup["can_start_training"] is False
     assert setup["robot_id"] == robot["id"]
     assert setup["task_template_id"] == case.task_id
@@ -381,10 +379,14 @@ def test_matrix_contract_counts_controls_and_shards_are_complete() -> None:
     assert len(setups) == 100
     assert sum(case.object_type is None for case in setups) == 20
     assert sum(case.object_type is not None for case in setups) == 80
-    assert sum(case.expected_reason == "not-prepared" for case in setups) == 8
+    assert sum(case.expected_reason == "not-prepared" for case in setups) == 100
     assert set(EXPECTED_COMPATIBILITY) == set(EXPECTED_ROBOT_TYPES)
-    assert set(EXPECTED_ELIGIBLE_TASKS) == {"stand-balance", "walk-forward"}
-    assert set(EXPECTED_ELIGIBLE_SCENES) == {"flat-arena", "ramp-course"}
+    assert set(EXPECTED_ELIGIBLE_TASKS) == {
+        "stand-balance", "walk-forward", "recover-from-fall"
+    }
+    assert set(EXPECTED_ELIGIBLE_SCENES) == {
+        "flat-arena", "ramp-course", "hurdle-course", "step-course"
+    }
     assert len(EXPECTED_OBJECT_TYPES) * len(EXPECTED_PARAMETER_NAMES) == 28
     assert len(CONTROL_INVENTORY) >= 32
     assert all(case_ids for case_ids in CONTROL_INVENTORY.values())

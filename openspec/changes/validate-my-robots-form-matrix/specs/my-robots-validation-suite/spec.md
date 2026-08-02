@@ -5,7 +5,7 @@ The validation suite SHALL derive its case inventory from the canonical sample m
 
 #### Scenario: Current catalog inventory is generated
 - **WHEN** the suite inventories the current two robot types, compatible tasks, four scenes, and four optional object types
-- **THEN** it generates all 20 compatible no-optional-object robot/task/scene cases, all 80 corresponding single-default-object cases, all 8 V1 preparation-eligible combinations, and explicit ineligible-reason cases
+- **THEN** it generates all 20 compatible no-optional-object robot/task/scene cases, all 80 corresponding single-default-object cases, retains the 8 historical V1-eligible combinations as anchors, and requires all 100 catalog-valid cases to be preparation-admissible
 
 #### Scenario: Catalog gains an uncovered choice
 - **WHEN** a task, scene, object type, parameter, readiness state, or mapped form control is added without a scenario mapping
@@ -108,3 +108,40 @@ Each run SHALL emit an authoritative machine-readable report and a concise gener
 #### Scenario: Secret scan detects sensitive evidence
 - **WHEN** a report or publishable artifact contains a credential, authorization header, email code, uploaded XML, secret selector, or storage key pattern
 - **THEN** publication fails and the artifact is quarantined or removed before any handoff
+
+### Requirement: Every valid builder setup is training-capable
+Every setup accepted by the server-owned environment builder SHALL be admissible to bounded preparation and the fixed custom-training profile. Capability admission MUST follow robot/task compatibility, normalized scene/object validation, deployment enablement, lifecycle state, quotas, and current preparation fingerprint; it MUST NOT reject a catalog-valid saved setup as an unsupported task, unsupported scene, or unsupported optional-object combination.
+
+#### Scenario: Previously unsupported terrain and objects are prepared
+- **WHEN** either robot family saves a compatible task on Flat, Ramp, Hurdle, or Step terrain with any bounded combination of Box, Ramp, Hurdle, and Step primitives within the six-object total
+- **THEN** the setup projects `not_prepared`, can enter preparation, and the server-owned runtime composes the exact normalized preset and custom primitives without accepting tenant code, meshes, plugins, files, or URLs
+
+#### Scenario: Recover From Fall is prepared for a quadruped
+- **WHEN** a quadruped setup selects Recover From Fall with any valid terrain/object configuration
+- **THEN** preparation exercises bounded fallen-state resets, recovery reward and success criteria, evaluation, rendering, and checkpoint reload before training can become ready
+
+#### Scenario: Incompatible task remains invalid
+- **WHEN** a biped setup requests Recover From Fall directly or any setup contains an unknown or out-of-bounds catalog value
+- **THEN** builder validation rejects the request without persistence and no preparation or training job is created
+
+### Requirement: Expanded worlds remain deterministic and safe
+The normalized setup and server-owned runtime contracts SHALL use a versioned closed schema containing only declared robot type, compatible task, known scene, and at most six fully normalized primitive objects. Every object number MUST be finite and within the catalog bound, fingerprints MUST change for material setup/runtime changes, and composed worlds MUST remain within existing compilation and resource limits.
+
+#### Scenario: Exact scene fingerprint is stable
+- **WHEN** the same robot digest, normalized setup, runtime image, adapter, reward, and preparation profile are submitted repeatedly
+- **THEN** the normalized bytes and preparation fingerprint are identical and preparation reservation remains idempotent
+
+#### Scenario: Primitive input is tampered after publication
+- **WHEN** a normalized object has an unknown field/type/source, a missing parameter, a non-finite or out-of-bound number, or makes the total exceed six
+- **THEN** the runtime rejects the input before MuJoCo compilation with a sanitized stable failure reason
+
+### Requirement: Completed training is navigable and guarded
+When a setup has a current or most recent custom training job, the My Robots UI SHALL expose that job's lifecycle/result without losing preparation readiness. A terminal completed job SHALL provide a result link, and starting another paid run SHALL require an explicit re-run confirmation while preserving server-side idempotency and quota behavior.
+
+#### Scenario: Completed setup card is revisited
+- **WHEN** a custom job for a ready setup completes and the user returns to My Robots
+- **THEN** the setup card links to the completed job result and does not present an unguarded bare Start training action
+
+#### Scenario: User confirms a re-run
+- **WHEN** the user requests another run from a setup with a completed job and confirms the cost-bearing action
+- **THEN** the UI submits one fresh idempotency key, disables duplicate submission, and navigates to the new job; cancelling creates no job

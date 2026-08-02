@@ -212,6 +212,15 @@ export type RobotSetup = {
   can_prepare: boolean;
   can_start_training: boolean;
   current_preparation: Preparation | null;
+  latest_training_job?: TrainingJobSummary | null;
+};
+
+export type TrainingJobSummary = {
+  id: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  artifacts_status: string;
 };
 
 export type TrainingReadiness =

@@ -232,6 +232,22 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
       await page.waitForTimeout(250);
     }
     expect(terminalStatus).toBe("completed");
+    const artifactsResponse = await request.get(
+      `${localApiBaseUrl}/jobs/${startedJob.id}/artifacts`,
+      { headers: { Authorization: `Bearer ${session.token}` } },
+    );
+    expect(artifactsResponse.status()).toBe(200);
+    const artifacts = await artifactsResponse.json();
+    expect(artifacts.status).toBe("completed");
+    expect(artifacts.metrics).toBeTruthy();
+
+    await page.getByRole("button", { name: "My Robots" }).click();
+    const setupCard = page.getByRole("heading", { name: "E2E lifecycle biped setup" }).locator("xpath=ancestor::article");
+    await expect(setupCard.getByRole("button", { name: "View completed result" })).toBeVisible();
+    await expect(setupCard.getByRole("button", { name: "Start training" })).toHaveCount(0);
+    await setupCard.getByRole("button", { name: "Train again" }).click();
+    await setupCard.getByRole("button", { name: "Cancel" }).click();
+    await expect(setupCard.getByRole("button", { name: "Train again" })).toBeVisible();
   } finally {
     await cleanupCreated(request, session.token, created);
   }

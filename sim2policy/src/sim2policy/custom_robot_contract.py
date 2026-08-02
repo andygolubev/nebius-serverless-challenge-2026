@@ -14,16 +14,45 @@ from dataclasses import asdict, dataclass
 from importlib import resources
 from typing import Any, cast
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v1"
-SCENE_VERSION = "custom-locomotion-scenes-v1"
+REWARD_VERSION = "locomotion-rewards-v2"
+SCENE_VERSION = "custom-locomotion-scenes-v2"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v1"
 
 SUPPORTED_ROBOT_TYPES = ("biped", "quadruped")
-SUPPORTED_TASKS = ("stand-balance", "walk-forward")
-SUPPORTED_SCENES = ("flat-arena", "ramp-course")
+SUPPORTED_TASKS = ("stand-balance", "walk-forward", "recover-from-fall")
+SUPPORTED_SCENES = ("flat-arena", "ramp-course", "hurdle-course", "step-course")
+TASK_ROBOT_TYPES = {
+    "stand-balance": SUPPORTED_ROBOT_TYPES,
+    "walk-forward": SUPPORTED_ROBOT_TYPES,
+    "recover-from-fall": ("quadruped",),
+}
+MAX_OBJECTS = 6
+
+OBJECT_CONTRACTS: dict[str, dict[str, tuple[float, float]]] = {
+    "box": {
+        "x": (-10.0, 10.0), "y": (-10.0, 10.0), "z": (0.0, 5.0),
+        "yaw_degrees": (-180.0, 180.0), "width": (0.1, 4.0),
+        "depth": (0.1, 4.0), "height": (0.05, 2.0),
+    },
+    "ramp": {
+        "x": (-10.0, 10.0), "y": (-10.0, 10.0), "z": (0.0, 5.0),
+        "yaw_degrees": (-180.0, 180.0), "width": (0.5, 4.0),
+        "depth": (0.5, 6.0), "height": (0.1, 2.0),
+    },
+    "hurdle": {
+        "x": (-10.0, 10.0), "y": (-10.0, 10.0), "z": (0.0, 5.0),
+        "yaw_degrees": (-180.0, 180.0), "width": (0.5, 4.0),
+        "depth": (0.05, 0.5), "height": (0.05, 1.5),
+    },
+    "step": {
+        "x": (-10.0, 10.0), "y": (-10.0, 10.0), "z": (0.0, 5.0),
+        "yaw_degrees": (-180.0, 180.0), "width": (0.2, 4.0),
+        "depth": (0.2, 4.0), "height": (0.05, 0.75),
+    },
+}
 
 SAFE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -138,22 +167,61 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             "energy": -0.0005,
         },
     },
+    "recover-from-fall": {
+        "version": REWARD_VERSION,
+        "episode_steps": 1000,
+        "target_height_scale": 0.9,
+        "fall_height_scale": 0.45,
+        "minimum_upright": 0.45,
+        "reset_roll_radians": [1.2, 1.45],
+        "reset_height_scale": 0.55,
+        "success_upright": 0.8,
+        "success_height_scale": 0.75,
+        "success_max_root_speed": 0.75,
+        "weights": {
+            "upright": 1.8,
+            "height": 1.2,
+            "root_motion": -0.04,
+            "action": -0.01,
+            "energy": -0.0005,
+        },
+    },
 }
 
 SCENE_CONTRACTS: dict[str, dict[str, Any]] = {
     "flat-arena": {
         "version": SCENE_VERSION,
         "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
-        "ramp": None,
+        "preset_objects": [],
     },
     "ramp-course": {
         "version": SCENE_VERSION,
         "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
-        "ramp": {
-            "position": [3.0, 0.0, 0.3],
-            "half_size": [1.5, 1.0, 0.08],
-            "pitch_degrees": -11.31,
-        },
+        "preset_objects": [
+            {"object_type": "ramp", "x": 3.0, "y": 0.0, "z": 0.0,
+             "yaw_degrees": 0.0, "width": 1.5, "depth": 3.0,
+             "height": 0.6, "source": "preset"}
+        ],
+    },
+    "hurdle-course": {
+        "version": SCENE_VERSION,
+        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "preset_objects": [
+            {"object_type": "hurdle", "x": x, "y": 0.0, "z": 0.0,
+             "yaw_degrees": 0.0, "width": 2.0, "depth": 0.15,
+             "height": 0.35, "source": "preset"}
+            for x in (2.0, 4.0, 6.0)
+        ],
+    },
+    "step-course": {
+        "version": SCENE_VERSION,
+        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "preset_objects": [
+            {"object_type": "step", "x": x, "y": 0.0, "z": 0.0,
+             "yaw_degrees": 0.0, "width": 2.0, "depth": 1.0,
+             "height": height, "source": "preset"}
+            for x, height in ((2.0, 0.2), (4.0, 0.3), (6.0, 0.4))
+        ],
     },
 }
 
@@ -232,7 +300,10 @@ def contract_summary() -> dict[str, Any]:
         "scene_version": SCENE_VERSION,
         "supported_robot_types": list(SUPPORTED_ROBOT_TYPES),
         "supported_tasks": list(SUPPORTED_TASKS),
+        "task_robot_types": TASK_ROBOT_TYPES,
         "supported_scenes": list(SUPPORTED_SCENES),
+        "max_objects": MAX_OBJECTS,
+        "object_contracts": OBJECT_CONTRACTS,
         "observation_base_fields": list(OBSERVATION_BASE_FIELDS),
         "task_contracts": TASK_CONTRACTS,
         "scene_contracts": SCENE_CONTRACTS,

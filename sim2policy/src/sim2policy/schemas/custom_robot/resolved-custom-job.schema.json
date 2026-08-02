@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sim2policy/custom-robot/resolved-job/v1",
+  "$id": "sim2policy/custom-robot/resolved-job/v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "job_kind", "backend", "profile", "robot", "setup", "preparation", "runtime", "adapter", "training"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "job_kind": {"const": "custom-robot"},
     "backend": {"const": "sb3"},
     "profile": {"const": "custom-ppo-quick"},

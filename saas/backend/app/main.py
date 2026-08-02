@@ -53,6 +53,7 @@ from .models import (
     RobotSample,
     RobotSetup,
     RobotSetupRequest,
+    TrainingJobSummary,
     VerifyRequest,
 )
 from .orchestration import build_backend
@@ -132,12 +133,36 @@ def _project_setup(setup: RobotSetup) -> RobotSetup:
             }
         )
     latest = _custom_store.latest_preparation(setup.tenant_id, setup.id)
-    return project_setup_readiness(
+    latest_job = max(
+        (
+            job
+            for job in _store.list(setup.tenant_id)
+            if job.job_kind == "custom-robot" and job.setup_id == setup.id
+        ),
+        key=lambda job: (job.created_at, job.id),
+        default=None,
+    )
+    projected = project_setup_readiness(
         setup,
         robot,
         latest,
         enabled=_custom_settings.enabled,
         runtime_image_digest=_custom_settings.runtime_image,
+    )
+    return projected.model_copy(
+        update={
+            "latest_training_job": (
+                None
+                if latest_job is None
+                else TrainingJobSummary(
+                    id=latest_job.id,
+                    status=latest_job.status,
+                    created_at=latest_job.created_at,
+                    updated_at=latest_job.updated_at,
+                    artifacts_status=latest_job.artifacts_status,
+                )
+            )
+        }
     )
 
 

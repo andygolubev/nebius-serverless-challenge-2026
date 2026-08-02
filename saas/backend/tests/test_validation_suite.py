@@ -22,7 +22,7 @@ def test_manifest_counts_and_four_way_shards_are_complete() -> None:
     inventory = manifest()
     assert inventory["counts"] == {
         "positive_setups": 100,
-        "eligible_setups": 8,
+        "eligible_setups": 100,
         "object_parameters": 28,
         "parameter_cases": 140,
         "non_finite_parameter_cases": 84,

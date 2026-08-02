@@ -36,8 +36,12 @@ EXPECTED_PARAMETER_NAMES = (
     "depth",
     "height",
 )
-EXPECTED_ELIGIBLE_TASKS = frozenset({"stand-balance", "walk-forward"})
-EXPECTED_ELIGIBLE_SCENES = frozenset({"flat-arena", "ramp-course"})
+EXPECTED_ELIGIBLE_TASKS = frozenset(
+    {"stand-balance", "walk-forward", "recover-from-fall"}
+)
+EXPECTED_ELIGIBLE_SCENES = frozenset(
+    {"flat-arena", "ramp-course", "hurdle-course", "step-course"}
+)
 EXPECTED_MAX_OBJECTS = 6
 EXPECTED_SAMPLE_TYPES = {
     "sample-quadruped": "quadruped",
@@ -182,12 +186,7 @@ def assert_current_contract(payload: Mapping[str, Any] | None = None) -> None:
 
 
 def _reason(task_id: str, scene_id: str, object_type: str | None) -> str:
-    if task_id not in EXPECTED_ELIGIBLE_TASKS:
-        return "unsupported-task"
-    if scene_id not in EXPECTED_ELIGIBLE_SCENES:
-        return "unsupported-scene"
-    if object_type is not None:
-        return "optional-objects-not-supported"
+    del task_id, scene_id, object_type
     return "not-prepared"
 
 
@@ -232,8 +231,8 @@ def positive_setup_cases() -> tuple[SetupCase, ...]:
                     )
     if len(cases) != 100:
         raise AssertionError(f"expected 100 positive setup cases, got {len(cases)}")
-    if sum(case.expected_reason == "not-prepared" for case in cases) != 8:
-        raise AssertionError("expected exactly eight V1-eligible cases")
+    if sum(case.expected_reason == "not-prepared" for case in cases) != 100:
+        raise AssertionError("expected every valid builder case to be preparation-eligible")
     return tuple(cases)
 
 

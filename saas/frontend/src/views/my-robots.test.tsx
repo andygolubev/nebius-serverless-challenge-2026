@@ -359,8 +359,8 @@ describe("My Robots workspace", () => {
       id: "setup-1", name: "Warehouse biped setup", robot_id: biped.id, robot_name: biped.name,
       robot_type: "biped", task_template_id: "stand-balance", scene_preset_id: "flat-arena",
       objects: [flatObject("box", "custom")], digest: "d".repeat(64), created_at: "2026-07-13T00:00:00Z",
-      readiness: "validated", trainable: false, reason: "optional-objects-not-supported",
-      training_readiness: "ineligible", can_prepare: false, can_start_training: false,
+      readiness: "validated", trainable: false, reason: "not-prepared",
+      training_readiness: "not_prepared", can_prepare: true, can_start_training: false,
       current_preparation: null,
     };
     const fetch = workspaceFetch({ robots: [biped], createSetup: saved });
@@ -407,8 +407,8 @@ describe("My Robots workspace", () => {
       }],
     });
     expect(screen.getAllByText("Setup validated").length).toBeGreaterThan(0);
-    expect(screen.queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "See a verified example" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Prepare for training" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "See a verified example" })).not.toBeInTheDocument();
   });
 
   it("[component:keyboard-mobile] renders the full workflow at a 375px viewport using native keyboard controls", async () => {
@@ -530,6 +530,51 @@ describe("My Robots workspace", () => {
     expect(screen.getByText(validationOnly.name)).toBeVisible();
     expect(fetch.mock.calls.some(([path]) => String(path).includes("training-jobs"))).toBe(false);
     expect(fetch.mock.calls.some(([path]) => String(path) === "/jobs")).toBe(false);
+  });
+
+  it("[component:lifecycle-completed] links the result and confirms a paid re-run", async () => {
+    const completed: RobotSetup = setupFixture({
+      trainable: true,
+      reason: "ready",
+      training_readiness: "ready",
+      can_prepare: false,
+      can_start_training: true,
+      latest_training_job: {
+        id: "completed-custom-job",
+        status: "completed",
+        created_at: "2026-07-13T00:00:00Z",
+        updated_at: "2026-07-13T00:10:00Z",
+        artifacts_status: "ready",
+      },
+    });
+    const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/robot-samples") return json(samples);
+      if (path === "/environment-catalog") return json(catalog);
+      if (path === "/robots") return json([biped]);
+      if (path === "/robot-setups") return json([completed]);
+      if (path.endsWith("/training-jobs") && init?.method === "POST") {
+        return json({ id: "rerun-custom-job" }, 201);
+      }
+      throw new Error(`unhandled ${init?.method ?? "GET"} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+    const onJobStarted = vi.fn();
+    render(<MyRobots onJobStarted={onJobStarted} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "View completed result" }));
+    expect(onJobStarted).toHaveBeenCalledWith("completed-custom-job");
+    expect(screen.queryByRole("button", { name: "Start training" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Train again" }));
+    expect(screen.getByText("Start another paid training run?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetch.mock.calls.some(([path]) => String(path).endsWith("/training-jobs"))).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Train again" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm new training run" }));
+    await waitFor(() => expect(onJobStarted).toHaveBeenCalledWith("rerun-custom-job"));
+    expect(fetch.mock.calls.filter(([path]) => String(path).endsWith("/training-jobs"))).toHaveLength(1);
   });
 
   it("[component:lifecycle-retry] shows a sanitized preparation failure and submits an explicit retry", async () => {

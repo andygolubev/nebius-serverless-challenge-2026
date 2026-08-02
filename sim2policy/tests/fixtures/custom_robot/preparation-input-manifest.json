@@ -1,9 +1,9 @@
 {
   "adapter_version": "custom-robot-sb3-v1",
-  "fingerprint": "029df643fa0c9f7bf6abf8908704543d1051c558f3bece3310329582a8e8600e",
+  "fingerprint": "bc5a3c36d7907b94782dc5d2133b1c87370f8f2fdc0a405c1fa885f037697cbb",
   "preparation_id": "preparation-fixture",
   "preparation_profile_version": "custom-prepare-v1",
-  "reward_version": "locomotion-rewards-v1",
+  "reward_version": "locomotion-rewards-v2",
   "robot": {
     "id": "robot-fixture",
     "path": "robot.xml",
@@ -12,7 +12,7 @@
     "size_bytes": 1024
   },
   "runtime": {"image_digest": "registry.example/sim2policy:sb3-abcdef123456"},
-  "schema_version": 1,
+  "schema_version": 2,
   "setup": {
     "id": "setup-fixture",
     "path": "normalized-setup.json",

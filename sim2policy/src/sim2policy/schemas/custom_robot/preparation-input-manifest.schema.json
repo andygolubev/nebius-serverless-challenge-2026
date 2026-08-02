@@ -1,18 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sim2policy/custom-robot/preparation-input-manifest/v1",
+  "$id": "sim2policy/custom-robot/preparation-input-manifest/v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "preparation_id", "fingerprint", "robot", "setup", "runtime", "adapter_version", "reward_version", "preparation_profile_version"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "preparation_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
     "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "robot": {"$ref": "#/$defs/input"},
     "setup": {"$ref": "#/$defs/input"},
     "runtime": {"type": "object", "additionalProperties": false, "required": ["image_digest"], "properties": {"image_digest": {"type": "string", "minLength": 1, "maxLength": 256}}},
     "adapter_version": {"const": "custom-robot-sb3-v1"},
-    "reward_version": {"const": "locomotion-rewards-v1"},
+    "reward_version": {"const": "locomotion-rewards-v2"},
     "preparation_profile_version": {"const": "custom-prepare-v1"}
   },
   "$defs": {

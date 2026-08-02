@@ -297,6 +297,14 @@ class PreparationSummary(BaseModel):
     can_retry: bool = False
 
 
+class TrainingJobSummary(BaseModel):
+    id: str
+    status: str
+    created_at: str
+    updated_at: str
+    artifacts_status: str
+
+
 class RobotSetup(BaseModel):
     id: str
     tenant_id: str = Field(default="", exclude=True)
@@ -316,3 +324,4 @@ class RobotSetup(BaseModel):
     can_prepare: bool = False
     can_start_training: bool = False
     current_preparation: PreparationSummary | None = None
+    latest_training_job: TrainingJobSummary | None = None
