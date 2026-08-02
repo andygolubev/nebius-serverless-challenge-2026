@@ -62,6 +62,12 @@ export function App() {
   // An authenticated-only view reached without a session falls back to the showcase
   // rather than rendering a broken page.
   const active: Route = !authed && !PUBLIC_VIEWS.has(route.view) ? { view: "showcase" } : route;
+  const routeKey = "id" in active ? `${active.view}:${active.id}` : active.view;
+
+  useEffect(() => {
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [routeKey]);
 
   return (
     <div className="shell">
