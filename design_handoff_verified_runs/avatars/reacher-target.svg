@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Reacher target arm</title>
+  <rect width="96" height="96" rx="22" fill="#cffafe"></rect>
+  <circle cx="25" cy="70" r="11" fill="#0e7490"></circle>
+  <path d="M25 69L47 48l17 10" fill="none" stroke="#0891b2" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"></path>
+  <circle cx="47" cy="48" r="8" fill="#155e75"></circle><circle cx="65" cy="58" r="7" fill="#155e75"></circle>
+  <circle cx="75" cy="28" r="12" fill="none" stroke="#f43f5e" stroke-width="5"></circle>
+  <circle cx="75" cy="28" r="3" fill="#f43f5e"></circle>
+  <path d="M66 52l7-13" stroke="#0e7490" stroke-width="4" stroke-linecap="round" stroke-dasharray="4 5"></path>
+</svg>
