@@ -168,9 +168,9 @@ describe("My Robots workspace", () => {
     expect(screen.queryByRole("heading", { name: `Set up ${quadruped.name}` })).not.toBeInTheDocument();
   });
 
-  it.each(catalog.scene_presets)(
-    "[component:capacity-$id] disables Add object at the exact six-object total for $label",
-    async (scene) => {
+  it.each(catalog.scene_presets.map((scene) => [`component:capacity-${scene.id}`, scene] as const))(
+    "[%s] disables Add object at the exact six-object total",
+    async (_caseId, scene) => {
       vi.stubGlobal("fetch", workspaceFetch({ robots: [quadruped] }));
       render(<MyRobots />);
       fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
@@ -185,9 +185,9 @@ describe("My Robots workspace", () => {
     },
   );
 
-  it.each(catalog.object_types)(
-    "[component:parameter-$id] enforces empty, minimum, maximum, and out-of-range values for $label",
-    async (object) => {
+  it.each(catalog.object_types.map((object) => [`component:parameter-${object.id}`, object] as const))(
+    "[%s] enforces empty, minimum, maximum, and out-of-range values",
+    async (_caseId, object) => {
       vi.stubGlobal("fetch", workspaceFetch({ robots: [biped] }));
       render(<MyRobots />);
       fireEvent.click(await screen.findByRole("button", { name: "Build environment" }));
