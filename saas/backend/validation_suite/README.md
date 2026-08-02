@@ -28,7 +28,7 @@ The authoritative JSON report contains:
 - `schema_version`, `run_id`, `generated_at`, and a SHA-256 `catalog_fingerprint`;
 - one result per stable `case_id`, with `layer`, status, duration, sanitized diagnostic, and the
   local evidence filename;
-- pass/fail/error/skip totals and duplicate-case detection;
+- pass/fail/error/skip totals plus duplicate- and optional expected-case detection;
 - remote preparation/training states, which default to `not-run-cost-gated`;
 - exact non-secret created/deleted resource IDs and cleanup status.
 
@@ -43,6 +43,7 @@ From `saas/backend`:
 ```bash
 python -m validation_suite.matrix --output ../../.form-validation-runs/expected.json
 python -m validation_suite.report merge \
+  --expected ../../.form-validation-runs/expected.json \
   --junit ../../.form-validation-runs/backend.xml \
   --junit ../../.form-validation-runs/frontend.xml \
   --junit ../../.form-validation-runs/browser.xml \

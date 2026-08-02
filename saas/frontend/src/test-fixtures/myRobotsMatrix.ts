@@ -44,7 +44,7 @@ export function robotFixture(type: RobotType, overrides: Partial<Robot> = {}): R
     name: label,
     filename: `${type}.xml`,
     robot_type: type,
-    digest: (type === "biped" ? "c" : "q").repeat(64),
+    digest: (type === "biped" ? "c" : "e").repeat(64),
     validation,
     validated_at: "2026-07-13T00:00:00Z",
     readiness: "validated",

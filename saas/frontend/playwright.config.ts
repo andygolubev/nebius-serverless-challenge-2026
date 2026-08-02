@@ -2,18 +2,19 @@ import { defineConfig, devices } from "@playwright/test";
 
 const deployed = Boolean(process.env.SAAS_SMOKE_BASE_URL);
 const evidenceRoot = "../../.form-validation-runs/playwright";
+const shardLabel = process.env.FORM_BROWSER_SHARD_LABEL ?? "local";
 
 export default defineConfig({
   testDir: "./e2e",
   testMatch: deployed ? /deployed-smoke\.spec\.ts/ : /local-my-robots\.spec\.ts/,
   fullyParallel: !deployed,
-  workers: deployed ? 1 : 2,
+  workers: 1,
   timeout: deployed && process.env.SAAS_SMOKE_REMOTE_TRAINING === "true" ? 70 * 60_000 : deployed ? 15 * 60_000 : 45_000,
   expect: { timeout: deployed ? 20_000 : 8_000 },
-  outputDir: `${evidenceRoot}/test-results`,
+  outputDir: `${evidenceRoot}/test-results-${shardLabel}`,
   reporter: [
     ["list"],
-    ["junit", { outputFile: `${evidenceRoot}/browser.xml` }],
+    ["junit", { outputFile: `${evidenceRoot}/browser-${deployed ? "deployed" : shardLabel}.xml` }],
   ],
   use: {
     baseURL: process.env.SAAS_SMOKE_BASE_URL ?? "http://127.0.0.1:5173",

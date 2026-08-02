@@ -248,16 +248,28 @@ describe("My Robots workspace", () => {
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
   });
 
-  it.each([
-    ["component:lifecycle-quota", setupFixture(), "Prepare for training", 429, "Preparation capacity is in use"],
-    [
-      "component:lifecycle-stale",
-      setupFixture({ trainable: true, reason: "ready", training_readiness: "ready", can_prepare: false, can_start_training: true }),
-      "Start training",
-      409,
-      "Prepare the current setup again",
-    ],
-  ])("[%s] shows sanitized lifecycle errors", async (_caseId, setup, action, status, message) => {
+  it.each<Array<{
+    caseId: string;
+    setup: RobotSetup;
+    action: string;
+    status: number;
+    message: string;
+  }>>([
+    {
+      caseId: "component:lifecycle-quota",
+      setup: setupFixture(),
+      action: "Prepare for training",
+      status: 429,
+      message: "Preparation capacity is in use",
+    },
+    {
+      caseId: "component:lifecycle-stale",
+      setup: setupFixture({ trainable: true, reason: "ready", training_readiness: "ready", can_prepare: false, can_start_training: true }),
+      action: "Start training",
+      status: 409,
+      message: "Prepare the current setup again",
+    },
+  ])("[$caseId] shows sanitized lifecycle errors", async ({ setup, action, status, message }) => {
     const fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
       if (path === "/robot-samples") return json(samples);
@@ -270,8 +282,8 @@ describe("My Robots workspace", () => {
     });
     vi.stubGlobal("fetch", fetch);
     render(<MyRobots />);
-    fireEvent.click(await screen.findByRole("button", { name: action as string }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(message as string);
+    fireEvent.click(await screen.findByRole("button", { name: action }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
 
   it("discovers both samples and keeps a server field error beside the upload", async () => {

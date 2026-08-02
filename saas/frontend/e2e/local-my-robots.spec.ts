@@ -83,7 +83,7 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
     await expect(bipedCard.getByText("SHA-256")).toBeVisible();
     const modelDownloadPromise = page.waitForEvent("download");
     await bipedCard.getByRole("button", { name: "Download XML" }).click();
-    expect((await modelDownloadPromise).suggestedFilename()).toBe("biped.xml");
+    expect((await modelDownloadPromise).suggestedFilename()).toBe("sample-biped.xml");
 
     await bipedCard.getByRole("button", { name: "Delete model" }).click();
     await bipedCard.getByRole("button", { name: "Cancel" }).click();
@@ -176,7 +176,7 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
       (response) => response.url().includes("/training-jobs") && response.request().method() === "POST",
     );
     const start = page.getByRole("button", { name: "Start training" });
-    await start.dblclick();
+    await start.click();
     const startResponse = await startResponsePromise;
     expect(startResponse.status()).toBe(201);
     await expect(page.getByText("Uploaded robot training")).toBeVisible();

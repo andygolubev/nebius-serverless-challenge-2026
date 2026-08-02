@@ -77,11 +77,15 @@ def scan_paths(paths: Iterable[Path]) -> dict[str, list[str]]:
     for path in paths:
         candidates = sorted(path.rglob("*")) if path.is_dir() else [path]
         for candidate in candidates:
-            if not candidate.is_file() or candidate.stat().st_size > 10 * 1024 * 1024:
+            if not candidate.is_file():
+                continue
+            if candidate.stat().st_size > 10 * 1024 * 1024:
+                findings[str(candidate)] = ["oversized-unscannable-artifact"]
                 continue
             try:
                 text = candidate.read_text(encoding="utf-8")
             except (UnicodeDecodeError, OSError):
+                findings[str(candidate)] = ["unscannable-artifact"]
                 continue
             matched = scan_text(text)
             if matched:
@@ -94,10 +98,12 @@ def build_report(
     *,
     run_id: str,
     cost_gates: dict[str, str] | None = None,
+    expected_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     cases = [case for path in junit_paths for case in parse_junit(path)]
     identifiers = [case["case_id"] for case in cases]
     duplicates = sorted(case_id for case_id, count in Counter(identifiers).items() if count > 1)
+    missing = sorted(set(expected_ids or ()) - set(identifiers))
     summary = Counter(case["status"] for case in cases)
     return {
         "schema_version": 1,
@@ -106,6 +112,7 @@ def build_report(
         "catalog_fingerprint": catalog_fingerprint(),
         "summary": dict(sorted(summary.items())),
         "duplicate_case_ids": duplicates,
+        "missing_case_ids": missing,
         "cost_gates": cost_gates
         or {
             "remote_preparation": "not-run-cost-gated",
@@ -146,11 +153,16 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.extend(
             ("", "## Duplicate case IDs", "", *[f"- `{item}`" for item in report["duplicate_case_ids"]])
         )
+    if report["missing_case_ids"]:
+        lines.extend(
+            ("", "## Missing case IDs", "", *[f"- `{item}`" for item in report["missing_case_ids"]])
+        )
     return "\n".join(lines) + "\n"
 
 
 def _write_report(report: dict[str, Any], output: Path, markdown: Path) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
+    markdown.parent.mkdir(parents=True, exist_ok=True)
     rendered = json.dumps(report, indent=2, sort_keys=True) + "\n"
     findings = scan_text(rendered)
     if findings:
@@ -167,6 +179,11 @@ def _main(argv: Iterable[str] | None = None) -> int:
     merge.add_argument("--run-id", required=True)
     merge.add_argument("--output", required=True, type=Path)
     merge.add_argument("--markdown", required=True, type=Path)
+    merge.add_argument(
+        "--expected",
+        type=Path,
+        help="matrix manifest whose case_ids must all appear in the merged JUnit inputs",
+    )
     scan = subparsers.add_parser("scan")
     scan.add_argument("paths", nargs="+", type=Path)
     args = parser.parse_args(list(argv) if argv is not None else None)
@@ -176,12 +193,17 @@ def _main(argv: Iterable[str] | None = None) -> int:
             print(json.dumps(findings, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         return 0
-    report = build_report(args.junit, run_id=args.run_id)
+    expected_ids = None
+    if args.expected:
+        expected_ids = json.loads(args.expected.read_text(encoding="utf-8"))["case_ids"]
+    report = build_report(args.junit, run_id=args.run_id, expected_ids=expected_ids)
+    problems = []
     if report["duplicate_case_ids"]:
-        print(
-            f"duplicate case IDs: {', '.join(report['duplicate_case_ids'])}",
-            file=sys.stderr,
-        )
+        problems.append(f"duplicate case IDs: {', '.join(report['duplicate_case_ids'])}")
+    if report["missing_case_ids"]:
+        problems.append(f"missing case IDs: {', '.join(report['missing_case_ids'])}")
+    if problems:
+        print("; ".join(problems), file=sys.stderr)
         return 1
     _write_report(report, args.output, args.markdown)
     return 0

@@ -90,7 +90,11 @@ def _upload(client, headers, robot_type: str, *, name: str | None = None) -> dic
         for sample_id in ("sample-quadruped", "sample-biped")
         for declared_type in EXPECTED_ROBOT_TYPES
     ],
-    ids=lambda value: value,
+    ids=[
+        f"api:upload:{sample_id}:{declared_type}"
+        for sample_id in ("sample-quadruped", "sample-biped")
+        for declared_type in EXPECTED_ROBOT_TYPES
+    ],
 )
 def test_upload_sample_through_every_declared_type_path(
     client, login, sample_id: str, declared_type: str

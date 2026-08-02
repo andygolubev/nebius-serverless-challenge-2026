@@ -51,8 +51,10 @@ async function writeOutcome(
 }
 
 test("[deployed:no-cost-smoke] validates every deployed form choice with exact-ID cleanup", async ({ page, request }) => {
+  test.skip(remotePreparation || remoteTraining, "paid canary invocation runs only the explicit cost-gated case");
   expect(token, "SAAS_SMOKE_BEARER_TOKEN must be supplied through a masked environment secret").not.toBe("");
-  expect(remoteTraining, "remote training requires remote preparation").toBeFalsy();
+  expect(remotePreparation, "the no-cost smoke refuses remote preparation").toBeFalsy();
+  expect(remoteTraining, "the no-cost smoke refuses remote training").toBeFalsy();
   const headers = { Authorization: `Bearer ${token}` };
   const me = await request.get("/me", { headers });
   expect(me.status()).toBe(200);
@@ -164,7 +166,9 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
 test("[deployed:remote-cost-gates] remote work is never implicit", async ({ page, request }) => {
   test.skip(!remotePreparation && !remoteTraining, "not-run-cost-gated");
   expect(token).not.toBe("");
-  expect(remoteTraining, "remote training requires SAAS_SMOKE_REMOTE_PREPARATION=true").toBeFalsy();
+  if (remoteTraining) {
+    expect(remotePreparation, "remote training requires SAAS_SMOKE_REMOTE_PREPARATION=true").toBeTruthy();
+  }
   // The no-cost suite creates and removes its own resources. Paid canaries require an
   // operator-owned retained setup and a separate provider audit, so this test refuses
   // to infer those authorities from the browser session alone.
@@ -183,7 +187,7 @@ test("[deployed:remote-cost-gates] remote work is never implicit", async ({ page
   );
   await card.getByRole("button", { name: /Prepare for training|Retry preparation/ }).click();
   expect((await prepareResponse).status()).toBe(201);
-  await expect(card.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15 * 60_000 });
+  await expect(card.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 12 * 60_000 });
   if (remoteTraining) {
     const startResponse = page.waitForResponse(
       (response) => response.url().includes("/training-jobs") && response.request().method() === "POST",

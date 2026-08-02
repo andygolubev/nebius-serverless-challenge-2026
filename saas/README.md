@@ -234,6 +234,38 @@ pip install -r requirements-dev.txt
 python -m pytest tests
 ```
 
+### My Robots form validation
+
+The fast gate runs the exhaustive API and component matrices plus the isolated local browser
+suite; it uses temporary databases, mock delivery/orchestration, and does not create cloud jobs:
+
+```bash
+cd saas/backend
+python -m pytest tests/test_my_robots_matrix.py tests/test_validation_suite.py -q
+cd ../frontend
+npm test -- --testTimeout=10000
+npm run test:e2e
+npm run build
+```
+
+CI shards these layers independently and merges JUnit evidence under the gitignored
+`.form-validation-runs/` directory. The generated report records stable case IDs and a catalog
+fingerprint; screenshots/traces are failure-only and publication is blocked when the evidence scan
+finds credentials, authorization headers, login codes, private MJCF content, storage keys, or an
+unscannable artifact.
+
+The deployed no-cost smoke is manual (`saas-form-smoke.yml`). It accepts only the approved HTTPS
+origin and a masked existing test-tenant session secret, serializes mutations, preflights `/me` and
+the catalog, uploads only canonical public samples, and deletes only the exact robot/setup IDs it
+created. Set `preserve_resources` only for short-lived operator inspection and delete the recorded
+IDs afterward. Never paste a bearer token into a command, workflow input, issue, or report.
+
+Remote preparation and remote training are separate paid gates and default to
+`not-run-cost-gated`. Do not enable them from the no-cost workflow. A paid canary requires the cheap
+gate to pass, one retained eligible setup, bounded polling, a fresh idempotency key, and the provider
+audit/cleanup procedure in `saas/API_RUNBOOK.md`; every temporary instance, disk, address, and rule
+must be stopped or removed before the run can be called clean.
+
 ## Container
 
 ```bash

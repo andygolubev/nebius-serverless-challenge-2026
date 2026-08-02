@@ -31,6 +31,14 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: saas/frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: saas/backend/requirements-dev.txt
+      - name: Install evidence scanner dependencies
+        working-directory: saas/backend
+        run: pip install -r requirements-dev.txt
       - name: Install browser test dependencies
         working-directory: saas/frontend
         run: |
@@ -43,12 +51,19 @@ jobs:
           SAAS_SMOKE_BEARER_TOKEN: ${{ secrets.SAAS_SMOKE_BEARER_TOKEN }}
           SAAS_SMOKE_PRESERVE_RESOURCES: ${{ inputs.preserve_resources }}
           SAAS_SMOKE_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
-        run: npm run test:e2e:deployed
+        run: |
+          if [ "$SAAS_SMOKE_BASE_URL" != "https://sim-policy-trainer-challenge.info" ]; then
+            echo "Refusing to send the masked test session to an unapproved origin" >&2
+            exit 1
+          fi
+          npm run test:e2e:deployed
       - name: Scan validation evidence
+        id: evidence-scan
+        if: always()
         working-directory: saas/backend
         run: python -m validation_suite.report scan ../../.form-validation-runs
       - name: Upload sanitized evidence
-        if: always()
+        if: always() && steps.evidence-scan.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: saas-form-smoke-${{ github.run_id }}-${{ github.run_attempt }}
