@@ -209,8 +209,8 @@ def _cloud_checks(
         head = store.head_object_optional(str(relative)) or {}
         checksum_results[str(name)] = (
             bool(expected.get("sha256"))
-            and head.get("Metadata", {}).get("sha256") == expected.get("sha256")
-            and int(head.get("ContentLength", -1)) == int(expected.get("size_bytes", -2))
+            and head.get("sha256") == expected.get("sha256")
+            and int(head.get("size_bytes", -1)) == int(expected.get("size_bytes", -2))
         )
     run_status = str(status.get("status", ""))
     episodes = metrics.get("episodes") or []

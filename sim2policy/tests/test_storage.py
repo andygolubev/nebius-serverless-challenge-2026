@@ -45,10 +45,19 @@ class FakeS3:
         self.objects[(bucket, key)] = Path(filename).read_bytes()
         self.metadata[(bucket, key)] = dict((ExtraArgs or {}).get("Metadata", {}))
 
-    def put_object(self, *, Bucket: str, Key: str, Body: bytes, **_: Any) -> None:
+    def put_object(
+        self,
+        *,
+        Bucket: str,
+        Key: str,
+        Body: bytes,
+        Metadata: dict[str, str] | None = None,
+        **_: Any,
+    ) -> None:
         self._fail()
         self.events.append(("put", Key))
         self.objects[(Bucket, Key)] = Body
+        self.metadata[(Bucket, Key)] = dict(Metadata or {})
 
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
@@ -57,7 +66,10 @@ class FakeS3:
         Path(filename).write_bytes(self.objects[(bucket, key)])
 
     def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
-        return {"ContentLength": len(self.objects[(Bucket, Key)])}
+        return {
+            "ContentLength": len(self.objects[(Bucket, Key)]),
+            "Metadata": self.metadata.get((Bucket, Key), {}),
+        }
 
     def list_objects_v2(self, *, Bucket: str, Prefix: str, **_: Any) -> dict[str, Any]:
         keys = sorted(
@@ -215,4 +227,5 @@ def test_head_object_optional_reports_size_and_absence(tmp_path: Path) -> None:
     head = store.head_object_optional("report/metrics.json")
     assert head is not None
     assert head["size_bytes"] == len(client.objects[("test", store.key_for("report/metrics.json"))])
+    assert head["sha256"] is not None
     assert store.head_object_optional("report/absent.json") is None

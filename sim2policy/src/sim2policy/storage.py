@@ -279,12 +279,12 @@ class ArtifactStore:
         return result
 
     def head_object_optional(self, relative: str | PurePosixPath) -> dict[str, Any] | None:
-        """Return an object's size without downloading it, or None when absent.
+        """Return an object's size and upload digest, or None when absent.
 
         Campaign verification proves that every artifact the manifest declares
-        actually exists at its declared size. Doing that with HEAD keeps the
-        check cheap and, more importantly, keeps whole run artifacts on the
-        cloud side instead of pulling them to the caller.
+        actually exists at its declared size and SHA-256. Doing that with HEAD
+        keeps the check cheap and, more importantly, keeps whole run artifacts
+        on the cloud side instead of pulling them to the caller.
         """
         if not self.enabled:
             return None
@@ -294,7 +294,13 @@ class ArtifactStore:
         except Exception:  # missing key or transient error -> treat as absent
             return None
         size = response.get("ContentLength")
-        return {"size_bytes": int(size) if size is not None else None, "key": key}
+        metadata = response.get("Metadata")
+        sha256 = metadata.get("sha256") if isinstance(metadata, dict) else None
+        return {
+            "size_bytes": int(size) if size is not None else None,
+            "sha256": str(sha256) if sha256 is not None else None,
+            "key": key,
+        }
 
     def presigned_url(self, relative: str | PurePosixPath, *, expires: int = 3600) -> str:
         """Return a time-limited GET URL for an object under the run prefix."""
