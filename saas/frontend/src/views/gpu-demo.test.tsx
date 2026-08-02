@@ -179,13 +179,17 @@ describe("public showcase", () => {
     render(<App />);
     await screen.findByRole("heading", { name: "Watch robots learn to move" });
 
+    document.documentElement.scrollTop = 500;
     fireEvent.click(screen.getByRole("button", { name: "About me" }));
     expect(screen.getByRole("heading", { name: "Andy Golubev" })).toBeVisible();
+    await waitFor(() => expect(document.documentElement.scrollTop).toBe(0));
     expect(screen.getAllByRole("link", { name: "LinkedIn" })[0]).toHaveAttribute("rel", "noreferrer");
     expect(screen.getByRole("link", { name: "GitHub repository" })).toHaveAttribute("target", "_blank");
 
+    document.documentElement.scrollTop = 500;
     fireEvent.click(screen.getByRole("button", { name: "Terms of use" }));
     expect(screen.getByRole("heading", { name: "The short version" })).toBeVisible();
+    await waitFor(() => expect(document.documentElement.scrollTop).toBe(0));
     expect(screen.getByRole("heading", { name: "Download your results early" })).toBeVisible();
     expect(screen.getByText(/Files can disappear when the project ends or before that/)).toBeVisible();
     expect(screen.getByText("Last updated 2 August 2026 · Andy Golubev")).toBeVisible();

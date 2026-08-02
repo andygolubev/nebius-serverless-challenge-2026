@@ -2501,7 +2501,7 @@ select {
   .topbar { padding: 12px 20px; flex-wrap: wrap; gap: 16px; }
   .band-cols { grid-template-columns: 1fr; gap: 28px; }
   .showcase .gallery-grid { grid-template-columns: 1fr; }
-  .showcase-cta { margin-left: 20px; margin-right: 20px; }
+  .showcase-cta { width: auto; margin-left: 0; margin-right: 0; }
   .showcase-detail .job-title-identity { flex-direction: column; }
 }
 

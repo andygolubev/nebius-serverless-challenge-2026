@@ -19,7 +19,7 @@ async function openWorkspace(page: Page, parallelIndex: number) {
     localStorage.setItem("sim2policy.email", session.email);
   }, current);
   await page.goto("/");
-  await page.getByRole("button", { name: "My Robots" }).click();
+  await page.getByRole("button", { name: "My Robots", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Robots" })).toBeVisible();
   return current;
 }
@@ -259,7 +259,7 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
       });
     }
     await page.reload();
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     for (const setupId of created.setups) {
       const response = await request.get(`/robot-setups/${setupId}`, {
         headers: { Authorization: `Bearer ${session.token}` },
@@ -329,7 +329,7 @@ test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and 
     expect(artifacts.status).toBe("completed");
     expect(artifacts.metrics).toBeTruthy();
 
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     const setupCard = page.getByRole("heading", { name: "E2E lifecycle biped setup" }).locator("xpath=ancestor::article");
     await expect(setupCard.getByRole("button", { name: "View completed result" })).toBeVisible();
     await expect(setupCard.getByRole("button", { name: "Start training" })).toHaveCount(0);
@@ -361,7 +361,7 @@ test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and 
     );
     expect(staleResponse.status()).toBe(200);
     await page.reload();
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     const staleCard = page
       .getByRole("heading", { name: "E2E failed preparation" })
       .locator("xpath=ancestor::article");
@@ -403,14 +403,14 @@ test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and 
     expect(refreshedSetup.training_readiness).toBe("ready");
     expect(refreshedSetup.can_start_training).toBeTruthy();
     await page.reload();
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     await expect(staleCard.getByRole("button", { name: "Start training" })).toBeVisible();
     await setHarnessModes(request, session.token, { training: "fail-once" });
     await staleCard.getByRole("button", { name: "Start training" }).click();
     await expect(page.getByRole("alert").getByRole("heading", { name: "Failed during submission" })).toBeVisible();
     await expect(page.getByRole("alert")).toContainText("mock training submission failed");
 
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     const quotaModelCard = page
       .getByRole("heading", { name: "E2E lifecycle biped" })
       .locator("xpath=ancestor::article");
@@ -467,7 +467,7 @@ test("[browser:keyboard-mobile] complete form remains keyboard-operable at 375 p
     await expect(scene).toHaveAttribute("aria-checked", "true");
     const objectType = builder.getByLabel("Object type");
     await objectType.focus();
-    await page.keyboard.press("End");
+    await page.keyboard.press("s");
     await expect(objectType).toHaveValue("step");
     await builder.getByRole("button", { name: "Add object" }).focus();
     await page.keyboard.press("Enter");

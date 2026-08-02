@@ -128,7 +128,7 @@ async function openWorkspace(page: Page, email: string) {
     { token, email },
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "My Robots" }).click();
+  await page.getByRole("button", { name: "My Robots", exact: true }).click();
   await expect(page.getByRole("heading", { name: "My Robots" })).toBeVisible();
 }
 
@@ -342,7 +342,7 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
     expect(setup.objects).toEqual([]);
     expect(setup.digest).toMatch(/^[0-9a-f]{64}$/);
     await page.reload();
-    await page.getByRole("button", { name: "My Robots" }).click();
+    await page.getByRole("button", { name: "My Robots", exact: true }).click();
     await expect(page.getByRole("heading", { name: `${runPrefix} setup` })).toBeVisible();
     await expect(page.getByText("Preparation required before training").first()).toBeVisible();
     expect(remotePreparation).toBeFalsy();
