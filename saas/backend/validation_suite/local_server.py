@@ -109,6 +109,12 @@ def set_validation_modes(
     return {"preparation": preparation, "training": training}
 
 
+# The production app ends with an SPA catch-all route. Keep local-only harness
+# controls ahead of it so Starlette does not resolve POSTs as a 405 partial
+# match on the GET-only catch-all.
+app.router.routes.insert(0, app.router.routes.pop())
+
+
 @app.post("/_validation/robot-setups/{setup_id}/stale-preparation")
 def stale_validation_preparation(
     setup_id: str, session: Session = Depends(main.require_session)
@@ -137,6 +143,9 @@ def stale_validation_preparation(
             ),
         )
     return {"setup_id": setup_id, "state": "stale"}
+
+
+app.router.routes.insert(0, app.router.routes.pop())
 
 
 def run() -> None:
