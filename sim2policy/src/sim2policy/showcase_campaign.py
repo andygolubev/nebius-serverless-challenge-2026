@@ -565,6 +565,28 @@ class Campaign:
             return None
         return document
 
+    def _g1_full_authorization(self, image_digest: str) -> dict[str, Any]:
+        evidence = self.store.read_json(self.store.evidence_path("g1-pilot-gate.json"))
+        if not isinstance(evidence, dict):
+            raise CampaignError("G1 full campaign requires a recorded passing pilot gate")
+        audit = evidence.get("cloud_audit")
+        if (
+            evidence.get("schema_version") != 1
+            or evidence.get("matrix_digest") != self.matrix.digest
+            or evidence.get("image_digest") != image_digest
+            or evidence.get("full_campaign_authorized") is not True
+            or not isinstance(evidence.get("pilot_run_id"), str)
+            or not evidence.get("pilot_run_id")
+            or not isinstance(evidence.get("pilot_record_digest"), str)
+            or not isinstance(evidence.get("gate"), dict)
+            or evidence["gate"].get("passed") is not True
+            or not isinstance(audit, dict)
+            or audit.get("clean") is not True
+            or audit.get("unaccounted_resources") != []
+        ):
+            raise CampaignError("G1 pilot gate or cleanup evidence is incomplete or inconsistent")
+        return evidence
+
     # -- plan (5.6) ----------------------------------------------------------
 
     def build_plan(self, example: str, seed: int, *, phase: str = "base") -> dict[str, Any]:
@@ -580,6 +602,11 @@ class Campaign:
         image = self._image_evidence(card["image"]["runtime"])
         if image is None:
             raise CampaignError(f"no immutable {card['image']['runtime']} image digest is recorded")
+        g1_authorization = (
+            self._g1_full_authorization(str(image["digest"]))
+            if example == "g1"
+            else None
+        )
 
         steps = card["base_steps"] if phase == "base" else card["extension_steps"]
         suffix = "" if phase == "base" else "-ext"
@@ -658,6 +685,22 @@ class Campaign:
             "registry_secret": self._environment.get("NEBIUS_REGISTRY_SECRET_VERSION", ""),
             "secret_selectors": self._secret_selectors(),
         }
+        if example == "g1":
+            # The recovery stages are normalized into the reviewed plan even
+            # though only a passing pilot permits submission of this full job.
+            plan["g1_recovery"] = dict(card["curriculum"])
+            plan["g1_recovery"]["authorization"] = {
+                "diagnostic_sweep_required": True,
+                "pilot_required": True,
+                "full_requires_passing_pilot": True,
+                "second_pilot_allowed": False,
+                "extension_allowed": False,
+            }
+            plan["g1_recovery"]["pilot_acceptance"] = {
+                "pilot_run_id": g1_authorization["pilot_run_id"],
+                "pilot_record_digest": g1_authorization["pilot_record_digest"],
+                "evidence_digest": _digest(g1_authorization),
+            }
         if not plan["subnet_id"]:
             raise CampaignError("job subnet is not configured")
         if not plan["registry_secret"]:

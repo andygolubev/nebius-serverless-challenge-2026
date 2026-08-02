@@ -385,6 +385,19 @@ def campaign(tmp_path: Path):
         if name.endswith("-image.json"):
             payload |= {"tag": f"registry.example/sim2policy-{name.split('-')[0]}", "digest": IMAGE_DIGEST}
         store.write_json(store.evidence_path(name), payload)
+    store.write_json(
+        store.evidence_path("g1-pilot-gate.json"),
+        {
+            "schema_version": 1,
+            "matrix_digest": matrix.digest,
+            "image_digest": IMAGE_DIGEST,
+            "pilot_run_id": "g1-pilot-verified",
+            "pilot_record_digest": "f" * 64,
+            "gate": {"passed": True},
+            "cloud_audit": {"clean": True, "unaccounted_resources": []},
+            "full_campaign_authorized": True,
+        },
+    )
     instance.implementation_gate()
     return build, store, matrix
 
@@ -479,6 +492,25 @@ def test_g1_plan_declares_both_exact_phase_evidence_prefixes(campaign) -> None:
         f"sim2policy/{run_id}-rough/",
         f"sim2policy/{run_id}-flat/",
     ]
+    recovery = plan["g1_recovery"]
+    assert recovery["flat_effective_steps"] == 149_422_080
+    assert recovery["pilot"]["effective_steps"] == 46_202_880
+    assert recovery["full"]["timeout_minutes"] == 300
+    assert recovery["authorization"] == {
+        "diagnostic_sweep_required": True,
+        "pilot_required": True,
+        "full_requires_passing_pilot": True,
+        "second_pilot_allowed": False,
+        "extension_allowed": False,
+    }
+    assert recovery["pilot_acceptance"]["pilot_run_id"] == "g1-pilot-verified"
+
+
+def test_g1_full_plan_is_blocked_without_pilot_authorization(campaign) -> None:
+    build, store, _ = campaign
+    store.evidence_path("g1-pilot-gate.json").unlink()
+    with pytest.raises(CampaignError, match="passing pilot"):
+        build().build_plan("g1", 0)
 
 
 def test_plan_refuses_a_seed_the_matrix_does_not_declare(campaign) -> None:

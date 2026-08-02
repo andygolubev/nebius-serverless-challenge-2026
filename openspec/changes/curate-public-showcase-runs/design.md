@@ -15,8 +15,27 @@ The public gallery has seven placeholders. Historical non-tenant artifacts estab
 The G1 H100 measurement is the planning anchor: 202.3424M effective steps took 5,510 seconds end to
 end, including roughly 249 seconds of JIT and 5,105 seconds of PPO. Linear scaling puts 450M training
 near 204 minutes; allowing a second environment compile, checkpoint evaluations, uploads, and final
-rendering gives a realistic 3h50–4h15 completion window. The job timeout is therefore five hours so
-successful training is not killed while finalizing.
+rendering gives a realistic 3h50–4h15 completion window. Provider inspection later proved the full
+flat/rough workload, evaluation, rendering, bundling, and upload completed in 244 minutes. The old
+signal-kill/OOM inference was false, and the five-hour timeout has about 56 minutes of measured
+margin.
+
+The completed seed-0 G1 campaign invalidated two assumptions in the original run card. Its selected
+46,202,880-step rough checkpoint achieved the required speed (minimum 0.7769 m/s, mean 0.8619 m/s)
+but only 1/10 selection episodes and 0/20 final episodes completed the 1,000-step horizon; all 14
+retained rough candidates achieved at most 1/10. This is a stability plateau, not evidence that the
+same objective merely needs more steps. The actual rough PPO log also says it restored the
+149,422,080-step flat checkpoint while recovery-generated provenance names the 99,614,720-step
+checkpoint. Recovery had re-evaluated the flat gates and invented a new parent instead of preserving
+the transition that training executed. Finally, the evaluator labeled every upstream environment
+termination as `fall`, although pinned Playground v0.2.0 terminates G1 on torso inversion,
+foot-foot contact, foot-shin contact, or a NaN state.
+
+The training and acceptance command distributions also differ. Upstream G1 training samples x/y/yaw
+commands, includes a 10 percent zero-command branch, and resamples after 500 control steps. Gallery
+acceptance forces `[1.0, 0.0, 0.0]` without resampling for all 1,000 steps. The recovery experiment
+therefore changes command distribution first while preserving the reviewed PPO and reward settings.
+That isolates the most direct mismatch and keeps any later reward redesign evidence-driven.
 
 The current generic submitter invokes only `train_sb3` or `train_mjx`; hosted entry points train and
 finalize but always evaluate the final checkpoint. Neither is sufficient for a low-judgment campaign
@@ -102,12 +121,13 @@ The initial matrix is:
 | Hopper | 5M | 0, 7, 42 | 250k | reward >= 1800 and mean length >= 500 | best seed to 8M |
 | Walker2D | 5M | 0, 7, 42 | 250k | reward >= 3500 and mean length = 1000 | best seed to 8M |
 | Go1 | 200M | 0, 7, 42 | 10M | 20/20 no-fall, min >= 0.75 m/s, mean >= 0.9 m/s | best seed to 300M |
-| G1 | 450M total curriculum | 0 | see curriculum | 20/20 no-fall, min >= 0.4 m/s, mean >= 0.6 m/s | none |
+| G1 recovery | 50M pilot, then fresh 450M total curriculum only if gated | 0 | see recovery curriculum | 20/20 no-termination, min >= 0.4 m/s, mean >= 0.6 m/s | none |
 
 Hard publication floors remain Reacher -10, HalfCheetah 1500, Ant 1000, Hopper 1000, Walker2D 1800,
-Go1 minimum 0.5 m/s in every full no-fall episode, and G1 minimum 0.4 m/s in every full no-fall
-episode. Preferred targets control whether the single extension is used; they do not replace the hard
-floor. A run below its hard floor is never accepted even when all artifacts exist.
+Go1 minimum 0.5 m/s in every full no-fall episode, and G1 minimum 0.4 m/s in every full episode with
+no environment termination. Preferred targets control whether the single extension is used; they do
+not replace the hard floor. A run below its hard floor is never accepted even when all artifacts
+exist.
 
 All non-G1 examples use three independent training seeds to reduce seed luck. Selection evaluations
 use `[101, 151, 211, 271, 331]`, with two episodes per seed for ten episodes per checkpoint. Final
@@ -173,33 +193,113 @@ preferred target, only its seed resumes to 300M. Final acceptance retains the ex
 Alternative: L40S-first because it is cheaper. Rejected for this campaign because the operator
 explicitly accepts a 3–4 hour training window and prioritizes predictable completion and result.
 
-### 5. G1 is one bounded 450M H100 curriculum, not another flat 200M repeat
+### 5. G1 recovery aligns training with acceptance and gates full spend behind a pilot
 
-G1 uses one non-preemptible H100 job, seed 0, 100 GiB, and a five-hour timeout. A dedicated hosted
-curriculum entry point keeps both stages in one allocation and produces one provenance chain.
+The rejected G1 policy does not justify another identical 450M attempt. The recovery is one reviewed,
+bounded experiment with three stages: diagnostic re-evaluation, a disposable 50M pilot, and—only
+after a machine-verifiable pilot pass—one fresh 450M result campaign. Every GPU workload uses one
+non-preemptible H100, 100 GiB disk, seed 0, and an immutable image. The pilot timeout is 90 minutes;
+the fresh campaign timeout remains five hours, backed by the measured completed 244-minute
+flat/rough workload and its finalization.
 
-1. Start `G1JoystickFlatTerrain` from scratch with pushes disabled and the reviewed upstream PPO
-   contract: 8,192 environments, privileged critic, 20-step unroll, 32 minibatches, four updates,
-   entropy cost 0.005, and the existing action/observation/reward contract.
-2. Save candidates at least every 25M steps; run flat gait gates at 100M, 150M, and 200M. The gate is
-   deterministic full-horizon commanded locomotion on the selection set, not reward alone.
-3. Transition as soon as a gate passes. If none passes by 200M, stop training, finalize diagnostics,
-   clean up, and set `NEEDS_HUMAN`; rough training is prohibited because there is no gait to harden.
-4. Resume the selected flat checkpoint into no-push rough terrain. The rough stage receives all
-   remaining steps from the fixed 450M total, so an early flat pass yields a longer rough stage.
-   Preserve candidates every 25M and evaluate milestone candidates without deleting regressions.
-5. Rank rough checkpoints by full-horizon no-fall count, minimum velocity, mean episode length, mean
-   velocity, then reward. Evaluate the selected checkpoint on the disjoint final set.
-6. Accept only if all 20 final episodes run 1,000 steps without falling and each achieves at least
-   0.4 m/s. The preferred mean is at least 0.6 m/s. There is no automatic second 450M seed or
-   post-hoc reward tuning.
+#### 5.1 Exact task and environment contract
 
-The selected checkpoint may precede 450M. The job still finishes its bounded budget unless a
-numerical/infrastructure failure occurs; checkpoint selection prevents later regression from erasing
-an earlier good policy. The runner never cancels merely because an intermediate metric looks weak.
+Implementation adds server-owned `G1ForwardFlatTerrain` and `G1ForwardRoughTerrain` identities over
+the pinned Playground v0.2.0 G1 flat/rough scenes. They preserve observation shape, action shape,
+noise, reset randomization, physics, termination conditions, reward terms, and PPO settings, but
+`sample_command` always returns `[1.0, 0.0, 0.0]`. Consequently the upstream 500-step resampling call
+returns the same command, and the 10 percent zero-command branch is absent. Pushes remain disabled.
 
-Alternative: continue a failed 200M rough checkpoint to 450M. Rejected because the policy has not
-demonstrated a stable flat gait and two accelerators converged to the same fall pattern.
+The first recovery experiment does not change reward coefficients, discounting, architecture,
+optimizer, batch shape, or acceptance thresholds. Changing command distribution and reward shaping
+at once would make a pass uninterpretable and a failure unactionable. If the fixed-forward pilot
+fails, the workflow stops at `NEEDS_HUMAN`; a later reward change requires another reviewed decision
+using the recorded termination distribution.
+
+#### 5.2 Termination taxonomy and read-only checkpoint sweep
+
+Evaluation records `horizon`, `torso_inversion`, `foot_foot_contact`, `foot_shin_contact`,
+`nan_state`, or `unknown_environment_done`. When several conditions occur on one step, evidence
+retains all causes and chooses a deterministic primary reason in the order NaN, torso inversion,
+foot-foot, foot-shin, unknown. Every non-horizon reason remains a hard-gate failure; better labels do
+not weaken acceptance.
+
+Before pilot training, one evaluation-only H100 job downloads the retained flat checkpoints from the
+rejected fresh campaign and evaluates each checkpoint under both `G1ForwardFlatTerrain` and
+`G1ForwardRoughTerrain` using only selection seeds `[101, 151, 211, 271, 331]`, four episodes per
+seed. The sweep never touches final seeds and cannot produce a public candidate. A pilot parent is
+eligible only when its fixed-forward flat result has 20/20 full-horizon episodes, every episode has
+mean velocity at least 0.4 m/s, and the pinned Brax checkpoint restores its complete supported tuple:
+observation-normalizer parameters, policy parameters, and value parameters. Among eligible parents,
+the rough zero-shot result ranks them by full-horizon count, mean episode length, minimum velocity,
+mean velocity, mean reward, then earlier step. Rough success is diagnostic, not an eligibility
+condition: requiring the unadapted flat parent to pass rough terrain would assume the result the
+pilot exists to test. If no checkpoint passes the flat eligibility and restore checks, the pilot is
+not submitted.
+
+Pinned Brax 0.14.2 does not store or restore optimizer state, environment-step counters, rollout
+state, or the learner PRNG in its PPO policy checkpoint. Every declared resume therefore restores
+the supported tuple and deterministically initializes a fresh optimizer and rollout stream with
+seed 0. The transition record states this explicitly and proves the restored tuple; it must not call
+the operation an exact optimizer continuation. Implementing a custom full-state trainer is rejected
+for this recovery because it would add a second, high-risk learning-system change to the
+fixed-forward experiment.
+
+#### 5.3 Bounded pilot
+
+The pilot resumes the exact selected diagnostic parent into `G1ForwardRoughTerrain` with a 50M
+effective-step ceiling and 25M checkpoint cadence. Preflight rounds down to the largest whole rough
+PPO epoch quantum and, under the reviewed batch contract, asserts 46,202,880 executable steps. It
+uses the normal locomotion selection seeds with two episodes per seed. The fresh campaign is unlocked
+only when the best pilot checkpoint satisfies all of:
+
+- at least 5/10 full-horizon episodes;
+- mean episode length at least 900;
+- minimum per-episode mean forward velocity at least 0.4 m/s;
+- no NaN termination; and
+- complete transition, checkpoint, runtime, and cleanup evidence.
+
+This is deliberately a progress gate, not publication acceptance. It is materially stronger than
+the failed baseline (1/10 and 823.4 mean steps) while allowing the full campaign to finish learning.
+A failed or ambiguous pilot stops without a full run; the operator does not reinterpret videos or
+training reward.
+
+#### 5.4 Fresh fixed-forward result campaign
+
+After a passing pilot, the public candidate trains from scratch rather than inheriting the pilot or
+the rejected campaign:
+
+1. Train `G1ForwardFlatTerrain` uninterrupted from scratch to the largest whole PPO epoch quantum at
+   or below the nominal 150M boundary. Under the reviewed batch contract, preflight must derive and
+   assert 149,422,080 effective steps. Evaluate that exact final checkpoint on ten selection
+   episodes and require 10/10 full-horizon episodes with every episode at least 0.4 m/s. Earlier
+   checkpoints remain progression evidence and cannot become the transition parent. A failed gate
+   stops before rough training.
+2. Atomically publish a transition record naming the quantum-aligned flat object path, effective step,
+   SHA-256 digest, source/target environment identities, config/matrix/image digests, and remaining
+   budget. Download/resolve the parent once and verify the bytes and supported observation-normalizer,
+   policy, and value tuple before invoking rough PPO. Record that optimizer, learner step, rollout
+   state, and PRNG are freshly initialized at the phase boundary under seed 0.
+3. Resume that checkpoint into `G1ForwardRoughTerrain`. Rough training receives
+   `450M - measured_flat_training_steps`, aligned down again to PPO epoch quanta. Preflight records
+   both the arithmetic remainder and executable rough request; their measured total may be below but
+   can never exceed 450M. Preserve 25M candidates and train the declared remainder without using
+   final seeds or manual cancellation.
+4. Rank rough checkpoints by full-horizon no-termination count, minimum velocity, mean episode
+   length, mean velocity, configured reward, then earlier checkpoint. Evaluate only the selected
+   checkpoint on the disjoint final set.
+5. Accept only if all 20 final episodes reach 1,000 steps, every episode averages at least 0.4 m/s,
+   and mean velocity is at least 0.6 m/s. No threshold relaxation, second seed, reward mutation, or
+   post-hoc final-set reselection is authorized.
+
+The pilot is intentionally not resumed into the public result: its purpose is to validate the causal
+change cheaply, while the fresh run preserves a clean from-scratch provenance chain. The maximum new
+training authorized by this design is 50M pilot steps plus one 450M result curriculum.
+
+Alternative: modify stability rewards immediately. Rejected for this iteration because the failed
+run already used a -100 termination cost and strong orientation penalty; without exact termination
+causes, another reward vector would be guesswork. Alternative: continue the rejected rough
+checkpoint. Rejected because all 14 retained checkpoints plateaued below 2/10 full-horizon episodes.
 
 ### 6. Immutable provenance and best-checkpoint finalization precede execution
 
@@ -207,6 +307,13 @@ The runner only accepts images tagged with the exact source commit and resolved 
 It records the normalized config digest, image digest, parent checkpoint digest, effective steps,
 checkpoint digest, framework/runtime versions, and campaign matrix digest. Resume is allowed only
 when all of these inputs match the failed attempt.
+
+For every cross-environment G1 resume, the durable transition record is written before the trainer
+starts and the rough runtime record repeats the resolved input path, step, and digest. Verification
+requires those values to agree with the actual checkpoint sidecar and the provider command. A
+recovery finalizer consumes the recorded transition; it SHALL NOT re-run a flat gate, select a new
+parent, or synthesize phase lineage. Missing or inconsistent transition evidence makes the run
+diagnostic-only even when its policy metrics pass.
 
 Hosted finalization must accept an explicit selected checkpoint. It evaluates and renders that
 checkpoint, while retaining final-step metrics/media as honest progression evidence. Required
@@ -224,6 +331,9 @@ public serializer validate allowlisted real runtime schemas before a run can be 
   before a checkpoint gets one identical retry. Further failure stops.
 - If training and selected evidence are durable but finalization failed, retry finalization only; do
   not retrain.
+- G1 finalization-only recovery must restore the immutable transition record and exact recorded
+  parent. It may re-evaluate rough candidates but may not re-evaluate flat candidates to reconstruct
+  a different transition.
 - Preemptible capacity is prohibited for the result campaign.
 
 ### 8. Promotion is atomic per example and cleanup is mandatory
@@ -240,16 +350,22 @@ blocked until the cleanup audit passes.
 
 ## Risks / Trade-offs
 
-- **G1 still fails after 450M**: preserve all milestone evidence, clean up, leave G1 unpublished, and
-  require a reviewed follow-up for a reward/task redesign or second seed.
+- **G1 pilot fails**: preserve exact termination evidence, clean up, leave G1 unpublished, and do not
+  spend the fresh 450M budget. A reward/task redesign requires another reviewed change.
+- **G1 pilot passes but the fresh campaign fails**: preserve all milestone evidence, clean up, leave
+  G1 unpublished, and do not launch another seed, reward vector, or continuation.
+- **Fixed-forward specialization reduces general joystick capability**: the public example is
+  explicitly Walk Forward and its measured resolved configuration exposes this specialization; the
+  tenant G1 joystick training card remains unchanged.
 - **Three seeds multiply total runtime**: execution is sequential and resumable; quality and seed
   robustness are deliberately prioritized over minimum spend.
 - **Preferred targets are too ambitious**: the one-extension rule bounds cost; missing a preferred
   target becomes `NEEDS_HUMAN` rather than silently publishing a marginal policy.
 - **Selection overfits**: selection and final seed sets are disjoint and recorded; only the selected
   bounded candidate receives final acceptance.
-- **Long G1 job dies during upload**: five-hour timeout includes margin, durable checkpoints permit
-  exact resume, and finalization can be retried without retraining.
+- **Long G1 job dies during upload**: the measured 244-minute completed workload leaves about 56
+  minutes inside the five-hour timeout, durable checkpoints permit exact supported-tuple resume, and
+  finalization can be retried without retraining.
 - **Agent interruption causes duplicate spend**: campaign lock, remote-name adoption, plan digests,
   and persisted state make every command idempotent.
 - **Schema normalization leaks private fields**: the curator parses an allowlisted typed record and
@@ -258,13 +374,15 @@ blocked until the cleanup audit passes.
 ## Migration Plan
 
 1. Edit the matrix schema, campaign CLI/state machine, explicit-checkpoint finalizer, typed curation
-   evidence, and G1 curriculum source without executing project code on the shared host.
+   evidence, G1 termination taxonomy, fixed-forward environments, transition record, pilot gate, and
+   fresh curriculum source without executing project code on the shared host.
 2. Provision/start the Nebius CPU orchestration/builder VM; there, check out the exact revision,
    install dependencies, run all lint/type/unit/integration/frontend/build validation, build immutable
    SB3/MJX images, and push exact
    commit tags/digests, and stop the builder.
-3. Run bounded CPU and GPU smoke jobs in Nebius, then execute the detailed runbook from the Nebius
-   orchestration VM. Each job must verify artifacts and cleanup before the next submission.
+3. Run bounded CPU and GPU smoke jobs in Nebius, then execute the G1 evaluation-only checkpoint
+   sweep and 50M pilot. Submit the fresh 450M curriculum only after the structured pilot gate passes.
+   Each job must verify artifacts and cleanup before the next submission.
 4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
    fixtures, and provenance checks pass.
 5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production
@@ -275,6 +393,7 @@ does not mutate or delete private artifacts.
 
 ## Open Questions
 
-None for campaign execution. Any missing immutable image, infrastructure output, quota, or runner
-capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight operator is not
-authorized to fill the gap by guessing.
+No operator choice remains. Exact implementation values and pilot gates are declared above. Any
+missing immutable image, eligible pilot parent, passing pilot evidence, infrastructure output,
+quota, or runner capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight
+operator is not authorized to fill the gap by guessing.

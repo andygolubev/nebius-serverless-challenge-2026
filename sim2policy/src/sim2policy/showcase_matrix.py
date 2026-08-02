@@ -164,15 +164,53 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         raise MatrixError(f"examples.{name}.ranking must use the fixed locomotion order")
     if name == "g1":
         curriculum = _mapping(value.get("curriculum"), "examples.g1.curriculum")
-        _only(curriculum, {"flat_config", "rough_config", "flat_environment", "rough_environment", "flat_gates", "candidate_every_steps", "pushes_enabled"}, "examples.g1.curriculum")
-        if curriculum.get("flat_config") != "configs/g1_flat_mjx.yaml" or curriculum.get("rough_config") != "configs/g1_mjx.yaml":
+        _only(curriculum, {"flat_config", "rough_config", "flat_environment", "rough_environment", "flat_nominal_steps", "flat_effective_steps", "candidate_every_steps", "pushes_enabled", "diagnostic", "pilot", "full"}, "examples.g1.curriculum")
+        if curriculum.get("flat_config") != "configs/g1_forward_flat_mjx.yaml" or curriculum.get("rough_config") != "configs/g1_forward_rough_mjx.yaml":
             raise MatrixError("G1 curriculum config identities are invalid")
-        if curriculum.get("flat_environment") != "G1JoystickFlatTerrain" or curriculum.get("rough_environment") != "G1JoystickRoughTerrain":
+        if curriculum.get("flat_environment") != "G1ForwardFlatTerrain" or curriculum.get("rough_environment") != "G1ForwardRoughTerrain":
             raise MatrixError("G1 curriculum environment identities are invalid")
-        if curriculum.get("flat_gates") != [100_000_000, 150_000_000, 200_000_000]:
-            raise MatrixError("G1 curriculum flat gates are invalid")
+        if curriculum.get("flat_nominal_steps") != 150_000_000 or curriculum.get("flat_effective_steps") != 149_422_080:
+            raise MatrixError("G1 curriculum flat step contract is invalid")
         if curriculum.get("candidate_every_steps") != cadence or curriculum.get("pushes_enabled") is not False:
             raise MatrixError("G1 curriculum cadence or push setting is invalid")
+        diagnostic = _mapping(curriculum.get("diagnostic"), "examples.g1.curriculum.diagnostic")
+        _only(diagnostic, {"source_run_id", "source_environment", "environments", "episodes_per_seed", "flat_required_horizons", "min_velocity", "ranking"}, "examples.g1.curriculum.diagnostic")
+        if (
+            diagnostic.get("source_run_id") != "gallery-g1-20260801-16-flat"
+            or diagnostic.get("source_environment") != "G1JoystickFlatTerrain"
+            or diagnostic.get("environments") != ["G1ForwardFlatTerrain", "G1ForwardRoughTerrain"]
+            or diagnostic.get("episodes_per_seed") != 4
+            or diagnostic.get("flat_required_horizons") != 20
+            or diagnostic.get("min_velocity") != 0.4
+            or diagnostic.get("ranking") != ["rough_horizon_count", "rough_mean_episode_length", "rough_min_velocity", "rough_mean_velocity", "rough_mean_reward", "earlier_checkpoint"]
+        ):
+            raise MatrixError("G1 diagnostic sweep contract is invalid")
+        pilot = _mapping(curriculum.get("pilot"), "examples.g1.curriculum.pilot")
+        _only(pilot, {"step_ceiling", "effective_steps", "timeout_minutes", "seed", "required_horizons", "episodes", "mean_episode_length", "min_velocity", "max_nan_terminations"}, "examples.g1.curriculum.pilot")
+        if pilot != {
+            "step_ceiling": 50_000_000,
+            "effective_steps": 46_202_880,
+            "timeout_minutes": 90,
+            "seed": 0,
+            "required_horizons": 5,
+            "episodes": 10,
+            "mean_episode_length": 900,
+            "min_velocity": 0.4,
+            "max_nan_terminations": 0,
+        }:
+            raise MatrixError("G1 pilot contract is invalid")
+        full = _mapping(curriculum.get("full"), "examples.g1.curriculum.full")
+        _only(full, {"total_step_ceiling", "timeout_minutes", "seed", "flat_gate_episodes", "flat_required_horizons", "flat_min_velocity", "extension_steps"}, "examples.g1.curriculum.full")
+        if full != {
+            "total_step_ceiling": 450_000_000,
+            "timeout_minutes": 300,
+            "seed": 0,
+            "flat_gate_episodes": 10,
+            "flat_required_horizons": 10,
+            "flat_min_velocity": 0.4,
+            "extension_steps": None,
+        }:
+            raise MatrixError("G1 full campaign contract is invalid")
     elif "curriculum" in value:
         raise MatrixError(f"examples.{name} cannot declare a curriculum")
     return value
@@ -182,7 +220,7 @@ def load_matrix(path: str | Path) -> CampaignMatrix:
     raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     root = _mapping(raw, "matrix")
     _only(root, {"schema_version", "campaign", "examples"}, "matrix")
-    if root.get("schema_version") != 1:
+    if root.get("schema_version") != 2:
         raise MatrixError("unsupported showcase matrix schema version")
     campaign = _mapping(root.get("campaign"), "campaign")
     _only(campaign, {"execution_location", "max_active_jobs", "selection", "final"}, "campaign")
@@ -201,5 +239,5 @@ def load_matrix(path: str | Path) -> CampaignMatrix:
     examples = _mapping(root.get("examples"), "examples")
     if tuple(examples) != EXAMPLE_ORDER or set(examples) != set(EXAMPLE_ORDER):
         raise MatrixError("matrix example IDs must be the exact ordered showcase set")
-    normalized = {"schema_version": 1, "campaign": campaign, "examples": {name: _validate_card(name, examples[name]) for name in EXAMPLE_ORDER}}
+    normalized = {"schema_version": 2, "campaign": campaign, "examples": {name: _validate_card(name, examples[name]) for name in EXAMPLE_ORDER}}
     return CampaignMatrix(normalized=normalized, digest=normalized_digest(normalized))

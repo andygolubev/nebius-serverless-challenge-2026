@@ -10,7 +10,7 @@ final acceptance; it MUST NOT assume the final step or highest scalar reward is 
 
 #### Scenario: Locomotion checkpoints are ranked
 - **WHEN** multiple G1 checkpoints are evaluated for curation
-- **THEN** they are ranked first by full-horizon no-fall episode count, then minimum forward
+- **THEN** they are ranked first by full-horizon no-termination episode count, then minimum forward
   velocity, mean episode length, and mean velocity, with exact values retained
 
 #### Scenario: Mean-reward checkpoints are ranked
@@ -28,6 +28,12 @@ final acceptance; it MUST NOT assume the final step or highest scalar reward is 
 - **THEN** only the single selected checkpoint is evaluated on the separate final acceptance seeds
   and the promotion record names that checkpoint and its result
 
+#### Scenario: G1 environment terminates an episode
+- **WHEN** a G1 rollout ends before the configured horizon
+- **THEN** the per-episode evidence distinguishes torso inversion, foot-foot contact, foot-shin
+  contact, NaN state, and unknown environment termination, retains every observed cause, and does not
+  reduce all outcomes to the label `fall`
+
 ### Requirement: Measured curriculum provenance
 The system SHALL, when a policy is trained through multiple curriculum phases, record in
 `metrics.json`, the resolved configuration, and the human report each phase's canonical
@@ -37,8 +43,15 @@ final task only and SHALL not inherit a prerequisite phase's success.
 
 #### Scenario: Flat-to-rough G1 curriculum completes
 - **WHEN** a flat-terrain checkpoint is resumed into rough-terrain training
-- **THEN** the final evidence records both phases and the exact parent digest while scoring public
-  success only against the rough-terrain acceptance gate
+- **THEN** the final evidence records both phases, the immutable pre-resume transition record, and
+  the exact parent object, step, digest, observation-normalizer, policy, and value parameters
+  actually loaded by the rough trainer; it also records fresh optimizer/learner/RNG initialization
+  while scoring public success only against the rough-terrain acceptance gate
+
+#### Scenario: Recovery would choose a different flat checkpoint
+- **WHEN** finalization-only recovery re-evaluation would rank a different flat checkpoint than the
+  immutable transition record
+- **THEN** the recorded transition remains authoritative and recovery cannot replace or rewrite it
 
 #### Scenario: Prerequisite passes but final task fails
 - **WHEN** the flat gait phase passes and the rough phase remains unstable

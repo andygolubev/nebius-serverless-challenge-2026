@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 campaign:
   execution_location: nebius
   max_active_jobs: 1
@@ -84,7 +84,7 @@ examples:
   g1:
     gallery_example_id: g1-rough-terrain
     backend: mjx
-    config: configs/g1_mjx.yaml
+    config: configs/g1_forward_rough_mjx.yaml
     image: {runtime: mjx, tag_template: "mjx-{git_sha}"}
     seeds: [0]
     base_steps: 450000000
@@ -92,12 +92,39 @@ examples:
     checkpoint_every_steps: 25000000
     hardware: {platform: gpu-h100-sxm, preset: 1gpu-16vcpu-200gb, disk_gib: 100, timeout_minutes: 300, preemptible: false}
     curriculum:
-      flat_config: configs/g1_flat_mjx.yaml
-      rough_config: configs/g1_mjx.yaml
-      flat_environment: G1JoystickFlatTerrain
-      rough_environment: G1JoystickRoughTerrain
-      flat_gates: [100000000, 150000000, 200000000]
+      flat_config: configs/g1_forward_flat_mjx.yaml
+      rough_config: configs/g1_forward_rough_mjx.yaml
+      flat_environment: G1ForwardFlatTerrain
+      rough_environment: G1ForwardRoughTerrain
+      flat_nominal_steps: 150000000
+      flat_effective_steps: 149422080
       candidate_every_steps: 25000000
       pushes_enabled: false
+      diagnostic:
+        source_run_id: gallery-g1-20260801-16-flat
+        source_environment: G1JoystickFlatTerrain
+        environments: [G1ForwardFlatTerrain, G1ForwardRoughTerrain]
+        episodes_per_seed: 4
+        flat_required_horizons: 20
+        min_velocity: 0.4
+        ranking: [rough_horizon_count, rough_mean_episode_length, rough_min_velocity, rough_mean_velocity, rough_mean_reward, earlier_checkpoint]
+      pilot:
+        step_ceiling: 50000000
+        effective_steps: 46202880
+        timeout_minutes: 90
+        seed: 0
+        required_horizons: 5
+        episodes: 10
+        mean_episode_length: 900
+        min_velocity: 0.4
+        max_nan_terminations: 0
+      full:
+        total_step_ceiling: 450000000
+        timeout_minutes: 300
+        seed: 0
+        flat_gate_episodes: 10
+        flat_required_horizons: 10
+        flat_min_velocity: 0.4
+        extension_steps: null
     acceptance: {hard: {episodes: 20, no_fall: true, min_velocity: 0.4}, preferred: {episodes: 20, no_fall: true, min_velocity: 0.4, mean_velocity: 0.6}}
     ranking: {kind: locomotion, fields: [no_fall_count, min_velocity, mean_episode_length, mean_velocity, mean_reward, earlier_checkpoint]}

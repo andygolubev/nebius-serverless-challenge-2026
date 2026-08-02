@@ -97,13 +97,13 @@ SHOWCASE_METRICS = {
 # it has complete provenance but must never be promoted because final success is false.
 G1_COMPLETED_FAILED_METRICS = {
     **SHOWCASE_METRICS,
-    "environment": "G1JoystickRoughTerrain",
+    "environment": "G1ForwardRoughTerrain",
     "backend": "mjx",
     "aggregate": {"episodes": 20, "mean_velocity": 0.31, "mean_episode_length": 442},
     "success": {"met": False, "criterion": "velocity >= 0.4 and not fallen"},
     "phase_lineage": {
-        "flat": {"environment": "G1JoystickFlatTerrain", "selected_step": 150000000},
-        "rough": {"environment": "G1JoystickRoughTerrain", "effective_total_steps": 450000000},
+        "flat": {"environment": "G1ForwardFlatTerrain", "selected_step": 149422080},
+        "rough": {"environment": "G1ForwardRoughTerrain", "effective_total_steps": 450000000},
     },
 }
 

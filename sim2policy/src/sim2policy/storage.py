@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import shutil
 import time
@@ -95,7 +96,11 @@ class ArtifactStore:
         failures: list[str] = []
         for local in sorted(path for path in run_root.rglob("*") if path.is_file()):
             relative = local.relative_to(run_root).as_posix()
-            if relative == "checkpoints/latest.json":
+            if relative in {
+                "checkpoints/latest.json",
+                "report/g1-transition.json",
+                "report/g1-finalization-input.json",
+            }:
                 continue
             try:
                 uploaded.append(self.upload_file(local, relative))
@@ -216,6 +221,43 @@ class ArtifactStore:
                 ContentType="application/json",
             ),
         )
+        return key
+
+    def put_immutable_json(
+        self, relative: str | PurePosixPath, payload: dict[str, Any]
+    ) -> str:
+        """Create a JSON object once, accepting only byte-identical replay.
+
+        S3's conditional create is the atomic boundary.  A retry after a lost
+        response may observe an existing object, so an identical body is treated
+        as idempotent while any difference is an immutable-evidence violation.
+        """
+        key = self.key_for(relative)
+        if not self.enabled:
+            return key
+        body = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+        try:
+            self.client.put_object(
+                Bucket=self.config.bucket,
+                Key=key,
+                Body=body,
+                ContentType="application/json",
+                Metadata={"sha256": hashlib.sha256(body).hexdigest()},
+                IfNoneMatch="*",
+            )
+        except Exception as exc:
+            try:
+                existing = self.client.get_object(
+                    Bucket=self.config.bucket, Key=key
+                )["Body"].read()
+            except Exception as read_exc:
+                raise StorageError(
+                    f"immutable publish {relative} could not be verified"
+                ) from read_exc
+            if existing != body:
+                raise StorageError(
+                    f"immutable object already exists with different bytes: {relative}"
+                ) from exc
         return key
 
     def get_json_optional(self, relative: str | PurePosixPath) -> dict[str, Any] | None:

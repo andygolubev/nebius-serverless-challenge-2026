@@ -46,7 +46,8 @@ The campaign does not authorize:
 
 - editing the matrix during execution;
 - changing a seed, step budget, checkpoint interval, timeout, preset, algorithm, or gate;
-- launching a fourth base seed, a second extension, or a second G1 campaign;
+- launching a fourth base seed, a second extension, a second G1 recovery pilot, or any full G1
+  recovery campaign before the reviewed pilot gate passes;
 - using preemptible capacity;
 - pinning a hard-floor-only result that misses its preferred target;
 - deleting provider job history, SaaS rows, or durable S3 evidence;
@@ -463,53 +464,86 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
 
 ### 11.7 G1 humanoid
 
-- Example ID: `g1`; canonical flat environment: `G1JoystickFlatTerrain`; canonical target environment:
-  the reviewed G1 joystick rough-terrain identity; backend: dedicated MJX curriculum.
+- Example ID: `g1`; diagnostic identities: `G1JoystickFlatTerrain` and
+  `G1JoystickRoughTerrain`; fresh canonical identities: `G1ForwardFlatTerrain` and
+  `G1ForwardRoughTerrain`; backend: dedicated MJX recovery curriculum.
 - Hardware: `gpu-h100-sxm` / `1gpu-16vcpu-200gb`; disk: 100 GiB; non-preemptible;
-  timeout: 5 hours.
-- Seed: 0 only; total ceiling: 450,000,000 effective steps across both phases.
+  pilot timeout: 90 minutes; full timeout: 5 hours. Read-only provider evidence proves the prior
+  full flat/rough workload and finalization completed in 244 minutes; the earlier OOM/timeout
+  inference was false.
+- Seed: 0 only; pilot ceiling: 50,000,000 rough steps, quantized to 46,202,880 under the reviewed
+  batch contract; conditional fresh result ceiling: 450,000,000 effective steps across flat and
+  rough phases.
+- Fixed-forward contract: command `[1.0, 0.0, 0.0]` at reset and every step through horizon 1,000;
+  no zero-command branch, no effective command resampling, pushes disabled, unchanged reviewed PPO
+  and reward settings.
 - MJX phase requests are rounded down to whole PPO epoch quanta before submission, and provenance
   records requested and measured steps, so upstream batch rounding cannot exceed the ceiling.
-- Flat stage: no pushes; candidates at least every 25M; gates at 100M, 150M, 200M.
-- Flat transition: take the earliest checkpoint that passes the declared full-horizon gait
-  prerequisite. If none passes by 200M, stop without rough training.
-- Rough stage: no pushes; resume exact selected flat digest; spend all remaining steps up to the fixed
+- Diagnostic sweep: evaluate every retained rejected-campaign flat checkpoint on both fixed-forward
+  flat and rough terrain, selection seeds only, four episodes per seed. Pilot-parent eligibility
+  requires 20/20 flat horizon, every flat episode >=0.4 m/s, and successful restoration of pinned
+  Brax observation-normalizer, policy, and value parameters. Rank eligible parents by rough
+  zero-shot horizon count, mean length, minimum velocity, mean velocity, reward, then earlier step;
+  zero rough completions does not by itself make a flat-stable parent ineligible.
+- Pilot: one quantum-aligned 50M-ceiling rough continuation from the exact diagnostic parent;
+  candidates at the derived roughly 25M/50M boundaries.
+  Full-campaign unlock requires >=5/10 horizon, mean length >=900, minimum velocity >=0.4 m/s, no
+  NaN termination, complete provenance, and clean audit.
+- Brax phase-boundary contract: restore observation-normalizer, policy, and value parameters; record
+  fresh seed-0 optimizer, learner-step, rollout-state, and PRNG initialization. Never call the pinned
+  checkpoint an exact optimizer continuation.
+- Fresh flat stage: from scratch, uninterrupted to the largest PPO epoch quantum at or below nominal
+  150M—149,422,080 effective steps under the reviewed batch contract—with candidates every 25M.
+  Gate only that derived final checkpoint at 10/10 horizon and minimum velocity >=0.4 m/s; earlier
+  checkpoints are progression evidence and cannot become the transition parent.
+- Flat transition: atomically record and verify exact object/path, step, digest, environments,
+  image/config/matrix digests, measured spend, and remaining budget before rough PPO starts.
+- Fresh rough stage: resume exact selected flat digest; spend all remaining steps up to the fixed
   450M total; candidates every 25M.
-- Selection: full-horizon no-fall count, minimum velocity, mean length, mean velocity, reward.
-- Hard floor: 20/20 rough-terrain episodes reach 1,000 steps without a fall and every episode is
-  >= 0.4 m/s.
+- Termination evidence: `horizon`, `torso_inversion`, `foot_foot_contact`, `foot_shin_contact`,
+  `nan_state`, or `unknown_environment_done`; every non-horizon reason fails stability.
+- Selection: full-horizon no-termination count, minimum velocity, mean length, mean velocity, reward.
+- Hard floor: 20/20 rough-terrain episodes reach 1,000 steps without environment termination and
+  every episode is >= 0.4 m/s.
 - Preferred target: hard floor plus mean velocity >= 0.6 m/s.
-- Extension: none. No second seed or hardware comparison is authorized.
-- Expected completion: 3h50–4h15 end to end based on measured H100 throughput; five-hour timeout
-  protects evaluation/render/upload finalization.
+- Extension: none. No second pilot, seed, reward change, threshold change, or hardware comparison is
+  authorized.
+- Expected full completion: 3h50–4h15 end to end based on measured H100 throughput; the pilot adds
+  at most 90 minutes and protects the larger spend.
 
-## 12. G1 curriculum state machine
+## 12. G1 recovery state machine
 
-The dedicated G1 job is internally deterministic:
+The reviewed recovery is internally deterministic:
 
 ```text
-FLAT_TRAIN -> FLAT_GATE_100
-  fail -> FLAT_TRAIN -> FLAT_GATE_150
-    fail -> FLAT_TRAIN -> FLAT_GATE_200
-      fail -> FINALIZE_DIAGNOSTIC -> REJECTED/NEEDS_HUMAN
-      pass -> SELECT_FLAT -> ROUGH_TRAIN
-    pass -> SELECT_FLAT -> ROUGH_TRAIN
-  pass -> SELECT_FLAT -> ROUGH_TRAIN
+CLASSIFY_TERMINATIONS -> SWEEP_RETAINED_FLAT_ON_FLAT_AND_ROUGH
+  no flat-stable, supported-tuple-restorable 20/20 parent -> CLEAN -> NEEDS_HUMAN
+  eligible parent -> RECORD_PILOT_TRANSITION -> PILOT_ROUGH_QUANTIZED_50M
+    pilot gate fail/ambiguous -> CLEAN -> NEEDS_HUMAN
+    pilot gate pass -> CLEAN -> AUTHORIZE_FRESH
 
-ROUGH_TRAIN_TO_TOTAL_450M -> RANK_ROUGH_CHECKPOINTS
+FRESH_FLAT_TRAIN_TO_QUANTIZED_150M -> FLAT_GATE_AT_DERIVED_FINAL_STEP
+  fail -> FINALIZE_DIAGNOSTIC -> CLEAN -> NEEDS_HUMAN
+  pass -> WRITE_AND_VERIFY_TRANSITION
+
+WRITE_AND_VERIFY_TRANSITION -> FRESH_ROUGH_TRAIN_TO_TOTAL_450M
+  -> RANK_ROUGH_CHECKPOINTS
   -> FINAL_ACCEPT_SELECTED
     hard+preferred pass -> ACCEPTED
     hard fail -> REJECTED
     hard pass/preferred fail -> NEEDS_HUMAN
 ```
 
-The flat gait prerequisite must be encoded and tested before launch. It must include full-horizon
-commanded motion and no-fall stability; reward-only or standing-only criteria are forbidden. The
-selection seeds are used for gates. Final seeds are not touched until one rough checkpoint is chosen.
+The diagnostic sweep and pilot are validation evidence, never public candidates. The fresh flat gait
+prerequisite must include full-horizon commanded motion and no-termination stability; reward-only or
+standing-only criteria are forbidden. The selection seeds are used for sweep, pilot, and flat gates.
+Final seeds are not touched until one fresh rough checkpoint is chosen.
 
 Training continues through the declared rough budget even after a promising checkpoint so the
 campaign collects progression and may find a better checkpoint. Numerical divergence, provider
 failure, or timeout are the only automatic early termination conditions after rough training begins.
+Recovery finalization reads the immutable transition record and cannot re-run a flat gate or select a
+different parent.
 
 ## 13. Exact campaign sequence
 
@@ -526,7 +560,10 @@ Sequence:
 4. Hopper seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 5. Walker2D seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 6. Go1 H100 seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
-7. G1 one H100 curriculum -> acceptance or terminal diagnostic -> cleanup audit.
+7. G1 termination diagnostic and retained-flat sweep -> cleanup audit.
+8. If an eligible parent exists, one G1 50M H100 pilot -> structured gate -> cleanup audit.
+9. If and only if the pilot passes, one fresh G1 450M H100 curriculum -> acceptance or terminal
+   diagnostic -> cleanup audit.
 
 Do not reorder to keep H100 warm. Serverless jobs and artifacts are the boundary; there is no
 authorization to leave an instance running between examples.
@@ -543,8 +580,8 @@ Approximate first-pass wall time, including three base seeds but excluding exten
 | Hopper | 70–90 minutes |
 | Walker2D | 85–105 minutes |
 | Go1 | 75–100 minutes |
-| G1 | 3h50–4h15 |
-| **Sequential total** | **about 9–11 hours** |
+| G1 recovery | pilot <=1h30; full 3h50–4h15 with a 5h timeout, only after pilot pass |
+| **Sequential total** | **about 9–12.5 hours when pilot and full G1 both run** |
 
 Queue delays or a single extension can add time. These estimates are not cancellation deadlines;
 only the matrix timeout controls. A watcher reports at 60-second intervals. If no heartbeat is

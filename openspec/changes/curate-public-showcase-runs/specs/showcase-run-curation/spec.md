@@ -105,38 +105,106 @@ once to 300M. Final publication SHALL still require 20/20 1,000-step no-fall epi
   and mean 0.9 m/s target
 - **THEN** no further training is submitted automatically and the example enters needs-human
 
-### Requirement: Bounded H100 G1 curriculum
-G1 SHALL run at most one fresh seed-0, 450M-effective-step, non-preemptible H100 curriculum job with
-a five-hour timeout. The job SHALL acquire a no-push flat-terrain gait by at most 200M steps, then
-resume the selected flat checkpoint into no-push rough terrain for the remainder of the fixed total.
-Final publication SHALL require 20/20 deterministic 1,000-step episodes without falls and at least
-0.4 m/s measured forward velocity in every episode. The preferred mean SHALL be at least 0.6 m/s.
+### Requirement: Pilot-gated fixed-forward H100 G1 recovery
+The G1 recovery SHALL align training with the public Walk Forward acceptance task by using
+server-owned flat and rough environments whose command is always `[1.0, 0.0, 0.0]` for the full
+1,000-step episode, with pushes disabled and the reviewed PPO and reward settings otherwise
+unchanged. Before a new full campaign, the workflow SHALL classify exact termination causes, perform
+an evaluation-only sweep of retained flat checkpoints on selection seeds, and run at most one 50M
+rough-terrain pilot from an eligible swept parent. Only a passing pilot MAY authorize one fresh
+seed-0, non-preemptible H100 curriculum job with a 450M effective-step ceiling and five-hour timeout.
+Each phase SHALL round down to whole PPO epoch quanta and the measured combined spend SHALL NOT
+exceed that ceiling. Final publication SHALL require 20/20 1,000-step episodes without any
+environment termination and at least 0.4 m/s measured forward velocity in every episode. The
+preferred mean SHALL be at least 0.6 m/s.
 
-#### Scenario: Flat gait passes before 200M
-- **WHEN** the deterministic gate at 100M or 150M demonstrates the declared full-horizon gait
-  prerequisite
-- **THEN** the job selects that checkpoint and assigns the remaining total-step budget to rough
-  terrain without increasing the 450M ceiling
+#### Scenario: Diagnostic parent is eligible for the pilot
+- **WHEN** a retained flat checkpoint completes 20/20 fixed-forward flat-terrain selection episodes
+  without termination, every episode averages at least 0.4 m/s, and its observation-normalizer,
+  policy, and value parameters restore under pinned Brax 0.14.2
+- **THEN** it may be selected as the non-public 50M pilot parent using its rough-terrain zero-shot
+  full-horizon count, mean episode length, minimum velocity, mean velocity, mean reward, and
+  earlier-step tie-breaking
 
-#### Scenario: Flat gait never passes
-- **WHEN** no flat checkpoint passes by 200M
+#### Scenario: Flat parent has no zero-shot rough completion
+- **WHEN** an otherwise eligible flat checkpoint completes no fixed-forward rough-terrain episode
+- **THEN** its measured rough result remains in the diagnostic ranking and does not by itself make
+  the checkpoint ineligible, because the pilot is the bounded test of rough-terrain adaptation
+
+#### Scenario: No diagnostic parent is eligible
+- **WHEN** every retained flat checkpoint fails the diagnostic parent gate
+- **THEN** no pilot or full campaign is submitted, cleanup runs, and G1 remains unpublished at
+  needs-human
+
+#### Scenario: Pilot demonstrates material stability progress
+- **WHEN** the best checkpoint from the quantum-aligned 50M-ceiling pilot completes at least 5/10
+  selection episodes, has mean episode length at least 900, every episode averages at least 0.4 m/s,
+  has no NaN termination, and its provenance and cleanup validate
+- **THEN** exactly one fresh 450M fixed-forward result campaign is authorized
+
+#### Scenario: Pilot misses or ambiguously satisfies its gate
+- **WHEN** any pilot criterion or required evidence is false, missing, or contradictory
+- **THEN** the workflow submits no full campaign and records needs-human without changing reward,
+  PPO, hardware, seed, or thresholds
+
+#### Scenario: Fresh flat gait passes at the exact phase boundary
+- **WHEN** the fresh result campaign's uninterrupted quantum-aligned nominal-150M flat checkpoint
+  (149,422,080 effective steps under the reviewed batch contract) completes 10/10 selection episodes
+  without termination, every episode averages at least 0.4 m/s, and the next phase can restore its
+  observation-normalizer, policy, and value parameters
+- **THEN** an immutable transition record is published and rough training receives the remaining
+  measured budget up to the 450M ceiling
+
+#### Scenario: Fresh flat gait never passes
+- **WHEN** the exact derived flat phase-boundary checkpoint fails its declared gate
 - **THEN** rough-terrain training is not started, diagnostics are finalized, cleanup runs, and the
   campaign stops at needs-human
+
+#### Scenario: Brax phase boundary reinitializes learner-only state
+- **WHEN** the pilot or fresh rough phase restores a pinned Brax 0.14.2 checkpoint
+- **THEN** evidence proves restoration of observation-normalizer, policy, and value parameters and
+  explicitly records deterministic seed-0 reinitialization of optimizer, learner step, rollout
+  state, and PRNG rather than claiming full-state continuation
 
 #### Scenario: Rough checkpoint passes before final step
 - **WHEN** a retained rough checkpoint outranks later checkpoints and passes final acceptance
 - **THEN** that checkpoint is the selected public policy and later regression remains visible
 
-#### Scenario: G1 exhausts its budget
-- **WHEN** the 450M job fails the hard or preferred gate
-- **THEN** the workflow launches no second seed, hardware comparison, reward change, or extra training
-  without a new reviewed decision
+#### Scenario: G1 recovery exhausts its authorization
+- **WHEN** the pilot or fresh 450M campaign fails its declared gate
+- **THEN** the workflow launches no second pilot, second seed, hardware comparison, reward change, or
+  extra training without a new reviewed decision
+
+### Requirement: Exact G1 termination and transition evidence
+G1 evaluation SHALL distinguish horizon completion, torso inversion, foot-foot contact, foot-shin
+contact, NaN state, and unknown environment termination. Every non-horizon outcome SHALL remain a
+hard-gate failure. Before any flat-to-rough resume, the workflow SHALL atomically persist the exact
+input checkpoint object identity, effective step, digest, source and target environment identities,
+image/config/matrix digests, and remaining budget, then SHALL verify that the rough trainer loaded
+that exact checkpoint. Recovery SHALL consume this transition record and SHALL NOT reconstruct it by
+re-running selection.
+
+#### Scenario: G1 terminates before the horizon
+- **WHEN** the upstream G1 environment reports done
+- **THEN** evaluation records all observed termination causes and one deterministic primary reason
+  rather than labeling every outcome as a generic fall
+
+#### Scenario: Rough trainer loads a different parent
+- **WHEN** the resolved load path, step, sidecar digest, or bytes differ from the durable transition
+  record
+- **THEN** rough training fails before paid PPO updates and the run cannot produce accepted evidence
+
+#### Scenario: Finalization-only recovery lacks transition evidence
+- **WHEN** training artifacts exist but the original immutable transition record is absent or
+  inconsistent
+- **THEN** recovery may preserve diagnostics but cannot synthesize provenance or promote the run
 
 ### Requirement: Disjoint deterministic checkpoint selection
 The workflow SHALL evaluate candidate checkpoints on selection seeds `[101, 151, 211, 271, 331]`
 and SHALL reserve final seeds `[0, 1, 2, 3, 4]` for the selected checkpoint's 20-episode acceptance.
 Locomotion ranking SHALL be lexicographic by full-horizon no-fall count, minimum forward velocity,
-mean episode length, mean velocity, then configured reward. SB3 ranking SHALL use its configured
+mean episode length, mean velocity, then configured reward for Go1, and by the corresponding
+full-horizon no-environment-termination count for G1. SB3 ranking SHALL use its configured
 deterministic task score with declared stability tie-breakers. Final-step status SHALL confer no
 ranking preference.
 
@@ -145,7 +213,8 @@ ranking preference.
 - **THEN** the evidence record is invalid and cannot be promoted
 
 #### Scenario: Reward and stability disagree
-- **WHEN** a locomotion checkpoint has higher reward but fewer full-horizon no-fall episodes
+- **WHEN** a locomotion checkpoint has higher reward but fewer full-horizon stability episodes under
+  its declared no-fall or no-environment-termination rule
 - **THEN** the more stable checkpoint ranks higher
 
 #### Scenario: Training regresses
@@ -185,6 +254,12 @@ and undeclared fallback hardware SHALL be prohibited.
 - **WHEN** the selected checkpoint and training evidence are durable but rendering, evaluation upload,
   manifest construction, or bundle publication fails
 - **THEN** the workflow retries finalization only and does not spend steps retraining the policy
+
+#### Scenario: G1 finalization recovery has an exact transition
+- **WHEN** a G1 finalizer is retried after both training phases and the durable transition record is
+  valid
+- **THEN** it restores the exact recorded flat parent and rough checkpoints without re-running a flat
+  gate or selecting a different transition parent
 
 #### Scenario: Resume inputs drift
 - **WHEN** image, matrix, config, parent checkpoint, or destination identity differs from the failed

@@ -18,6 +18,8 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from sim2policy.checkpoint import (
     CheckpointError,
     checkpoint_path,
@@ -27,6 +29,13 @@ from sim2policy.checkpoint import (
     write_checkpoint_metadata,
 )
 from sim2policy.config import RunConfig, load_config, parse_override
+from sim2policy.g1_forward_env import (
+    G1_FORWARD_FLAT_ENVIRONMENT,
+    G1_FORWARD_ROUGH_ENVIRONMENT,
+    is_g1_forward_environment,
+    register_g1_forward_environments,
+    upstream_environment,
+)
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
@@ -67,7 +76,21 @@ _PLAYGROUND_FLAG_MAP = {
     "value_hidden_layer_sizes",
 }
 REVIEWED_RESUME_TRANSITIONS = frozenset(
-    {("G1JoystickFlatTerrain", "G1JoystickRoughTerrain")}
+    {
+        ("G1JoystickFlatTerrain", "G1JoystickRoughTerrain"),
+        (G1_FORWARD_FLAT_ENVIRONMENT, G1_FORWARD_ROUGH_ENVIRONMENT),
+        # Retained rejected-campaign checkpoints are allowed only as the
+        # explicitly named input to the bounded diagnostic pilot.
+        ("G1JoystickFlatTerrain", G1_FORWARD_ROUGH_ENVIRONMENT),
+    }
+)
+
+G1_TERMINATION_ORDER = (
+    "nan_state",
+    "torso_inversion",
+    "foot_foot_contact",
+    "foot_shin_contact",
+    "unknown_environment_done",
 )
 
 
@@ -103,6 +126,8 @@ def require_mjx() -> None:
 
 def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
     require_mjx()
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     registry = importlib.import_module("mujoco_playground").registry
     env_overrides = _environment_overrides(config)
     try:
@@ -172,8 +197,13 @@ def build_playground_command(
     hyperparameters["num_evals"] = max(
         2, math.ceil(config.training.total_steps / config.checkpoint.every_steps) + 1
     )
+    executable = (
+        [sys.executable, "-m", "sim2policy.playground_train"]
+        if is_g1_forward_environment(config.environment)
+        else ["train-jax-ppo"]
+    )
     command = [
-        "train-jax-ppo",
+        *executable,
         f"--env_name={config.environment}",
         f"--impl={impl}",
         f"--seed={config.seed}",
@@ -284,11 +314,94 @@ def _prepare_resume_checkpoint(
     return destination
 
 
+def _verify_brax_supported_tuple(checkpoint_root: Path, output: Path) -> dict[str, Any]:
+    """Restore the pinned three-item Brax tuple in an isolated process."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sim2policy.train_mjx",
+            "--verify-brax-resume-worker",
+            "--checkpoint-root",
+            str(checkpoint_root),
+            "--verification-output",
+            str(output),
+        ],
+        check=True,
+        text=True,
+    )
+    result = json.loads(output.read_text(encoding="utf-8"))
+    if result.get("restored_components") != [
+        "observation_normalizer",
+        "policy_parameters",
+        "value_parameters",
+    ]:
+        raise RuntimeError("Brax checkpoint did not restore the supported PPO tuple")
+    return result
+
+
+def _verify_brax_supported_tuple_worker(checkpoint_root: Path, output: Path) -> None:
+    children = sorted(
+        (path for path in checkpoint_root.iterdir() if path.is_dir() and path.name.isdigit()),
+        key=lambda path: int(path.name),
+    )
+    if not children:
+        raise RuntimeError("resume root contains no numeric Brax checkpoint")
+    checkpoint = children[-1]
+    _repair_brax_checkpoint_config(checkpoint)
+    ppo_checkpoint = importlib.import_module("brax.training.agents.ppo.checkpoint")
+    restored = ppo_checkpoint.load(checkpoint)
+    if not isinstance(restored, (tuple, list)) or len(restored) != 3:
+        raise RuntimeError("pinned Brax PPO checkpoint is not a three-item supported tuple")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "brax_version": "0.14.2",
+                "checkpoint_path": str(checkpoint),
+                "restored_components": [
+                    "observation_normalizer",
+                    "policy_parameters",
+                    "value_parameters",
+                ],
+                "reinitialized_components": [
+                    "optimizer_state",
+                    "learner_step",
+                    "rollout_state",
+                    "prng_state",
+                ],
+                "fresh_initialization_seed": 0,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 @contextlib.contextmanager
-def mjx_policy_session(checkpoint: Path, config: RunConfig) -> Any:
+def mjx_policy_session(
+    checkpoint: Path,
+    config: RunConfig,
+    *,
+    allowed_source_environment: str | None = None,
+) -> Any:
     """Load a zipped Brax PPO policy and its matching Playground environment."""
     require_mjx()
-    validate_checkpoint(checkpoint, config)
+    metadata = load_checkpoint_metadata(checkpoint)
+    if metadata.backend != config.backend or (
+        metadata.environment != config.environment
+        and metadata.environment != allowed_source_environment
+    ):
+        raise CheckpointError(
+            f"checkpoint is for {metadata.backend}/{metadata.environment}, "
+            f"not {config.backend}/{config.environment}"
+        )
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     with tempfile.TemporaryDirectory(prefix="sim2policy-mjx-") as temporary:
         raw_checkpoint = Path(temporary) / checkpoint.stem
         raw_checkpoint.mkdir()
@@ -327,6 +440,11 @@ def fixed_forward_command_state(
     info = dict(state.info)
     if "command" not in info:
         raise RuntimeError("MJX locomotion environment has no joystick command contract")
+    if bool(getattr(environment, "sim2policy_fixed_forward", False)):
+        command = np.asarray(info["command"], dtype=float)
+        if command.shape != (3,) or not np.allclose(command, [1.0, 0.0, 0.0]):
+            raise RuntimeError("G1Forward environment violated its invariant command")
+        return state
     command = jax.numpy.asarray(
         [target_velocity, 0.0, 0.0], dtype=info["command"].dtype
     )
@@ -381,9 +499,55 @@ def local_forward_velocity(environment: Any, state: Any) -> float:
     return float(local_velocity[0])
 
 
+def classify_g1_termination(
+    environment: Any, state: Any, *, terminated: bool
+) -> tuple[str, tuple[str, ...]]:
+    """Classify the exact pinned G1 done predicate without collapsing causes.
+
+    The order is the reviewed primary-reason precedence.  Simultaneous sensor,
+    orientation, and NaN causes remain in the returned tuple for diagnosis.
+    """
+    if not terminated:
+        return "horizon", ("horizon",)
+
+    causes: list[str] = []
+    data = state.data
+    if bool(np.isnan(np.asarray(data.qpos)).any()) or bool(
+        np.isnan(np.asarray(data.qvel)).any()
+    ):
+        causes.append("nan_state")
+
+    gravity = getattr(environment, "get_gravity", None)
+    if callable(gravity) and float(np.asarray(gravity(data, "torso"))[-1]) < 0.0:
+        causes.append("torso_inversion")
+
+    model = getattr(environment, "_mj_model", None)
+    sensor_data = np.asarray(data.sensordata)
+
+    def active(attribute: str) -> bool:
+        if model is None or not hasattr(environment, attribute):
+            return False
+        sensor_id = int(getattr(environment, attribute))
+        return bool(sensor_data[int(model.sensor_adr[sensor_id])] > 0)
+
+    if active("_right_foot_left_foot_found_sensor"):
+        causes.append("foot_foot_contact")
+    if active("_left_foot_right_shin_found_sensor") or active(
+        "_right_foot_left_shin_found_sensor"
+    ):
+        causes.append("foot_shin_contact")
+    if not causes:
+        causes.append("unknown_environment_done")
+
+    ordered = tuple(name for name in G1_TERMINATION_ORDER if name in causes)
+    return ordered[0], ordered
+
+
 def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     """Create the step-zero Brax policy checkpoint used for progression media."""
     require_mjx()
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     jax = importlib.import_module("jax")
     registry = importlib.import_module("mujoco_playground").registry
     wrapper = importlib.import_module("mujoco_playground").wrapper
@@ -399,7 +563,7 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
 
     environment = registry.load(config.environment, config_overrides=_environment_overrides(config))
-    ppo_params = playground_train.get_rl_config(config.environment)
+    ppo_params = playground_train.get_rl_config(upstream_environment(config.environment))
     hyperparameters = dict(config.training.hyperparameters)
     hyperparameters.pop("impl", None)
     hyperparameters.pop("playground_config_overrides", None)
@@ -482,6 +646,7 @@ def train_mjx(
     initial_checkpoint_factory: Callable[[RunConfig, Path], Path] | None = None,
     state: RunStateStore | None = None,
     allowed_source_environment: str | None = None,
+    transition_record: dict[str, Any] | None = None,
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
@@ -585,6 +750,36 @@ def train_mjx(
             if resume is not None
             else None
         )
+        if transition_record is not None:
+            if raw_resume is None or resume is None:
+                raise RuntimeError("a G1 transition record requires a resume checkpoint")
+            if config.seed != 0:
+                raise RuntimeError("G1 transition requires fresh learner initialization at seed 0")
+            expected_load_path = transition_record.get("restore", {}).get(
+                "trainer_load_path"
+            )
+            if expected_load_path != str(raw_resume):
+                raise RuntimeError("G1 transition trainer load path mismatch")
+            parent = transition_record.get("parent", {})
+            resume_metadata = load_checkpoint_metadata(resume)
+            if (
+                parent.get("checkpoint_name") != resume.name
+                or parent.get("sidecar_step") != resume_metadata.step
+                or parent.get("sha256") != resume_metadata.sha256
+            ):
+                raise RuntimeError("G1 transition parent mismatch before trainer load")
+            restore_evidence = _verify_brax_supported_tuple(
+                raw_resume, paths.report / "g1-restore-verification.json"
+            )
+            if store.enabled:
+                store.upload_file(
+                    paths.report / "g1-restore-verification.json",
+                    "report/g1-restore-verification.json",
+                )
+            print(
+                json.dumps({"event": "g1_resume_verified", **restore_evidence}),
+                flush=True,
+            )
 
         transition("initial_checkpoint")
         initial_raw_root = paths.root / "mjx_initial"
@@ -642,7 +837,11 @@ def train_mjx(
 
 
 def evaluate_mjx(
-    checkpoint: Path, config: RunConfig, *, seeds: list[int] | None = None
+    checkpoint: Path,
+    config: RunConfig,
+    *,
+    seeds: list[int] | None = None,
+    allowed_source_environment: str | None = None,
 ) -> tuple[list[dict[str, Any]], float]:
     episodes: list[dict[str, Any]] = []
     started = time.monotonic()
@@ -651,7 +850,16 @@ def evaluate_mjx(
         config.evaluation.seeds[index % len(config.evaluation.seeds)]
         for index in range(config.evaluation.episodes)
     ]
-    with mjx_policy_session(checkpoint, config) as (jax, environment, policy):
+    session_options = (
+        {"allowed_source_environment": allowed_source_environment}
+        if allowed_source_environment is not None
+        else {}
+    )
+    with mjx_policy_session(checkpoint, config, **session_options) as (
+        jax,
+        environment,
+        policy,
+    ):
         reset = jax.jit(environment.reset)
         step = jax.jit(environment.step)
         for index, seed in enumerate(schedule):
@@ -665,7 +873,7 @@ def evaluate_mjx(
             )
             reward_sum = 0.0
             velocities: list[float] = []
-            fell = False
+            terminated = False
             length = 0
             for episode_step in range(1, episode_length + 1):
                 length = episode_step
@@ -675,12 +883,24 @@ def evaluate_mjx(
                 reward_sum += float(state.reward)
                 velocities.append(local_forward_velocity(environment, state))
                 if bool(state.done):
-                    fell = True
+                    terminated = True
                     break
+            if config.environment in {
+                G1_FORWARD_FLAT_ENVIRONMENT,
+                G1_FORWARD_ROUGH_ENVIRONMENT,
+                "G1JoystickFlatTerrain",
+                "G1JoystickRoughTerrain",
+            }:
+                termination_reason, termination_causes = classify_g1_termination(
+                    environment, state, terminated=terminated
+                )
+            else:
+                termination_reason = "fall" if terminated else "horizon"
+                termination_causes = (termination_reason,)
             mean_velocity = sum(velocities) / len(velocities)
             success = mean_velocity >= float(config.success.min_velocity or 0)
             if config.success.require_not_fallen:
-                success = success and not fell
+                success = success and not terminated
             episodes.append(
                 {
                     "index": index,
@@ -691,8 +911,12 @@ def evaluate_mjx(
                     "command_velocity": config.success.target_velocity,
                     "forward_velocity": velocities[-1],
                     "mean_velocity": mean_velocity,
-                    "fell": fell,
-                    "termination_reason": "fall" if fell else "horizon",
+                    # Kept for compatibility with the public aggregate schema;
+                    # every non-horizon environment termination is a hard failure.
+                    "fell": terminated,
+                    "terminated": terminated,
+                    "termination_reason": termination_reason,
+                    "termination_causes": list(termination_causes),
                     "success": success,
                 }
             )
@@ -726,6 +950,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         worker.add_argument("--initial-output", required=True, type=Path)
         worker_args = worker.parse_args(raw_args)
         _create_initial_checkpoint(load_config(worker_args.config), worker_args.initial_output)
+        return
+    if "--verify-brax-resume-worker" in raw_args:
+        worker = argparse.ArgumentParser()
+        worker.add_argument("--verify-brax-resume-worker", action="store_true")
+        worker.add_argument("--checkpoint-root", required=True, type=Path)
+        worker.add_argument("--verification-output", required=True, type=Path)
+        worker_args = worker.parse_args(raw_args)
+        _verify_brax_supported_tuple_worker(
+            worker_args.checkpoint_root, worker_args.verification_output
+        )
         return
     args = build_parser().parse_args(raw_args)
     config = load_config(args.config, dict(args.overrides))

@@ -45,7 +45,8 @@ as a whole.
 
 #### Scenario: Runtime uses canonical environment identity
 - **WHEN** a run records an allowlisted canonical environment such as `Ant-v5` or
-  `Go1JoystickFlatTerrain` for the corresponding friendly example ID
+  `Go1JoystickFlatTerrain` for the corresponding friendly example ID, or
+  `G1ForwardRoughTerrain` for the G1 Walk Forward recovery card
 - **THEN** the identity gate accepts the exact server-declared mapping without weakening it to a
   caller-controlled or fuzzy match
 
@@ -96,4 +97,3 @@ types, sizes, and public access URLs. Nested metric objects SHALL be returned as
 - **WHEN** a pinned run finished artifact production but did not meet its task threshold
 - **THEN** neither catalog nor detail publishes it, even though its infrastructure status is
   completed
-

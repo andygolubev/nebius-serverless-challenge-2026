@@ -5,7 +5,11 @@ that six examples can succeed, but they do not satisfy the new objective: run a 
 result-first campaign whose training progression is trustworthy and whose winning checkpoint can be
 hardcoded as durable public evidence. G1 is the limiting case. A 25M run barely moved, and two later
 200M no-push runs learned useful forward motion but still fell before the 1,000-step horizon in every
-20-episode acceptance evaluation.
+20-episode acceptance evaluation. The first reviewed 450M curriculum also failed: its best rough
+checkpoint reached the velocity target but only 1/10 selection episodes and 0/20 final episodes
+completed the horizon. Execution additionally proved that recovery reconstructed a different flat
+parent than the checkpoint the rough trainer actually loaded, and that evaluation collapsed all G1
+termination causes into the label `fall`.
 
 The campaign must be executable by a lower-cost agent without improvising hyperparameters, cloud
 resources, retry policy, checkpoint selection, or acceptance decisions. The plan therefore needs an
@@ -36,14 +40,19 @@ conditions—not prose that asks the operator to “monitor and decide.”
   preferred showcase target is missed.
 - Train Go1 directly on one H100 for three independent 200M-step seeds, select by full-horizon
   locomotion quality, and permit one 300M continuation of only the best seed when needed.
-- Train G1 directly on one H100 with a maximum 450M-step flat-to-rough curriculum in one allocation:
-  acquire a stable no-push flat gait by at most 200M steps, then spend the remaining budget on
-  no-push rough-terrain robustness. Evaluate retained milestones and select the best checkpoint, not
-  automatically the final checkpoint.
+- Replace the failed G1 run card with a reviewed recovery experiment. First classify exact G1
+  termination causes, bind recovery to the checkpoint actually loaded at the flat-to-rough
+  transition, and run a 50M rough-terrain pilot on the selection seeds only. The pilot and subsequent
+  fresh 450M campaign train the exact fixed-forward `[1, 0, 0]` command for the same uninterrupted
+  1,000-step horizon used by acceptance. The full campaign is authorized only when the pilot clears
+  its declared stability gate. Later provider inspection proved the completed 450M-class workload
+  finalized in 244 minutes, so the five-hour timeout remains evidence-backed; reward and PPO settings
+  stay unchanged so the result tests one causal change rather than an opaque retune.
 - Keep final acceptance strict: SB3 examples must pass their configured deterministic reward floor;
-  Go1 and G1 must complete 20/20 deterministic 1,000-step episodes without falling and meet the
-  per-episode minimum forward-velocity floor. Preferred targets are used for result quality but never
-  weaken the hard publication gate.
+  Go1 must complete 20/20 deterministic 1,000-step episodes without falling, and G1 must complete
+  20/20 without any environment termination. Both locomotion examples must meet their per-episode
+  minimum forward-velocity floor. Preferred targets are used for result quality but never weaken the
+  hard publication gate.
 - Pin a run only after immutable provenance, selected-checkpoint evidence, required checksummed
   artifacts, policy bundle, measured runtime/cost, public-schema compatibility, and cleanup audit all
   pass. Failed or merely artifact-complete runs stay private diagnostics.
@@ -70,9 +79,10 @@ conditions—not prose that asks the operator to “monitor and decide.”
   exact robot run cards, retry/extension rules, cost/time envelopes, and handoff templates suitable
   for a lightweight execution agent. The runbook has an explicit Nebius execution-location gate.
 - **Runtime** (`sim2policy/configs/`, `sim2policy/src/sim2policy/`, `sim2policy/jobs/`): will add
-  server-owned result profiles, checkpoint selection/finalization, the G1 curriculum entry point, and
-  a campaign CLI. These are implementation tasks; this proposal launches no jobs and changes no
-  cloud resources.
+  server-owned result profiles, checkpoint selection/finalization, exact G1 termination telemetry,
+  fixed-forward G1 environments, durable transition evidence, the G1 curriculum entry point, and a
+  campaign CLI. These are implementation tasks; this proposal launches no jobs and changes no cloud
+  resources.
 - **Backend/frontend**: will replace placeholders only with independently accepted non-tenant runs
   and will expose measured progression evidence without restoring any public training action.
 - **Cloud**: a reusable Nebius CPU D3 orchestration/builder machine performs every preparation,

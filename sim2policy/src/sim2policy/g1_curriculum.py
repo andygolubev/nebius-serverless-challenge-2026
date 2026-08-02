@@ -17,9 +17,13 @@ from dataclasses import dataclass
 from typing import Any
 
 
-FLAT_ENVIRONMENT = "G1JoystickFlatTerrain"
-ROUGH_ENVIRONMENT = "G1JoystickRoughTerrain"
-FLAT_GATES = (100_000_000, 150_000_000, 200_000_000)
+FLAT_ENVIRONMENT = "G1ForwardFlatTerrain"
+ROUGH_ENVIRONMENT = "G1ForwardRoughTerrain"
+FLAT_NOMINAL_STEPS = 150_000_000
+FLAT_EFFECTIVE_STEPS = 149_422_080
+FLAT_GATES = (FLAT_EFFECTIVE_STEPS,)
+PILOT_STEP_CEILING = 50_000_000
+PILOT_EFFECTIVE_STEPS = 46_202_880
 TOTAL_STEPS = 450_000_000
 HORIZON = 1_000
 
@@ -45,7 +49,11 @@ def flat_gate_result(
     values = tuple(episodes)
     if not values:
         raise CurriculumError("flat prerequisite has no deterministic episodes")
-    no_fall = [not bool(item.get("fell", True)) for item in values]
+    no_fall = [
+        item.get("termination_reason", "horizon") == "horizon"
+        and not bool(item.get("terminated", item.get("fell", True)))
+        for item in values
+    ]
     full_horizon = [int(item.get("length", 0)) >= HORIZON for item in values]
     velocities = [float(item.get("mean_velocity", 0.0)) for item in values]
     # Standing and reward-only improvement cannot pass: every selection episode
@@ -77,8 +85,8 @@ def rough_budget(
     checkpoint_effective_step: int | None = None,
     flat_trained_steps: int | None = None,
 ) -> int:
-    if selected_flat_step not in FLAT_GATES:
-        raise CurriculumError("rough resume requires one selected reviewed flat gate")
+    if selected_flat_step != FLAT_EFFECTIVE_STEPS:
+        raise CurriculumError("rough resume requires the exact derived flat gate")
     effective_step = (
         selected_flat_step
         if checkpoint_effective_step is None
@@ -97,6 +105,107 @@ def rough_budget(
     if remaining <= 0:
         raise CurriculumError("G1 curriculum would exceed its total-step ceiling")
     return remaining
+
+
+def assert_reviewed_step_contract() -> dict[str, int]:
+    """Derive and assert the exact reviewed G1 executable step requests."""
+    flat = bounded_mjx_phase_steps(
+        FLAT_NOMINAL_STEPS,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    pilot = bounded_mjx_phase_steps(
+        PILOT_EFFECTIVE_STEPS,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    if flat != FLAT_EFFECTIVE_STEPS or pilot != PILOT_EFFECTIVE_STEPS:
+        raise CurriculumError("reviewed G1 PPO quantum contract changed")
+    remaining = rough_budget(
+        FLAT_EFFECTIVE_STEPS,
+        checkpoint_effective_step=FLAT_EFFECTIVE_STEPS,
+        flat_trained_steps=FLAT_EFFECTIVE_STEPS,
+    )
+    rough = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    return {"flat": flat, "rough": rough, "pilot": pilot}
+
+
+def pilot_gate_result(episodes: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    values = tuple(episodes)
+    if len(values) != 10:
+        raise CurriculumError("G1 pilot gate requires exactly 10 episodes")
+    horizon = [
+        item.get("termination_reason") == "horizon"
+        and int(item.get("length", 0)) >= HORIZON
+        for item in values
+    ]
+    lengths = [int(item.get("length", 0)) for item in values]
+    velocities = [float(item.get("mean_velocity", 0.0)) for item in values]
+    nan_count = sum(
+        "nan_state" in item.get("termination_causes", ()) for item in values
+    )
+    checks = {
+        "episodes": len(values) == 10,
+        "full_horizon": sum(horizon) >= 5,
+        "mean_episode_length": sum(lengths) / len(lengths) >= 900.0,
+        "min_velocity": min(velocities) >= 0.4,
+        "zero_nan_terminations": nan_count == 0,
+    }
+    return {
+        "passed": all(checks.values()),
+        "checks": checks,
+        "full_horizon_count": sum(horizon),
+        "mean_episode_length": sum(lengths) / len(lengths),
+        "min_velocity": min(velocities),
+        "nan_termination_count": nan_count,
+    }
+
+
+def diagnostic_parent_eligible(
+    flat_episodes: Iterable[dict[str, Any]], *, restore_verified: bool
+) -> bool:
+    values = tuple(flat_episodes)
+    return (
+        restore_verified
+        and len(values) == 20
+        and all(
+            item.get("termination_reason") == "horizon"
+            and int(item.get("length", 0)) >= HORIZON
+            and float(item.get("mean_velocity", 0.0)) >= 0.4
+            for item in values
+        )
+    )
+
+
+def diagnostic_rough_rank_key(
+    episodes: Iterable[dict[str, Any]], *, effective_step: int
+) -> tuple[float, ...]:
+    values = tuple(episodes)
+    if not values:
+        raise CurriculumError("diagnostic rough evidence contains no episodes")
+    horizon_count = sum(
+        item.get("termination_reason") == "horizon"
+        and int(item.get("length", 0)) >= HORIZON
+        for item in values
+    )
+    lengths = [float(item.get("length", 0)) for item in values]
+    velocities = [float(item.get("mean_velocity", 0.0)) for item in values]
+    rewards = [float(item.get("reward", 0.0)) for item in values]
+    return (
+        float(horizon_count),
+        sum(lengths) / len(lengths),
+        min(velocities),
+        sum(velocities) / len(velocities),
+        sum(rewards) / len(rewards),
+        -float(effective_step),
+    )
 
 
 def bounded_mjx_phase_steps(

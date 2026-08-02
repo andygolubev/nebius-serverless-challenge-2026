@@ -286,17 +286,30 @@ change: an undeclared active job still stops the campaign, and `audit-cloud` sti
 clean while the campaign's own job is running. Seeds of one example cannot be split across
 campaigns, because selection ranks candidates within a single campaign.
 
-**The G1 curriculum** trains `G1JoystickFlatTerrain` from scratch, evaluates deterministic gates at
-100M/150M/200M steps, and resumes the earliest passing flat checkpoint into `G1JoystickRoughTerrain`
-for the remaining budget under a fixed 450M ceiling. That resume deliberately crosses environments,
-so it names `allowed_source_environment`; the resume guard otherwise rejects a checkpoint trained in
-a different environment, which is the correct default for an ordinary resume. A crash writes a
-sanitized `failure.json` beside the run's other durable evidence, because the provider exposes no
-readable container log and an unrecorded failure after hours of accelerator time is undiagnosable.
-The plan declares the exact `-rough` and `-flat` phase evidence prefixes, and phase requests are
-aligned down to whole PPO epoch quanta so Brax's batch rounding cannot overshoot the fixed ceiling.
-Finalized `REJECTED` and `NEEDS_HUMAN` policies are successful workload completions; only the cloud
-campaign controller maps those business outcomes to exit 20/30.
+**The G1 recovery** aligns training with the public Walk Forward task through server-owned
+`G1ForwardFlatTerrain` and `G1ForwardRoughTerrain` identities. They wrap pinned Playground v0.2.0
+without changing physics, reset/noise, observations/actions, rewards, termination rules, domain
+randomization, or PPO defaults; only the command source is invariant `[1, 0, 0]`, and pushes are
+disabled. Exact termination telemetry distinguishes torso inversion, foot-foot contact,
+foot-shin contact, NaN state, and an unknown upstream `done`, retaining simultaneous causes while
+treating every non-horizon result as a hard failure.
+
+Full G1 spend is gated behind an evaluation-only sweep of the rejected campaign's retained flat
+checkpoints and one 46,202,880-step rough pilot. A full plan cannot be built until the pilot gate and
+clean cloud audit are bound to the exact matrix and image digests. The fresh result then trains flat
+once, uninterrupted, to the derived 149,422,080-step PPO boundary and evaluates only that final
+checkpoint. A pass atomically creates an immutable transition record binding the exact parent
+object/path, sidecar step and hashes, source/target environments, image/config/matrix digests,
+measured spend, rough budget, and trainer load path. Before rough updates, Brax restores only its
+supported observation-normalizer/policy/value tuple; optimizer, learner step, rollout state, and
+PRNG state are explicitly fresh at seed 0. Finalization-only recovery must consume this record and
+the recorded exact rough selection, never re-evaluate the flat gate or reconstruct lineage.
+
+The plan declares exact `-rough` and `-flat` phase evidence prefixes. Flat and rough requests are
+aligned down to whole PPO epoch quanta so Brax's batch rounding cannot overshoot the fixed 450M
+ceiling. A crash writes sanitized durable failure evidence because provider container logs are not
+readable. Finalized `REJECTED` and `NEEDS_HUMAN` policies are successful workload completions; only
+the cloud campaign controller maps those business outcomes to exit 20/30.
 
 **The durable destination travels as a unit.** A campaign job's bucket, endpoint, region, *and*
 `storage.mode` are set together on every command path — SB3, MJX, and curriculum — and asserted per
@@ -322,9 +335,8 @@ checkpoints, which identifies a plateau rather than undertraining. A wider rollo
 larger policy/value heads cleared all three preferred targets at unchanged step budgets, so they
 publish on merit instead of as hard-floor overrides.
 
-G1 is the open example. Provider logs for its fourth attempt prove the job completed both training
-phases, candidate selection, four renders, montage, final evaluation, bundle creation, and upload in
-244 minutes, within the five-hour timeout, then emitted a deterministic `REJECTED` outcome. The old
-workload returned campaign exit 20 and the verifier looked at the parent prefix instead of the exact
-`-rough` prefix, so Nebius labeled the completed workload `FAILED` and the controller misclassified
-it as pre-checkpoint failure. The policy itself remains below the hard gate and unpublished.
+G1 is the open example. The prior joystick-command curriculum completed in 244 minutes but its exact
+selected rough checkpoint achieved 0/20 no-termination episodes despite 0.862 m/s mean velocity.
+It remains an unpublished diagnostic baseline. The fixed-forward recovery above is a new causal
+experiment: no reward, PPO, seed, hardware, threshold, or total-step increase is authorized, and a
+failed sweep or pilot stops before the full campaign.

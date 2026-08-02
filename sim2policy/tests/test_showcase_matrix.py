@@ -18,6 +18,11 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
     assert first.digest == second.digest
     assert tuple(first.examples) == ("reacher", "halfcheetah", "ant", "hopper", "walker2d", "go1", "g1")
     assert first.card("g1")["base_steps"] == 450_000_000
+    recovery = first.card("g1")["curriculum"]
+    assert recovery["flat_environment"] == "G1ForwardFlatTerrain"
+    assert recovery["rough_environment"] == "G1ForwardRoughTerrain"
+    assert recovery["flat_effective_steps"] == 149_422_080
+    assert recovery["pilot"]["effective_steps"] == 46_202_880
 
 
 @pytest.mark.parametrize(

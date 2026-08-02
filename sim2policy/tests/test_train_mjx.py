@@ -21,6 +21,7 @@ from sim2policy.train_mjx import (
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
     build_playground_command,
+    classify_g1_termination,
     evaluate_mjx,
     fixed_forward_command_state,
     local_forward_velocity,
@@ -66,7 +67,7 @@ def test_build_playground_command_rejects_unknown_hyperparameters(tmp_path: Path
 
 
 def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
-    config = load_config(ROOT / "configs/g1_mjx.yaml")
+    config = load_config(ROOT / "configs/g1_forward_rough_mjx.yaml")
     command = build_playground_command(config, create_run_paths("g1-no-push", tmp_path))
 
     assert _environment_overrides(config) == {
@@ -84,6 +85,12 @@ def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
     assert not any(
         part.startswith("--playground_config_overrides=") for part in command
     )
+    assert command[:3] == [
+        train_mjx_module.sys.executable,
+        "-m",
+        "sim2policy.playground_train",
+    ]
+    assert "--env_name=G1ForwardRoughTerrain" in command
 
 
 def test_initial_worker_parses_playground_impl_before_config_access() -> None:
@@ -422,6 +429,59 @@ def test_g1_command_cadence_contact_observation_and_pelvis_velocity() -> None:
     assert state.info["step"] == -1000
     assert state.obs == {"state": [1.0, 0.0, 0.0, True, False]}
     assert local_forward_velocity(environment, state) == 0.6
+
+
+def test_g1_termination_classifier_retains_simultaneous_causes_in_reviewed_order() -> None:
+    class Model:
+        sensor_adr = [0, 1, 2]
+
+    class Environment:
+        _mj_model = Model()
+        _right_foot_left_foot_found_sensor = 0
+        _left_foot_right_shin_found_sensor = 1
+        _right_foot_left_shin_found_sensor = 2
+
+        @staticmethod
+        def get_gravity(data: Any, body: str) -> list[float]:
+            del data
+            assert body == "torso"
+            return [0.0, 0.0, -1.0]
+
+    state = SimpleNamespace(
+        data=SimpleNamespace(
+            qpos=[float("nan")],
+            qvel=[0.0],
+            sensordata=[1.0, 1.0, 0.0],
+        )
+    )
+    primary, causes = classify_g1_termination(Environment(), state, terminated=True)
+    assert primary == "nan_state"
+    assert causes == (
+        "nan_state",
+        "torso_inversion",
+        "foot_foot_contact",
+        "foot_shin_contact",
+    )
+
+
+def test_g1_termination_classifier_uses_unknown_only_when_done_has_no_known_cause() -> None:
+    class Environment:
+        @staticmethod
+        def get_gravity(data: Any, body: str) -> list[float]:
+            del data, body
+            return [0.0, 0.0, 1.0]
+
+    state = SimpleNamespace(
+        data=SimpleNamespace(qpos=[0.0], qvel=[0.0], sensordata=[])
+    )
+    assert classify_g1_termination(Environment(), state, terminated=False) == (
+        "horizon",
+        ("horizon",),
+    )
+    assert classify_g1_termination(Environment(), state, terminated=True) == (
+        "unknown_environment_done",
+        ("unknown_environment_done",),
+    )
 
 
 def test_mjx_backend_stays_optional_in_base_environment() -> None:

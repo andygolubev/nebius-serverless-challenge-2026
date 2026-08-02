@@ -3,30 +3,111 @@ from __future__ import annotations
 import pytest
 
 from sim2policy.g1_curriculum import (
+    FLAT_EFFECTIVE_STEPS,
+    PILOT_EFFECTIVE_STEPS,
     TOTAL_STEPS,
     CurriculumError,
+    assert_reviewed_step_contract,
     bounded_mjx_phase_steps,
+    diagnostic_parent_eligible,
+    diagnostic_rough_rank_key,
     flat_gate_result,
+    pilot_gate_result,
     provenance_chain,
     rough_budget,
-    selected_flat_gate,
 )
 
 
-def _episode(*, velocity: float = 0.5, fell: bool = False, length: int = 1000) -> dict[str, object]:
-    return {"mean_velocity": velocity, "fell": fell, "length": length}
+def _episode(
+    *,
+    velocity: float = 0.5,
+    length: int = 1000,
+    reason: str = "horizon",
+) -> dict[str, object]:
+    return {
+        "mean_velocity": velocity,
+        "length": length,
+        "reward": 1.0,
+        "fell": reason != "horizon",
+        "terminated": reason != "horizon",
+        "termination_reason": reason,
+        "termination_causes": [reason],
+    }
 
 
-def test_flat_gate_requires_full_horizon_motion_not_reward_or_standing() -> None:
-    standing = flat_gate_result(100_000_000, [_episode(velocity=0.0) for _ in range(10)])
-    short = flat_gate_result(150_000_000, [_episode(length=20) for _ in range(10)])
-    passing = flat_gate_result(200_000_000, [_episode() for _ in range(10)])
-    assert not standing.passed and not short.passed and passing.passed
-    assert selected_flat_gate((standing, short, passing)) == passing
-    assert rough_budget(passing.step) + passing.step == TOTAL_STEPS
+def test_reviewed_quantum_contract_is_exact_and_below_ceiling() -> None:
+    steps = assert_reviewed_step_contract()
+    assert steps == {
+        "flat": 149_422_080,
+        "rough": 300_318_720,
+        "pilot": 46_202_880,
+    }
+    assert steps["flat"] + steps["rough"] < TOTAL_STEPS
+    assert PILOT_EFFECTIVE_STEPS < 50_000_000
 
 
-def test_provenance_chain_records_measured_rough_steps_not_just_budget() -> None:
+def test_flat_gate_accepts_only_exact_final_checkpoint_and_no_termination() -> None:
+    passing = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS, [_episode() for _ in range(10)]
+    )
+    failing = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [_episode(reason="foot_foot_contact"), *[_episode() for _ in range(9)]],
+    )
+    assert passing.passed
+    assert not failing.passed
+    with pytest.raises(CurriculumError, match="reviewed gate"):
+        flat_gate_result(100_000_000, [_episode() for _ in range(10)])
+
+
+def test_all_measured_flat_work_is_charged_before_rough_quantization() -> None:
+    remaining = rough_budget(
+        FLAT_EFFECTIVE_STEPS,
+        checkpoint_effective_step=FLAT_EFFECTIVE_STEPS,
+        flat_trained_steps=FLAT_EFFECTIVE_STEPS,
+    )
+    assert remaining == TOTAL_STEPS - FLAT_EFFECTIVE_STEPS
+    rough = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    assert rough == 300_318_720
+
+
+def test_diagnostic_parent_gate_and_zero_shot_rank() -> None:
+    flat = [_episode() for _ in range(20)]
+    assert diagnostic_parent_eligible(flat, restore_verified=True)
+    assert not diagnostic_parent_eligible(flat, restore_verified=False)
+    assert not diagnostic_parent_eligible(
+        [*_episode_list(19), _episode(velocity=0.39)], restore_verified=True
+    )
+    stronger = diagnostic_rough_rank_key(_episode_list(20), effective_step=100)
+    weaker = diagnostic_rough_rank_key(
+        [_episode(reason="torso_inversion"), *_episode_list(19)], effective_step=50
+    )
+    assert stronger > weaker
+
+
+def _episode_list(count: int) -> list[dict[str, object]]:
+    return [_episode() for _ in range(count)]
+
+
+def test_pilot_gate_requires_all_structured_criteria() -> None:
+    passing = [
+        *_episode_list(5),
+        *[_episode(length=800, reason="torso_inversion") for _ in range(5)],
+    ]
+    result = pilot_gate_result(passing)
+    assert result["passed"]
+    nan = [*passing[:-1], _episode(length=800, reason="nan_state")]
+    assert not pilot_gate_result(nan)["passed"]
+    with pytest.raises(CurriculumError, match="exactly 10"):
+        pilot_gate_result(_episode_list(9))
+
+
+def test_provenance_uses_fixed_forward_identities() -> None:
     evidence = provenance_chain(
         matrix_digest="a" * 64,
         image_digest="sha256:" + "b" * 64,
@@ -34,71 +115,9 @@ def test_provenance_chain_records_measured_rough_steps_not_just_budget() -> None
         rough_config_digest="d" * 64,
         flat_checkpoint_digest="e" * 64,
         rough_checkpoint_digest="f" * 64,
-        selected_flat_step=100_000_000,
+        selected_flat_step=FLAT_EFFECTIVE_STEPS,
         rough_effective_steps=25_000_000,
         phase_outcomes={"flat": "passed", "rough": "trained"},
     )
-    assert evidence["flat"]["effective_steps"] == 100_000_000
-    assert evidence["rough"]["effective_steps"] == 25_000_000
-    assert evidence["rough"]["budget_effective_steps"] == rough_budget(100_000_000)
-    assert evidence["measured_total_steps"] == 125_000_000
-    assert evidence["effective_total_steps"] == TOTAL_STEPS
-    assert "provenance_digest" in evidence
-
-
-def test_provenance_chain_rejects_rough_steps_over_its_remaining_budget() -> None:
-    with pytest.raises(CurriculumError, match="remaining budget"):
-        provenance_chain(
-            matrix_digest="a" * 64,
-            image_digest="sha256:" + "b" * 64,
-            flat_config_digest="c" * 64,
-            rough_config_digest="d" * 64,
-            flat_checkpoint_digest="e" * 64,
-            rough_checkpoint_digest="f" * 64,
-            selected_flat_step=100_000_000,
-            rough_effective_steps=rough_budget(100_000_000) + 1,
-            phase_outcomes={"flat": "passed", "rough": "trained"},
-        )
-
-
-def test_mjx_phase_requests_are_bounded_below_the_effective_step_ceiling() -> None:
-    flat = bounded_mjx_phase_steps(
-        200_000_000,
-        checkpoint_every_steps=25_000_000,
-        n_envs=8_192,
-        unroll_length=20,
-    )
-    assert flat == 199_229_440
-    remaining = rough_budget(200_000_000, checkpoint_effective_step=flat)
-    rough = bounded_mjx_phase_steps(
-        remaining,
-        checkpoint_every_steps=25_000_000,
-        n_envs=8_192,
-        unroll_length=20,
-    )
-    assert rough == 250_511_360
-    assert flat + rough == 449_740_800 < TOTAL_STEPS
-
-
-def test_rough_budget_uses_the_checkpoint_step_not_only_the_gate_label() -> None:
-    assert rough_budget(
-        200_000_000, checkpoint_effective_step=199_229_440
-    ) == 250_770_560
-    with pytest.raises(CurriculumError, match="no later"):
-        rough_budget(200_000_000, checkpoint_effective_step=200_540_160)
-
-
-def test_rough_budget_charges_all_flat_training_not_only_the_selected_checkpoint() -> None:
-    remaining = rough_budget(
-        100_000_000,
-        checkpoint_effective_step=99_614_720,
-        flat_trained_steps=199_229_440,
-    )
-    assert remaining == TOTAL_STEPS - 199_229_440
-
-    with pytest.raises(CurriculumError, match="cannot precede"):
-        rough_budget(
-            100_000_000,
-            checkpoint_effective_step=99_614_720,
-            flat_trained_steps=90_000_000,
-        )
+    assert evidence["flat"]["environment"] == "G1ForwardFlatTerrain"
+    assert evidence["rough"]["environment"] == "G1ForwardRoughTerrain"

@@ -1,9 +1,9 @@
 """Dedicated hosted entry point for the bounded G1 flat-to-rough curriculum.
 
-Exactly one Nebius job, one seed. This module trains `G1JoystickFlatTerrain`
-from scratch, evaluates deterministic gates at 100M/150M/200M steps, resumes
-the earliest passing flat checkpoint into no-push `G1JoystickRoughTerrain`
-for the bounded remainder after its measured checkpoint step, ranks retained rough
+Exactly one Nebius job, one seed. This module trains `G1ForwardFlatTerrain`
+from scratch in one uninterrupted request, evaluates only the exact derived
+149,422,080-step boundary, publishes an immutable transition, resumes it into
+`G1ForwardRoughTerrain` for the bounded remainder, ranks retained rough
 candidates, and finalizes exactly one explicit selected checkpoint.
 
 Invariants enforced by construction, not by a runtime check:
@@ -38,11 +38,8 @@ from sim2policy import finalize as finalize_module
 from sim2policy import train_mjx
 from sim2policy.checkpoint import (
     checkpoint_by_digest,
-    latest_checkpoint,
     list_step_checkpoints,
     load_checkpoint_metadata,
-    nearest_checkpoint,
-    validate_checkpoint,
 )
 from sim2policy.checkpoint_selection import (
     EvaluationEvidence,
@@ -55,17 +52,35 @@ from sim2policy.checkpoint_selection import (
 from sim2policy.config import RunConfig, load_config
 from sim2policy.g1_curriculum import (
     FLAT_ENVIRONMENT,
-    FLAT_GATES,
+    FLAT_EFFECTIVE_STEPS,
+    FLAT_NOMINAL_STEPS,
     ROUGH_ENVIRONMENT,
     CurriculumError,
     bounded_mjx_phase_steps,
     flat_gate_result,
     provenance_chain,
     rough_budget,
-    selected_flat_gate,
+)
+from sim2policy.g1_transition import (
+    TRANSITION_RELATIVE_PATH,
+    build_transition_record,
+    verify_transition_record,
+    write_immutable_local,
 )
 from sim2policy.run import create_run_paths
 from sim2policy.storage import ArtifactStore
+
+
+G1_ALLOWED_OVERRIDES = frozenset(
+    {
+        "storage.mode",
+        "storage.bucket",
+        "storage.prefix",
+        "storage.endpoint_url",
+        "storage.region",
+        "storage.retries",
+    }
+)
 
 
 def _config_digest(path: str | Path) -> str:
@@ -80,40 +95,104 @@ def _finalize_overrides(overrides: dict[str, Any], total_steps: int) -> list[tup
     ]
 
 
-def restore_existing_phase(
-    config: RunConfig,
+def _validate_overrides(overrides: dict[str, Any]) -> None:
+    unknown = sorted(set(overrides) - G1_ALLOWED_OVERRIDES)
+    if unknown:
+        raise CurriculumError(
+            "G1 recovery forbids training, reward, seed, and gate overrides: "
+            + ", ".join(unknown)
+        )
+
+
+def recover_g1_finalization(
+    *,
+    flat_config_path: str | Path,
+    rough_config_path: str | Path,
     run_id: str,
     runs_root: Path,
-    resume: Path | None = None,
-    *,
-    allowed_source_environment: str | None = None,
-    **_kwargs: Any,
-) -> Path:
-    """Restore a completed durable phase for evaluation/finalization-only recovery.
+    matrix_digest: str,
+    image_digest: str,
+    gallery_example_id: str,
+    config_overrides: dict[str, Any],
+    finalize_fn: Callable[..., dict[str, str]] = finalize_module.finalize_run,
+) -> dict[str, Any]:
+    """Finalize only the exact rough phase named by immutable durable evidence."""
+    runs_root = Path(runs_root)
+    _validate_overrides(config_overrides)
+    rough_run_id = f"{run_id}-rough"
+    flat_run_id = f"{run_id}-flat"
+    flat_config = load_config(
+        flat_config_path,
+        {**config_overrides, "training.total_steps": FLAT_EFFECTIVE_STEPS},
+    )
+    remaining = rough_budget(
+        FLAT_EFFECTIVE_STEPS,
+        checkpoint_effective_step=FLAT_EFFECTIVE_STEPS,
+        flat_trained_steps=FLAT_EFFECTIVE_STEPS,
+    )
+    raw_rough = load_config(rough_config_path, config_overrides)
+    rough_steps = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=raw_rough.checkpoint.every_steps,
+        n_envs=raw_rough.training.n_envs,
+        unroll_length=int(raw_rough.training.hyperparameters["unroll_length"]),
+    )
+    rough_config = load_config(
+        rough_config_path,
+        {**config_overrides, "training.total_steps": rough_steps},
+    )
+    rough_paths = create_run_paths(rough_run_id, runs_root)
+    rough_store = ArtifactStore(rough_config.storage, rough_run_id)
+    rough_store.download_tree(rough_paths.root, ("checkpoints", "report", "tensorboard"))
+    transition_path = rough_paths.root / TRANSITION_RELATIVE_PATH
+    finalization_path = rough_paths.report / "g1-finalization-input.json"
+    if not transition_path.is_file() or not finalization_path.is_file():
+        raise CurriculumError("immutable G1 transition or finalization input is absent")
+    transition = json.loads(transition_path.read_text(encoding="utf-8"))
+    finalization_input = json.loads(finalization_path.read_text(encoding="utf-8"))
 
-    A provider-successful curriculum can still lose its final manifest if the
-    finalizer was accidentally configured for local storage. Recovery must reuse
-    the exact uploaded checkpoints instead of spending the training budget again.
-    """
-    if config.storage.mode != "s3":
-        raise CurriculumError("existing-phase recovery requires durable S3 storage")
-    if config.environment == FLAT_ENVIRONMENT and resume is not None:
-        raise CurriculumError("flat recovery must not receive a resume checkpoint")
-    if config.environment == ROUGH_ENVIRONMENT and (
-        resume is None or allowed_source_environment != FLAT_ENVIRONMENT
+    parent = transition.get("parent", {})
+    flat_paths = create_run_paths(flat_run_id, runs_root)
+    parent_checkpoint = ArtifactStore(flat_config.storage, flat_run_id).resume_named_checkpoint(
+        flat_paths.checkpoints,
+        flat_config,
+        checkpoint_name=str(parent.get("checkpoint_name", "")),
+        expected_sha256=str(parent.get("sha256", "")),
+    )
+    trainer_load_path = str(transition.get("restore", {}).get("trainer_load_path", ""))
+    verify_transition_record(
+        transition,
+        parent_checkpoint=parent_checkpoint,
+        target_config=rough_config,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=_config_digest(flat_config_path),
+        rough_config_digest=_config_digest(rough_config_path),
+        target_run_id=rough_run_id,
+        trainer_load_path=trainer_load_path,
+    )
+    if (
+        finalization_input.get("schema_version") != 1
+        or finalization_input.get("transition") != transition
+        or finalization_input.get("rough_run_id") != rough_run_id
     ):
-        raise CurriculumError("rough recovery requires the declared flat curriculum input")
-
-    store = ArtifactStore(config.storage, run_id)
-    runtime = store.get_json_optional("report/runtime.json") or {}
-    if runtime.get("outcome") != "completed":
-        raise CurriculumError(f"durable phase {run_id} has no completed runtime record")
-
-    paths = create_run_paths(run_id, runs_root)
-    store.download_tree(paths.root, ("checkpoints", "tensorboard", "report"))
-    final = latest_checkpoint(paths.checkpoints)
-    validate_checkpoint(final, config)
-    return final
+        raise CurriculumError("G1 finalization input disagrees with the immutable transition")
+    selected_digest = str(finalization_input.get("selected_checkpoint_digest", ""))
+    checkpoint_by_digest(rough_paths.checkpoints, selected_digest)
+    artifacts = finalize_fn(
+        str(rough_config_path),
+        rough_run_id,
+        runs_root,
+        _finalize_overrides(config_overrides, rough_steps),
+        gallery_example_id=gallery_example_id,
+        selected_checkpoint_digest=selected_digest,
+        matrix_digest=matrix_digest,
+        phase_lineage=finalization_input["phase_lineage"],
+        seed_roles=finalization_input["seed_roles"],
+        ranking_explanation=finalization_input["ranking_explanation"],
+        acceptance_criteria=finalization_input["acceptance_criteria"],
+    )
+    return {"outcome": "FINALIZED_EXACT_RECOVERY", "artifacts": artifacts}
 
 
 def run_g1_curriculum(
@@ -141,13 +220,16 @@ def run_g1_curriculum(
     # The campaign supplies the durable artifact destination the same way it does
     # for the single-phase paths; both curriculum phases must write to it.
     overrides = dict(config_overrides or {})
+    _validate_overrides(overrides)
     raw_flat_config: RunConfig = load_config(flat_config_path, overrides)
     flat_steps = bounded_mjx_phase_steps(
-        raw_flat_config.training.total_steps,
+        FLAT_NOMINAL_STEPS,
         checkpoint_every_steps=raw_flat_config.checkpoint.every_steps,
         n_envs=raw_flat_config.training.n_envs,
         unroll_length=int(raw_flat_config.training.hyperparameters["unroll_length"]),
     )
+    if flat_steps != FLAT_EFFECTIVE_STEPS:
+        raise CurriculumError("derived flat request differs from reviewed 149,422,080 steps")
     flat_config: RunConfig = load_config(
         flat_config_path, {**overrides, "training.total_steps": flat_steps}
     )
@@ -160,60 +242,44 @@ def run_g1_curriculum(
     flat_trained_steps = load_checkpoint_metadata(flat_final_checkpoint).step
     if flat_trained_steps > flat_steps:
         raise CurriculumError("flat training exceeded its bounded phase request")
+    if flat_trained_steps != FLAT_EFFECTIVE_STEPS:
+        raise CurriculumError("flat trainer did not stop at the exact derived boundary")
     flat_checkpoint_dir = create_run_paths(flat_run_id, runs_root).checkpoints
-
-    gate_results = []
-    gate_evidence: dict[int, EvaluationEvidence] = {}
-    for gate_step in FLAT_GATES:
-        checkpoint = nearest_checkpoint(flat_checkpoint_dir, gate_step)
-        [evidence] = evaluate_candidates_fn(
-            [checkpoint],
-            flat_config,
-            run_lineage=flat_run_id,
-            selection_seeds=selection_seeds,
-            final_seeds=final_seeds,
-            episodes_per_seed=selection_episodes_per_seed,
-            phase="flat",
-        )
-        gate_evidence[gate_step] = evidence
-        result = flat_gate_result(gate_step, evidence.episodes, min_velocity=min_velocity)
-        gate_results.append(result)
-        if result.passed:
-            # Transition as soon as a gate passes; later gates are not spent
-            # on deterministic evaluation once the earliest pass is found.
-            break
-
-    selected_gate = selected_flat_gate(gate_results)
+    [flat_evidence] = evaluate_candidates_fn(
+        [flat_final_checkpoint],
+        flat_config,
+        run_lineage=flat_run_id,
+        selection_seeds=selection_seeds,
+        final_seeds=final_seeds,
+        episodes_per_seed=selection_episodes_per_seed,
+        phase="flat-final-gate",
+    )
+    flat_gate = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS, flat_evidence.episodes, min_velocity=min_velocity
+    )
     flat_config_digest = _config_digest(flat_config_path)
     flat_phase_lineage = {
         "environment": FLAT_ENVIRONMENT,
         "config_digest": flat_config_digest,
-        "gates": [
-            {
-                "step": item.step,
-                "passed": item.passed,
-                "no_fall_count": item.no_fall_count,
-                "min_velocity": item.min_velocity,
-                "complete_horizon_count": item.complete_horizon_count,
-                "checkpoint_sha256": gate_evidence[item.step].inventory.sha256,
-                "checkpoint_effective_step": gate_evidence[item.step].inventory.effective_step,
-            }
-            for item in gate_results
-        ],
-        "selected_step": selected_gate.step if selected_gate is not None else None,
-        "selected_checkpoint_step": (
-            gate_evidence[selected_gate.step].inventory.effective_step
-            if selected_gate is not None
-            else None
-        ),
+        "nominal_steps": FLAT_NOMINAL_STEPS,
+        "gate": {
+            "step": flat_gate.step,
+            "passed": flat_gate.passed,
+            "no_fall_count": flat_gate.no_fall_count,
+            "min_velocity": flat_gate.min_velocity,
+            "complete_horizon_count": flat_gate.complete_horizon_count,
+            "checkpoint_sha256": flat_evidence.inventory.sha256,
+            "checkpoint_effective_step": flat_evidence.inventory.effective_step,
+        },
+        "selected_step": FLAT_EFFECTIVE_STEPS if flat_gate.passed else None,
+        "selected_checkpoint_step": FLAT_EFFECTIVE_STEPS if flat_gate.passed else None,
         "requested_effective_steps": flat_steps,
         "trained_effective_steps": flat_trained_steps,
-        "outcome": "passed" if selected_gate is not None else "failed",
+        "outcome": "passed" if flat_gate.passed else "failed",
     }
 
-    if selected_gate is None:
-        # No flat gate ever passed by 200M: rough training is prohibited
-        # because there is no gait to harden. Finalize diagnostics only.
+    if not flat_gate.passed:
+        # The exact final flat boundary is the only legal transition parent.
         artifacts = finalize_fn(
             str(flat_config_path),
             flat_run_id,
@@ -224,18 +290,18 @@ def run_g1_curriculum(
         )
         return {
             "outcome": "NEEDS_HUMAN",
-            "reason_code": "FLAT_GATE_NEVER_PASSED",
+            "reason_code": "DERIVED_FLAT_GATE_FAILED",
             "phase_lineage": {"flat": flat_phase_lineage, "rough": None},
             "artifacts": artifacts,
         }
 
-    selected_flat_inventory = gate_evidence[selected_gate.step].inventory
+    selected_flat_inventory = flat_evidence.inventory
     flat_checkpoint_path = checkpoint_by_digest(flat_checkpoint_dir, selected_flat_inventory.sha256)
 
     # --- Phase 2: rough, resumed from the selected flat checkpoint. --------
     flat_effective_steps = selected_flat_inventory.effective_step
     remaining = rough_budget(
-        selected_gate.step,
+        FLAT_EFFECTIVE_STEPS,
         checkpoint_effective_step=flat_effective_steps,
         flat_trained_steps=flat_trained_steps,
     )
@@ -252,6 +318,41 @@ def run_g1_curriculum(
     if rough_config.environment != ROUGH_ENVIRONMENT:
         raise CurriculumError("rough config does not declare the reviewed rough environment")
     rough_run_id = f"{run_id}-rough"
+    rough_paths = create_run_paths(rough_run_id, runs_root)
+    flat_store = ArtifactStore(flat_config.storage, flat_run_id)
+    rough_store = ArtifactStore(rough_config.storage, rough_run_id)
+    trainer_load_path = str(rough_paths.root / "resume" / flat_checkpoint_path.stem)
+    transition_record = build_transition_record(
+        parent_checkpoint=flat_checkpoint_path,
+        parent_object_key=flat_store.key_for(f"checkpoints/{flat_checkpoint_path.name}"),
+        parent_sidecar_key=flat_store.key_for(
+            f"checkpoints/{flat_checkpoint_path.with_suffix('.zip.json').name}"
+        ),
+        target_run_id=rough_run_id,
+        trainer_load_path=trainer_load_path,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=flat_config_digest,
+        rough_config_digest=_config_digest(rough_config_path),
+        measured_flat_steps=flat_trained_steps,
+        remaining_rough_budget=remaining,
+        requested_rough_steps=rough_steps,
+    )
+    write_immutable_local(
+        rough_paths.root / TRANSITION_RELATIVE_PATH, transition_record
+    )
+    rough_store.put_immutable_json(TRANSITION_RELATIVE_PATH, transition_record)
+    verify_transition_record(
+        transition_record,
+        parent_checkpoint=flat_checkpoint_path,
+        target_config=rough_config,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=flat_config_digest,
+        rough_config_digest=_config_digest(rough_config_path),
+        target_run_id=rough_run_id,
+        trainer_load_path=trainer_load_path,
+    )
     # The rough phase resumes a flat-terrain checkpoint on purpose: that transfer is
     # the curriculum. The resume guard rejects a checkpoint from another environment
     # by default, which is right for an ordinary resume, so the one crossing this
@@ -262,6 +363,7 @@ def run_g1_curriculum(
         runs_root,
         resume=flat_checkpoint_path,
         allowed_source_environment=FLAT_ENVIRONMENT,
+        transition_record=transition_record,
     )
     rough_checkpoint_dir = create_run_paths(rough_run_id, runs_root).checkpoints
     rough_effective_steps = load_checkpoint_metadata(rough_final_checkpoint).step
@@ -309,7 +411,7 @@ def run_g1_curriculum(
         rough_config_digest=rough_config_digest,
         flat_checkpoint_digest=selected_flat_inventory.sha256,
         rough_checkpoint_digest=selected_rough.inventory.sha256,
-        selected_flat_step=selected_gate.step,
+        selected_flat_step=FLAT_EFFECTIVE_STEPS,
         flat_effective_steps=flat_effective_steps,
         flat_trained_steps=flat_trained_steps,
         rough_effective_steps=rough_effective_steps,
@@ -329,7 +431,36 @@ def run_g1_curriculum(
             "trained_effective_steps": rough_effective_steps,
         },
         "provenance": provenance,
+        "transition": transition_record,
     }
+
+    # Persist exact pre-finalization evidence so a finalizer retry cannot rerun
+    # the flat gate, reselect the parent, or synthesize a different lineage.
+    phase_lineage_path = rough_paths.report / "g1-phase-lineage.json"
+    phase_lineage_path.write_text(
+        json.dumps(phase_lineage, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    rough_store.upload_file(phase_lineage_path, "report/g1-phase-lineage.json")
+
+    finalization_input = {
+        "schema_version": 1,
+        "rough_run_id": rough_run_id,
+        "selected_checkpoint_digest": selected_rough.inventory.sha256,
+        "transition": transition_record,
+        "phase_lineage": phase_lineage,
+        "seed_roles": {
+            "selection": list(selection_seeds),
+            "final": list(final_seeds),
+        },
+        "ranking_explanation": ranking_explanation,
+        "acceptance_criteria": acceptance_criteria,
+    }
+    write_immutable_local(
+        rough_paths.report / "g1-finalization-input.json", finalization_input
+    )
+    rough_store.put_immutable_json(
+        "report/g1-finalization-input.json", finalization_input
+    )
 
     artifacts = finalize_fn(
         str(rough_config_path),
@@ -364,6 +495,7 @@ def _parse_overrides(items: Sequence[str]) -> dict[str, Any]:
         if not separator or not key:
             raise CurriculumError(f"invalid --set override: {item}")
         overrides[key] = value
+    _validate_overrides(overrides)
     return overrides
 
 
@@ -422,21 +554,23 @@ def main(argv: Sequence[str] | None = None) -> None:
     card = matrix.card("g1")
     campaign = matrix.campaign
     try:
-        result = run_g1_curriculum(
-            flat_config_path=args.flat_config,
-            rough_config_path=args.rough_config,
-            run_id=args.run_id,
-            runs_root=args.runs_root,
-            matrix_digest=matrix.digest,
-            image_digest=args.image_digest,
-            gallery_example_id=card["gallery_example_id"],
+        common = {
+            "flat_config_path": args.flat_config,
+            "rough_config_path": args.rough_config,
+            "run_id": args.run_id,
+            "runs_root": args.runs_root,
+            "matrix_digest": matrix.digest,
+            "image_digest": args.image_digest,
+            "gallery_example_id": card["gallery_example_id"],
+            "config_overrides": _parse_overrides(args.set),
+        }
+        result = recover_g1_finalization(**common) if args.recover_existing else run_g1_curriculum(
+            **common,
             selection_seeds=campaign["selection"]["seeds"],
             final_seeds=campaign["final"]["seeds"],
             selection_episodes_per_seed=campaign["selection"]["episodes_per_seed"],
             final_episodes_per_seed=campaign["final"]["episodes_per_seed"],
             acceptance_criteria=card["acceptance"],
-            config_overrides=_parse_overrides(args.set),
-            train_phase=restore_existing_phase if args.recover_existing else train_mjx.train_mjx,
         )
     except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised unchanged
         # The curriculum runs for hours on an H100 and the provider keeps no

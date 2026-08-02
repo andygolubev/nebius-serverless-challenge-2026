@@ -88,7 +88,7 @@ def test_a_criterion_that_does_not_parse_is_accepted_without_cross_checking() ->
 
 
 def test_every_example_has_an_exact_canonical_identity() -> None:
-    assert CANONICAL_ENVIRONMENTS["g1-rough-terrain"] == "G1JoystickRoughTerrain"
+    assert CANONICAL_ENVIRONMENTS["g1-rough-terrain"] == "G1ForwardRoughTerrain"
     assert CANONICAL_ENVIRONMENTS["walker2d-stride"] == "Walker2d-v5"
     assert len(CANONICAL_ENVIRONMENTS) == 7
 
@@ -102,27 +102,27 @@ def test_a_run_may_not_choose_its_own_environment_identity() -> None:
 
 def test_g1_records_both_curriculum_phases_but_scores_only_rough_terrain() -> None:
     metrics = _metrics(
-        environment="G1JoystickRoughTerrain",
+        environment="G1ForwardRoughTerrain",
         backend="mjx",
         success={"met": True, "criterion": "velocity >= 0.4 and not fallen"},
         aggregate={"mean_velocity": 0.62, "mean_episode_length": 1000, "episodes": 20},
         phase_lineage={
-            "flat": {"environment": "G1JoystickFlatTerrain", "effective_steps": 100_000_000, "outcome": "passed"},
-            "rough": {"environment": "G1JoystickRoughTerrain", "effective_steps": 25_000_000, "outcome": "trained"},
+            "flat": {"environment": "G1ForwardFlatTerrain", "effective_steps": 149_422_080, "outcome": "passed"},
+            "rough": {"environment": "G1ForwardRoughTerrain", "effective_steps": 25_000_000, "outcome": "trained"},
         },
     )
     evidence = curate("g1-rough-terrain", metrics)
     assert [phase.environment for phase in evidence.phases] == [
-        "G1JoystickFlatTerrain",
-        "G1JoystickRoughTerrain",
+        "G1ForwardFlatTerrain",
+        "G1ForwardRoughTerrain",
     ]
     # Public success describes the final task only.
-    assert evidence.environment == "G1JoystickRoughTerrain"
+    assert evidence.environment == "G1ForwardRoughTerrain"
 
 
 def test_an_unrecognized_phase_identity_is_refused() -> None:
     metrics = _metrics(
-        environment="G1JoystickRoughTerrain",
+        environment="G1ForwardRoughTerrain",
         backend="mjx",
         success={"met": True, "criterion": "velocity >= 0.4 and not fallen"},
         aggregate={"mean_velocity": 0.62, "mean_episode_length": 1000, "episodes": 20},

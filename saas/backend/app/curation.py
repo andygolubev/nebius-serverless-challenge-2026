@@ -36,7 +36,7 @@ CANONICAL_ENVIRONMENTS: dict[str, str] = {
     "hopper-balance": "Hopper-v5",
     "walker2d-stride": "Walker2d-v5",
     "go1-walker": "Go1JoystickFlatTerrain",
-    "g1-rough-terrain": "G1JoystickRoughTerrain",
+    "g1-rough-terrain": "G1ForwardRoughTerrain",
 }
 
 # The runtime each example is expected to have executed. Checked alongside the
@@ -67,11 +67,11 @@ AGGREGATE_FIELDS = frozenset(
 )
 
 # Identities a curriculum phase may legitimately record. G1 acquires a flat gait
-# before rough terrain, so `G1JoystickFlatTerrain` is a valid *phase* identity while
+# before rough terrain, so `G1ForwardFlatTerrain` is a valid *phase* identity while
 # never being a valid *final task* identity — public success is scored only against
 # the rough-terrain gate.
 CANONICAL_PHASE_ENVIRONMENTS: dict[str, frozenset[str]] = {
-    "g1-rough-terrain": frozenset({"G1JoystickFlatTerrain", "G1JoystickRoughTerrain"}),
+    "g1-rough-terrain": frozenset({"G1ForwardFlatTerrain", "G1ForwardRoughTerrain"}),
 }
 
 # A tenant job id is `uuid4().hex`. A curated run must never be mistakable for one.
