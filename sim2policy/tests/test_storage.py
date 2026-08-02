@@ -235,4 +235,10 @@ def test_head_object_optional_reports_size_and_absence(tmp_path: Path) -> None:
     artifact_head = store.head_object_optional("artifacts/artifact.bin")
     assert artifact_head is not None
     assert artifact_head["sha256"] == sha256_file(artifact)
+
+    artifact_key = store.key_for("artifacts/artifact.bin")
+    client.metadata[("test", artifact_key)] = {"Sha256": sha256_file(artifact)}
+    titlecase_head = store.head_object_optional("artifacts/artifact.bin")
+    assert titlecase_head is not None
+    assert titlecase_head["sha256"] == sha256_file(artifact)
     assert store.head_object_optional("report/absent.json") is None

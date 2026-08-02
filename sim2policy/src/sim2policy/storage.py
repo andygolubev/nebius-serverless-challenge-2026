@@ -295,7 +295,12 @@ class ArtifactStore:
             return None
         size = response.get("ContentLength")
         metadata = response.get("Metadata")
-        sha256 = metadata.get("sha256") if isinstance(metadata, dict) else None
+        sha256 = None
+        if isinstance(metadata, dict):
+            sha256 = next(
+                (value for name, value in metadata.items() if str(name).lower() == "sha256"),
+                None,
+            )
         return {
             "size_bytes": int(size) if size is not None else None,
             "sha256": str(sha256) if sha256 is not None else None,
