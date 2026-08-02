@@ -376,8 +376,27 @@ test("[browser:lifecycle] controlled success, failure, retry, stale, quota, and 
     );
     expect(staleStart.status()).toBe(409);
 
+    const freshPreparationResponse = page.waitForResponse(
+      (response) => response.url().endsWith(`/robot-setups/${failedSetup.id}/preparations`)
+        && response.request().method() === "POST",
+    );
     await staleCard.getByRole("button", { name: "Prepare for training" }).click();
-    await expect(staleCard.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15_000 });
+    expect((await freshPreparationResponse).status()).toBe(201);
+    let freshPreparationState = "queued";
+    for (let poll = 0; poll < 60; poll += 1) {
+      const latest = await request.get(
+        `${localApiBaseUrl}/robot-setups/${failedSetup.id}/preparations/latest`,
+        { headers: { Authorization: `Bearer ${session.token}` } },
+      );
+      expect(latest.status()).toBe(200);
+      freshPreparationState = (await latest.json()).state;
+      if (["accepted", "failed"].includes(freshPreparationState)) break;
+      await page.waitForTimeout(250);
+    }
+    expect(freshPreparationState).toBe("accepted");
+    await page.reload();
+    await page.getByRole("button", { name: "My Robots" }).click();
+    await expect(staleCard.getByRole("button", { name: "Start training" })).toBeVisible();
     await setHarnessModes(request, session.token, { training: "fail-once" });
     await staleCard.getByRole("button", { name: "Start training" }).click();
     await expect(page.getByRole("alert").getByRole("heading", { name: "Failed during submission" })).toBeVisible();
