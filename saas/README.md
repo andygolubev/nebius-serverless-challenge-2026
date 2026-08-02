@@ -256,16 +256,46 @@ finds credentials, authorization headers, login codes, private MJCF content, sto
 unscannable artifact.
 
 The deployed no-cost smoke is manual (`saas-form-smoke.yml`). It accepts only the approved HTTPS
-origin and a masked existing test-tenant session secret, serializes mutations, preflights `/me` and
-the catalog, uploads only canonical public samples, and deletes only the exact robot/setup IDs it
-created. Set `preserve_resources` only for short-lived operator inspection and delete the recorded
-IDs afterward. Never paste a bearer token into a command, workflow input, issue, or report.
+origin and a masked existing test-tenant session secret, serializes all dispatches against the one
+test tenant, preflights `/me`, model/setup quota headroom, and the catalog, uploads only canonical
+public samples, and deletes only the exact robot/setup IDs it created. The runner verifies deletion
+with an exact-ID lookup and fails if it observes any preparation or training POST. Set
+`preserve_resources` only for short-lived operator inspection and delete the recorded IDs afterward.
+Never paste a bearer token into a command, workflow input, issue, or report. The evidence scan runs
+even after a test failure; GitHub uploads evidence only when that scan succeeds.
 
 Remote preparation and remote training are separate paid gates and default to
-`not-run-cost-gated`. Do not enable them from the no-cost workflow. A paid canary requires the cheap
-gate to pass, one retained eligible setup, bounded polling, a fresh idempotency key, and the provider
-audit/cleanup procedure in `saas/API_RUNBOOK.md`; every temporary instance, disk, address, and rule
-must be stopped or removed before the run can be called clean.
+`not-run-cost-gated`. Do not enable them from the no-cost workflow. The preparation and training
+tests have separate stable IDs and flags; training also requires preparation in the same bounded
+run. A paid canary requires `SAAS_SMOKE_CHEAP_GATE_FILE` to reference the sanitized result from a
+same-run no-cost gate with clean cleanup and both paid paths marked `not-run-cost-gated`; a stale,
+preserved, or failed result is rejected before remote mutation. It also requires one retained
+eligible setup, bounded polling, a fresh idempotency key, and the provider audit/cleanup procedure
+in `saas/API_RUNBOOK.md`. The runner
+writes a gitignored `provider-audit-request-*.json`, then waits for the external provider auditor to
+write the configured audit result. It will not report the gate clean unless the result correlates
+the exact SaaS preparation/job IDs, covers AI jobs, instances, disks, public IPs, and security rules,
+enumerates only terminal/stopped/deleted provider resources, and reports zero remaining active
+resources. A boolean acknowledgement is deliberately insufficient.
+
+The sanitized provider audit result has this shape (placeholder values only):
+
+```json
+{
+  "schema_version": 1,
+  "run_id": "operator-supplied-run-id",
+  "audited_saas_resource_ids": ["preparation-or-job-id"],
+  "audited_scopes": ["ai-jobs", "instances", "disks", "public-ips", "security-rules"],
+  "provider_resources": [{"kind": "ai-job", "id": "provider-resource-id", "state": "terminal"}],
+  "remaining_active_resources": [],
+  "cleanup_status": "clean"
+}
+```
+
+The audit file must contain summarized identities and states, never a raw provider response. If it
+is absent, stale, incomplete, or reports an active resource, the paid test writes
+`provider-audit-pending` and fails. The default no-cost result always records both paid paths as
+`not-run-cost-gated`; it never counts them as passed.
 
 ## Container
 

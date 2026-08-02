@@ -148,7 +148,11 @@ export const catalog: EnvironmentCatalog = {
 export const controlInventory = {
   "sample-download": ["component:model-download", "browser:upload-happy"],
   "upload-name": ["component:upload-required", "browser:upload-happy"],
-  "upload-robot-type": ["component:upload-required", "browser:upload-happy"],
+  "upload-robot-type": [
+    "component:upload-quadruped",
+    "component:upload-biped",
+    "browser:upload-happy",
+  ],
   "upload-file": ["component:upload-required", "browser:upload-happy"],
   "upload-submit": ["component:upload-required", "component:upload-errors", "browser:upload-happy"],
   "upload-errors": ["component:upload-errors"],
@@ -181,7 +185,7 @@ export const controlInventory = {
   "builder-review": ["component:builder-review", "browser:builder-pairwise"],
   "setup-save": ["component:builder-review", "browser:builder-pairwise"],
   "setup-errors": ["component:setup-errors", "browser:builder-pairwise"],
-  "setup-reload": ["browser:builder-pairwise"],
+  "setup-reload": ["component:setup-persistence", "browser:builder-pairwise"],
   "setup-delete-cancel": ["component:setup-delete"],
   prepare: ["component:lifecycle-start", "browser:lifecycle"],
   preparing: ["component:lifecycle-preparing", "browser:lifecycle"],

@@ -19,7 +19,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.SAAS_SMOKE_BASE_URL ?? "http://127.0.0.1:5173",
     screenshot: "only-on-failure",
-    trace: deployed ? "off" : "retain-on-failure",
+    // Browser traces retain multipart request bodies, including uploaded private XML.
+    // Screenshots and JUnit are sufficient sanitized failure evidence for this suite.
+    trace: "off",
     video: "off",
   },
   webServer: deployed
@@ -27,7 +29,7 @@ export default defineConfig({
     : [
         {
           command:
-            "cd ../backend && SAAS_VALIDATION_LOCAL=1 SAAS_VALIDATION_WORKERS=4 python -m validation_suite.local_server",
+            "cd ../backend && SAAS_VALIDATION_LOCAL=1 SAAS_VALIDATION_WORKERS=8 python -m validation_suite.local_server",
           url: "http://127.0.0.1:8000/health",
           timeout: 120_000,
           reuseExistingServer: false,
