@@ -101,7 +101,7 @@ examples:
       candidate_every_steps: 25000000
       pushes_enabled: false
       diagnostic:
-        source_run_id: gallery-g1-20260801-16-flat
+        source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat
         source_environment: G1JoystickFlatTerrain
         environments: [G1ForwardFlatTerrain, G1ForwardRoughTerrain]
         episodes_per_seed: 4

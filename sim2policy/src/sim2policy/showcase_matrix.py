@@ -176,7 +176,8 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         diagnostic = _mapping(curriculum.get("diagnostic"), "examples.g1.curriculum.diagnostic")
         _only(diagnostic, {"source_run_id", "source_environment", "environments", "episodes_per_seed", "flat_required_horizons", "min_velocity", "ranking"}, "examples.g1.curriculum.diagnostic")
         if (
-            diagnostic.get("source_run_id") != "gallery-g1-20260801-16-flat"
+            diagnostic.get("source_run_id")
+            != "showcase-gallery-g1-20260801-16-g1-s0-flat"
             or diagnostic.get("source_environment") != "G1JoystickFlatTerrain"
             or diagnostic.get("environments") != ["G1ForwardFlatTerrain", "G1ForwardRoughTerrain"]
             or diagnostic.get("episodes_per_seed") != 4

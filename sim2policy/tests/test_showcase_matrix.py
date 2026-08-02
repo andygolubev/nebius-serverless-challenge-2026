@@ -22,6 +22,10 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
     assert recovery["flat_environment"] == "G1ForwardFlatTerrain"
     assert recovery["rough_environment"] == "G1ForwardRoughTerrain"
     assert recovery["flat_effective_steps"] == 149_422_080
+    assert (
+        recovery["diagnostic"]["source_run_id"]
+        == "showcase-gallery-g1-20260801-16-g1-s0-flat"
+    )
     assert recovery["pilot"]["effective_steps"] == 46_202_880
 
 
@@ -31,6 +35,10 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
         ("preemptible: false", "preemptible: true"),
         ("sb3-{git_sha}", "latest"),
         ("seeds: [101, 151, 211, 271, 331]", "seeds: [0, 1, 2, 3, 4]"),
+        (
+            "source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat",
+            "source_run_id: gallery-g1-20260801-16-flat",
+        ),
         ("base_steps: 1000000", "base_steps: 0"),
     ],
 )
