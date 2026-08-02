@@ -52,6 +52,20 @@
 - [ ] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [ ] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.
 
-## 7. Temporary Validation Override
+## 7. Support Every Valid Builder Configuration
 
-- [ ] 7.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored.
+- [ ] 7.1 Inventory every user-visible `Unsupported Task`, `Unsupported Scene`, and `Unsupported Objects` readiness reason emitted by the current builder, map it to its model/task/terrain/object configuration, and update the proposal, design, and delta specs with the expanded supported-training contract.
+- [ ] 7.2 Extend the server-owned custom-training world composer, reward/reset contracts, and preparation acceptance checks to support Hurdle Course and Step Course plus bounded tenant-added Box, Ramp, Hurdle, and Step primitives, while preserving the existing no-code/no-mesh/no-plugin safety boundary and deterministic scene fingerprints.
+- [ ] 7.3 Extend the quadruped training contract to support Recover From Fall on every valid scene/object configuration, including bounded fallen-state resets, evaluation success criteria, checkpoint/reload smoke, and renderer coverage; keep biped task choices constrained to the tasks the UI intentionally exposes.
+- [ ] 7.4 Replace the current fixed V1 eligibility gate with capability-based preparation and training admission for every valid setup created by the builder; retain explicit actionable states only for real validation, quota, preparation, orchestration, or artifact failures, never for a catalog configuration the UI permits the user to save.
+- [ ] 7.5 Update the My Robots UI so valid saved configurations show preparation/training actions and accurate capability/readiness copy instead of `Unsupported Task`, `Unsupported Scene`, or `Unsupported Objects`; preserve stable disabled, retry, active-job, and quota behavior for genuine lifecycle states.
+- [ ] 7.6 Add backend, component, and local full-stack browser coverage for both robot families, all UI-exposed task choices, Flat/Ramp/Hurdle/Step terrain, every optional catalog object type, object bounds/capacity, preparation failure/retry, and terminal training artifacts/metrics.
+- [ ] 7.7 Run a staged deployed UI matrix: cheap validation/save/reload first, then bounded preparation and fixed training for representative combinations from every newly supported task/terrain/object family, with temporary four-slot concurrency, exact cleanup/audit, and recorded terminal outcomes.
+
+## 8. Expanded Matrix Acceptance
+
+- [ ] 8.1 Summarize model/task/terrain/object coverage, supported readiness transitions, job identities, terminal quality outcomes, and unresolved UI defects in `IMPLEMENTATION_LOG.MD`; include a specific statement that no valid builder configuration remains blocked by an unsupported-capability message.
+
+## 9. Temporary Validation Override Cleanup
+
+- [ ] 9.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored. This must be the final task.
