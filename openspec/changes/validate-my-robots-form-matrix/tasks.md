@@ -14,7 +14,7 @@
 - [x] 2.4 Cover every object parameter at default/minimum/maximum and invalid just-outside/non-finite inputs, asserting exact field diagnostics and no saved setup.
 - [x] 2.5 Cover exact and one-over object capacity for every scene preset, including preset objects in the six-object total.
 - [ ] 2.6 Cover all eight V1 eligibility combinations plus optional-object, unsupported-task, unsupported-scene, stale fingerprint, preparation failure/retry, quota, and idempotent training-start projections with mock orchestration.
-- [ ] 2.7 Verify backend shards run concurrently against isolated temporary databases/tenants and merge into the complete expected case set.
+- [x] 2.7 Verify backend shards run concurrently against isolated temporary databases/tenants and merge into the complete expected case set.
 
 ## 3. Frontend Component Matrix
 
@@ -32,11 +32,11 @@
 - [ ] 4.3 Implement a catalog-driven pairwise task/scene/object browser set that covers every discrete value, every compatibility edge, parameter bounds, capacity, add/remove, save, and reload persistence.
 - [ ] 4.4 Implement preparation, retry, stale, quota, idempotent Start training, failure, and success browser paths against controlled full-stack responses without creating cloud jobs.
 - [ ] 4.5 Implement keyboard and 375-pixel browser cases, accessible-state assertions, per-case timeouts, failure screenshots, and sanitized artifacts.
-- [ ] 4.6 Verify parallel local workers share no mutable tenant, database, idempotency key, download path, or evidence path and clean all created resources.
+- [x] 4.6 Verify parallel local workers share no mutable tenant, database, idempotency key, download path, or evidence path and clean all created resources.
 
 ## 5. CI and Deployed Smoke
 
-- [ ] 5.1 Add parallel backend, component, and local-browser shards to the SaaS CI gate with cached Playwright assets, merged coverage reporting, and no Playwright dependency in the production runtime stage.
+- [x] 5.1 Add parallel backend, component, and local-browser shards to the SaaS CI gate with cached Playwright assets, merged coverage reporting, and no Playwright dependency in the production runtime stage.
 - [ ] 5.2 Add a manually invoked deployed smoke runner that accepts only an explicit base URL and masked existing test-tenant session, preflights identity/quotas/catalog, and never logs authorization or private XML.
 - [ ] 5.3 Implement the default no-cost deployed matrix for both upload paths, task filtering, all scene/object controls, bounds, save/reload/delete, readiness copy, exact created-ID cleanup, and serialized mutation when only one tenant is available.
 - [ ] 5.4 Implement separate `remote-preparation` and `remote-training` gates limited to one representative case, with cheap-gate prerequisites, bounded polling, fresh idempotency, sanitized evidence, and mandatory provider resource audit/cleanup.
@@ -48,6 +48,6 @@
 - [x] 6.1 Run the complete backend matrix, record every deterministic product defect or infrastructure blocker in `IMPLEMENTATION_LOG.MD`, add minimal regressions, repair the owning backend boundary, and rerun the affected shards.
 - [x] 6.2 Run the complete component and local-browser matrices, add minimal regressions for each deterministic defect, repair the owning frontend/full-stack boundary, and rerun the affected shards.
 - [x] 6.3 Run the merged cheap gate, frontend production build, strict OpenSpec validation, `git diff --check`, and tracked-file secret/large-artifact scans; record exact commands and results.
-- [ ] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
+- [x] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
 - [ ] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [ ] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.
