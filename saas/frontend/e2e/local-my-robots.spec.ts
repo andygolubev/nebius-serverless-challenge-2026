@@ -122,7 +122,7 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
       await expect(editors).toHaveCount(1);
       const numbers = editors.locator('input[type="number"]');
       await expect(numbers).toHaveCount(7);
-      const height = editors.getByText("Height").locator("xpath=following-sibling::*//input");
+      const height = editors.getByRole("spinbutton", { name: /^Height / });
       await height.fill("999");
       await expect(page.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
       await height.fill("0.3");
@@ -170,12 +170,13 @@ test("[browser:lifecycle] preparation reaches Ready and one idempotent Start ope
     await page.getByRole("button", { name: "Save validated setup" }).click();
     const setupResponse = await setupResponsePromise;
     created.setups.push((await setupResponse.json()).id);
-    await page.getByRole("button", { name: "Prepare for training" }).click();
-    await expect(page.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15_000 });
+    const builder = page.locator(".builder");
+    await builder.getByRole("button", { name: "Prepare for training" }).click();
+    await expect(builder.getByRole("button", { name: "Start training" })).toBeVisible({ timeout: 15_000 });
     const startResponsePromise = page.waitForResponse(
       (response) => response.url().includes("/training-jobs") && response.request().method() === "POST",
     );
-    const start = page.getByRole("button", { name: "Start training" });
+    const start = builder.getByRole("button", { name: "Start training" });
     await start.click();
     const startResponse = await startResponsePromise;
     expect(startResponse.status()).toBe(201);
