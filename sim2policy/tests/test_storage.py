@@ -227,5 +227,12 @@ def test_head_object_optional_reports_size_and_absence(tmp_path: Path) -> None:
     head = store.head_object_optional("report/metrics.json")
     assert head is not None
     assert head["size_bytes"] == len(client.objects[("test", store.key_for("report/metrics.json"))])
-    assert head["sha256"] is not None
+    assert head["sha256"] is None
+
+    artifact = tmp_path / "artifact.bin"
+    artifact.write_bytes(b"checksummed artifact")
+    store.upload_file(artifact, "artifacts/artifact.bin")
+    artifact_head = store.head_object_optional("artifacts/artifact.bin")
+    assert artifact_head is not None
+    assert artifact_head["sha256"] == sha256_file(artifact)
     assert store.head_object_optional("report/absent.json") is None
