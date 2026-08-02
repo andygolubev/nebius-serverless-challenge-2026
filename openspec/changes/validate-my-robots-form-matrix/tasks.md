@@ -51,3 +51,7 @@
 - [x] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
 - [ ] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [ ] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.
+
+## 7. Temporary Validation Override
+
+- [ ] 7.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored.
