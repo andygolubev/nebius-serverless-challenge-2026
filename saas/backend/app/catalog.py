@@ -376,7 +376,7 @@ _TENANT_JOB_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 PENDING_RUN_PREFIX = "pending-curated-run-"
 
 SHOWCASE_RUNS: dict[str, str] = {
-    "go1-walker": "showcase-gallery-go1-20260731-08-go1-s42",
+    "go1-walker": "showcase-gallery-go1-20260802-17-go1-s0",
     "ant-explorer": "showcase-gallery-ant-20260801-12-ant-s7",
     "halfcheetah-sprint": "showcase-gallery-hc-20260801-11-halfcheetah-s7",
     "hopper-balance": "showcase-gallery-result-20260730-07-hopper-s7",
