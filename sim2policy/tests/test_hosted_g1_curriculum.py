@@ -9,7 +9,7 @@ import pytest
 
 from sim2policy.checkpoint import checkpoint_inventory, checkpoint_path, write_checkpoint_metadata
 from sim2policy.checkpoint_selection import EvaluationEvidence
-from sim2policy.config import RunConfig, load_config
+from sim2policy.config import RunConfig
 from sim2policy.g1_curriculum import FLAT_EFFECTIVE_STEPS
 from sim2policy.hosted_g1_curriculum import (
     recover_g1_finalization,

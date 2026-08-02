@@ -16,7 +16,6 @@ import importlib
 import importlib.metadata
 from typing import Any
 
-
 G1_FORWARD_FLAT_ENVIRONMENT = "G1ForwardFlatTerrain"
 G1_FORWARD_ROUGH_ENVIRONMENT = "G1ForwardRoughTerrain"
 G1_FORWARD_COMMAND = (1.0, 0.0, 0.0)
@@ -40,7 +39,7 @@ def is_g1_forward_environment(environment: str) -> bool:
 def register_g1_forward_environments() -> None:
     """Idempotently register fixed-forward G1 flat and rough environments."""
     try:
-        version = importlib.metadata.version("mujoco-playground")
+        version = importlib.metadata.version("playground")
     except importlib.metadata.PackageNotFoundError as exc:
         raise RuntimeError("mujoco-playground is unavailable") from exc
     if version != PINNED_PLAYGROUND_VERSION:
@@ -55,7 +54,7 @@ def register_g1_forward_environments() -> None:
     )
     jax_numpy = importlib.import_module("jax.numpy")
 
-    class ForwardJoystick(joystick.Joystick):  # type: ignore[misc, valid-type]
+    class ForwardJoystick(joystick.Joystick):  # type: ignore[misc, name-defined]
         """Pinned G1 joystick physics with one invariant local-forward command."""
 
         sim2policy_fixed_forward = True

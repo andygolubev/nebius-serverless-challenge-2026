@@ -686,6 +686,7 @@ class Campaign:
             "secret_selectors": self._secret_selectors(),
         }
         if example == "g1":
+            assert g1_authorization is not None
             # The recovery stages are normalized into the reviewed plan even
             # though only a passing pilot permits submission of this full job.
             plan["g1_recovery"] = dict(card["curriculum"])

@@ -51,8 +51,8 @@ from sim2policy.checkpoint_selection import (
 )
 from sim2policy.config import RunConfig, load_config
 from sim2policy.g1_curriculum import (
-    FLAT_ENVIRONMENT,
     FLAT_EFFECTIVE_STEPS,
+    FLAT_ENVIRONMENT,
     FLAT_NOMINAL_STEPS,
     ROUGH_ENVIRONMENT,
     CurriculumError,
@@ -69,7 +69,6 @@ from sim2policy.g1_transition import (
 )
 from sim2policy.run import create_run_paths
 from sim2policy.storage import ArtifactStore
-
 
 G1_ALLOWED_OVERRIDES = frozenset(
     {

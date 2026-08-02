@@ -15,7 +15,7 @@ def main(argv: Sequence[str] | None = None) -> Any:
     register_g1_forward_environments()
 
     from absl import app
-    from learning import train_jax_ppo
+    from learning import train_jax_ppo  # type: ignore[import-untyped]
 
     original_get_rl_config = train_jax_ppo.get_rl_config
 

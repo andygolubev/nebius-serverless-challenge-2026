@@ -14,7 +14,6 @@ from sim2policy.g1_forward_env import (
     G1_FORWARD_ROUGH_ENVIRONMENT,
 )
 
-
 TRANSITION_RELATIVE_PATH = "report/g1-transition.json"
 RESTORED_COMPONENTS = (
     "observation_normalizer",

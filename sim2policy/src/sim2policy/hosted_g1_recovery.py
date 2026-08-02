@@ -9,13 +9,9 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from sim2policy.checkpoint import (
-    checkpoint_by_digest,
-    list_step_checkpoints,
-    load_checkpoint_metadata,
-)
+from sim2policy.checkpoint import list_step_checkpoints, load_checkpoint_metadata
 from sim2policy.checkpoint_selection import evaluate_candidates, select_checkpoint
-from sim2policy.config import RunConfig, load_config
+from sim2policy.config import load_config
 from sim2policy.g1_curriculum import (
     PILOT_EFFECTIVE_STEPS,
     PILOT_STEP_CEILING,
@@ -38,7 +34,6 @@ from sim2policy.train_mjx import (
     evaluate_mjx,
     train_mjx,
 )
-
 
 SOURCE_ENVIRONMENT = "G1JoystickFlatTerrain"
 SWEEP_RELATIVE_PATH = "report/g1-diagnostic-sweep.json"
@@ -118,7 +113,7 @@ def run_diagnostic_sweep(
         restore = _verify_brax_supported_tuple(
             raw, verification_paths.report / "g1-restore-verification.json"
         )
-        eligible = diagnostic_parent_eligible(
+        is_eligible = diagnostic_parent_eligible(
             flat_episodes, restore_verified=bool(restore)
         )
         candidates.append(
@@ -132,7 +127,7 @@ def run_diagnostic_sweep(
                 "flat": {"episodes": flat_episodes, "runtime_seconds": flat_runtime},
                 "rough": {"episodes": rough_episodes, "runtime_seconds": rough_runtime},
                 "restore": restore,
-                "eligible": eligible,
+                "eligible": is_eligible,
                 "rough_rank_key": list(
                     diagnostic_rough_rank_key(
                         rough_episodes, effective_step=metadata.step
@@ -141,8 +136,12 @@ def run_diagnostic_sweep(
             }
         )
 
-    eligible = [item for item in candidates if item["eligible"]]
-    selected = max(eligible, key=lambda item: tuple(item["rough_rank_key"])) if eligible else None
+    eligible_candidates = [item for item in candidates if item["eligible"]]
+    selected = (
+        max(eligible_candidates, key=lambda item: tuple(item["rough_rank_key"]))
+        if eligible_candidates
+        else None
+    )
     result = {
         "schema_version": 1,
         "kind": "evaluation_only",

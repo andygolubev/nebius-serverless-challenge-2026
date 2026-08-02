@@ -25,7 +25,6 @@ from sim2policy.checkpoint import (
     checkpoint_path,
     latest_checkpoint,
     load_checkpoint_metadata,
-    validate_checkpoint,
     write_checkpoint_metadata,
 )
 from sim2policy.config import RunConfig, load_config, parse_override
@@ -331,7 +330,7 @@ def _verify_brax_supported_tuple(checkpoint_root: Path, output: Path) -> dict[st
         check=True,
         text=True,
     )
-    result = json.loads(output.read_text(encoding="utf-8"))
+    result: dict[str, Any] = json.loads(output.read_text(encoding="utf-8"))
     if result.get("restored_components") != [
         "observation_normalizer",
         "policy_parameters",
