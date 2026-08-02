@@ -1,72 +1,20 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CatalogObject, EnvironmentCatalog, Robot, RobotSample, RobotSetup } from "../api";
+import { Robot, RobotSetup } from "../api";
+import {
+  biped,
+  catalog,
+  controlInventory,
+  flatObject,
+  quadruped,
+  samples,
+  setupFixture,
+} from "../test-fixtures/myRobotsMatrix";
 import { MyRobots } from "./MyRobots";
 
 function json(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
 }
-
-const validation = {
-  body_count: 8,
-  joint_count: 8,
-  actuator_count: 7,
-  geom_count: 8,
-  joint_names: ["root", "hip"],
-  actuator_names: ["hip_motor"],
-};
-
-const samples: RobotSample[] = [
-  { id: "sample-quadruped", name: "Sample quadruped", filename: "sample-quadruped.xml", description: "Four-legged sample", robot_type: "quadruped", digest: "a".repeat(64), validation },
-  { id: "sample-biped", name: "Sample biped", filename: "sample-biped.xml", description: "Two-legged sample", robot_type: "biped", digest: "b".repeat(64), validation },
-];
-
-const biped: Robot = {
-  id: "robot-biped",
-  name: "Warehouse biped",
-  filename: "warehouse.xml",
-  robot_type: "biped",
-  digest: "c".repeat(64),
-  validation,
-  validated_at: "2026-07-13T00:00:00Z",
-  readiness: "validated",
-  trainable: false,
-  reason: "custom-training-not-enabled",
-};
-
-const parameter = (name: "x" | "y" | "z" | "yaw_degrees" | "width" | "depth" | "height", label: string, defaultValue: number, minimum: number, maximum: number, unit = "m") => ({ name, label, default: defaultValue, minimum, maximum, unit });
-const flatObject = (object_type: CatalogObject["object_type"], source: CatalogObject["source"] = "preset"): CatalogObject => ({ object_type, x: 2, y: 0, z: 0, yaw_degrees: 0, width: 1, depth: 1, height: 0.3, source });
-
-const catalog: EnvironmentCatalog = {
-  task_templates: [
-    { id: "stand-balance", label: "Stand and balance", description: "Stay upright", compatible_robot_types: ["quadruped", "biped"], contract: { version: "v1" } },
-    { id: "walk-forward", label: "Walk forward", description: "Move ahead", compatible_robot_types: ["quadruped", "biped"], contract: { version: "v1" } },
-    { id: "recover-from-fall", label: "Recover from a fall", description: "Stand back up", compatible_robot_types: ["quadruped"], contract: { version: "v1" } },
-  ],
-  scene_presets: [
-    { id: "flat-arena", label: "Flat arena", description: "Open terrain", objects: [] },
-    { id: "ramp-course", label: "Ramp course", description: "One ramp", objects: [flatObject("ramp")] },
-    { id: "hurdle-course", label: "Hurdle course", description: "Three hurdles", objects: [flatObject("hurdle"), flatObject("hurdle"), flatObject("hurdle")] },
-    { id: "step-course", label: "Step course", description: "Three steps", objects: [flatObject("step"), flatObject("step"), flatObject("step")] },
-  ],
-  object_types: ["box", "ramp", "hurdle", "step"].map((id) => ({
-    id: id as "box" | "ramp" | "hurdle" | "step",
-    label: id[0].toUpperCase() + id.slice(1),
-    description: `${id} primitive`,
-    parameters: [
-      parameter("x", "Forward position", 2, -10, 10),
-      parameter("y", "Side position", 0, -10, 10),
-      parameter("z", "Base height", 0, 0, 5),
-      parameter("yaw_degrees", "Rotation", 0, -180, 180, "deg"),
-      parameter("width", "Width", 1, 0.1, 4),
-      parameter("depth", "Depth", 1, 0.1, 4),
-      parameter("height", "Height", 0.3, 0.05, 2),
-    ],
-  })),
-  max_objects: 6,
-  max_setups: 50,
-  arena_bounds: { x: [-10, 10], y: [-10, 10], z: [0, 5] },
-};
 
 function workspaceFetch({ robots = [], setups = [], upload, createSetup }: { robots?: Robot[]; setups?: RobotSetup[]; upload?: Robot; createSetup?: RobotSetup } = {}) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
