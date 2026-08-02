@@ -84,6 +84,10 @@ test("[browser:upload-happy] canonical downloads, both upload paths, digest, and
     const modelDownloadPromise = page.waitForEvent("download");
     await bipedCard.getByRole("button", { name: "Download XML" }).click();
     expect((await modelDownloadPromise).suggestedFilename()).toBe("sample-biped.xml");
+    await bipedCard.getByRole("button", { name: "Build environment" }).click();
+    await expect(page.getByRole("radiogroup", { name: "Locomotion task" }).getByRole("radio")).toHaveCount(2);
+    await expect(page.getByRole("radio", { name: /Recover from a fall/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Close builder" }).click();
 
     await bipedCard.getByRole("button", { name: "Delete model" }).click();
     await bipedCard.getByRole("button", { name: "Cancel" }).click();
@@ -102,6 +106,11 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
   const created: Created = { robots: [], setups: [] };
   try {
     await uploadRobot(page, "quadruped", "E2E matrix quadruped", created);
+    const catalogResponse = await request.get("/environment-catalog", {
+      headers: { Authorization: `Bearer ${session.token}` },
+    });
+    expect(catalogResponse.status()).toBe(200);
+    const catalog = await catalogResponse.json();
     const modelCard = page.getByRole("heading", { name: "E2E matrix quadruped" }).locator("xpath=ancestor::article");
     await modelCard.getByRole("button", { name: "Build environment" }).click();
     for (const label of ["Stand and balance", "Walk forward", "Recover from a fall"]) {
@@ -122,26 +131,54 @@ test("[browser:builder-pairwise] every task, scene, object, bound, capacity, sav
       await expect(editors).toHaveCount(1);
       const numbers = editors.locator('input[type="number"]');
       await expect(numbers).toHaveCount(7);
-      const height = editors.getByRole("spinbutton", { name: /^Height / });
-      await height.fill("999");
-      await expect(page.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
-      await height.fill("0.3");
+      const object = catalog.object_types.find((item: { id: string }) => item.id === objectType);
+      if (!object) throw new Error(`catalog object ${objectType} is missing`);
+      for (const parameter of object.parameters) {
+        const input = editors.getByRole("spinbutton", { name: new RegExp(`^${parameter.label} `) });
+        await input.fill(String(parameter.minimum));
+        await expect(input).toHaveAttribute("aria-invalid", "false");
+        await input.fill(String(parameter.maximum));
+        await input.fill("");
+        await expect(input).toHaveAttribute("aria-invalid", "true");
+        await input.fill(String(parameter.maximum + 1));
+        await expect(page.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
+        await input.fill(String(parameter.default));
+      }
       const saveResponse = page.waitForResponse(
         (response) => response.url().endsWith("/robot-setups") && response.request().method() === "POST",
       );
       await page.getByRole("button", { name: "Save validated setup" }).click();
       const setupResponse = await saveResponse;
       expect(setupResponse.status()).toBe(201);
-      created.setups.push((await setupResponse.json()).id);
+      const setup = await setupResponse.json();
+      created.setups.push(setup.id);
+      expect(setup.task_template_id).toBe(
+        task === "Recover from a fall"
+          ? "recover-from-fall"
+          : task === "Walk forward"
+            ? "walk-forward"
+            : "stand-balance",
+      );
+      expect(setup.scene_preset_id).toBe(
+        scene === "Flat arena"
+          ? "flat-arena"
+          : scene === "Ramp course"
+            ? "ramp-course"
+            : scene === "Hurdle course"
+              ? "hurdle-course"
+              : "step-course",
+      );
       await expect(page.getByText(/Setup saved\./)).toBeVisible();
-      await page.getByRole("button", { name: "Remove" }).click();
+      const preset = catalog.scene_presets.find((item: { label: string }) => item.label === scene);
+      if (!preset) throw new Error(`catalog scene ${scene} is missing`);
+      const available = catalog.max_objects - preset.objects.length;
+      for (let index = 1; index < available; index += 1) {
+        await page.getByRole("button", { name: "Add object" }).click();
+      }
+      await expect(page.getByRole("button", { name: "Add object" })).toBeDisabled();
+      const removeButtons = page.getByRole("button", { name: "Remove" });
+      while ((await removeButtons.count()) > 0) await removeButtons.first().click();
     }
-
-    await page.getByRole("radio", { name: /Step course/ }).click();
-    for (let index = 0; index < 3; index += 1) {
-      await page.getByRole("button", { name: "Add object" }).click();
-    }
-    await expect(page.getByRole("button", { name: "Add object" })).toBeDisabled();
     await page.reload();
     await page.getByRole("button", { name: "My Robots" }).click();
     for (const setupId of created.setups) {

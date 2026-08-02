@@ -68,6 +68,31 @@ describe("My Robots workspace", () => {
     expect(catalog.object_types.flatMap((object) => object.parameters)).toHaveLength(28);
     expect(Object.keys(controlInventory)).toHaveLength(32);
     expect(Object.values(controlInventory).every((caseIds) => caseIds.length > 0)).toBe(true);
+    const implementedCaseIds = new Set([
+      "component:upload-required",
+      "component:upload-errors",
+      "component:model-card",
+      "component:model-download",
+      "component:choice-inventory",
+      "component:builder-review",
+      "component:setup-errors",
+      "component:setup-delete",
+      "component:lifecycle-preparing",
+      "component:lifecycle-start",
+      "component:lifecycle-retry",
+      "component:lifecycle-stale",
+      "component:lifecycle-quota",
+      "component:verified-example",
+      "component:keyboard-mobile",
+      "browser:upload-happy",
+      "browser:builder-pairwise",
+      "browser:lifecycle",
+      "browser:keyboard-mobile",
+      ...catalog.scene_presets.map((scene) => `component:capacity-${scene.id}`),
+      ...catalog.object_types.map((object) => `component:parameter-${object.id}`),
+    ]);
+    const mappedCaseIds = new Set(Object.values(controlInventory).flat());
+    expect([...mappedCaseIds].filter((caseId) => !implementedCaseIds.has(caseId))).toEqual([]);
   });
 
   it("[component:upload-required] validates required fields, extension, and both declared type paths", async () => {
@@ -286,7 +311,7 @@ describe("My Robots workspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
 
-  it("discovers both samples and keeps a server field error beside the upload", async () => {
+  it("[component:upload-errors] discovers both samples and keeps a server field error beside the upload", async () => {
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/robots" && init?.method === "POST") {
         return json({ detail: { field: "file", message: "DTD and entity declarations are not supported" } }, 422);
@@ -303,7 +328,7 @@ describe("My Robots workspace", () => {
     expect(screen.getByDisplayValue("Unsafe model")).toBeVisible();
   });
 
-  it("uploads a valid model without forcing a JSON content type, shows readiness, and deletes it", async () => {
+  it("[component:model-card] uploads a valid model without forcing a JSON content type, shows readiness, and deletes it", async () => {
     const uploaded = { ...biped, name: "Inspection biped" };
     const fetch = workspaceFetch({ upload: uploaded });
     vi.stubGlobal("fetch", fetch);
@@ -325,7 +350,7 @@ describe("My Robots workspace", () => {
     await waitFor(() => expect(screen.queryByText(uploaded.name)).not.toBeInTheDocument());
   });
 
-  it("filters tasks by robot type, enforces object bounds, and saves a normalized setup", async () => {
+  it("[component:builder-review] filters tasks by robot type, enforces object bounds, and saves a normalized setup", async () => {
     const saved: RobotSetup = {
       id: "setup-1", name: "Warehouse biped setup", robot_id: biped.id, robot_name: biped.name,
       robot_type: "biped", task_template_id: "stand-balance", scene_preset_id: "flat-arena",
@@ -334,7 +359,8 @@ describe("My Robots workspace", () => {
       training_readiness: "ineligible", can_prepare: false, can_start_training: false,
       current_preparation: null,
     };
-    vi.stubGlobal("fetch", workspaceFetch({ robots: [biped], createSetup: saved }));
+    const fetch = workspaceFetch({ robots: [biped], createSetup: saved });
+    vi.stubGlobal("fetch", fetch);
     render(<MyRobots />);
     const build = await screen.findByRole("button", { name: "Build environment" });
     build.focus();
@@ -357,12 +383,31 @@ describe("My Robots workspace", () => {
     expect(save).toHaveFocus();
     fireEvent.click(save);
     expect(await screen.findByText(/Setup saved\./)).toBeVisible();
+    const setupCall = fetch.mock.calls.find(
+      ([path, init]) => String(path) === "/robot-setups" && init?.method === "POST",
+    );
+    expect(JSON.parse(String(setupCall?.[1]?.body))).toEqual({
+      name: "Warehouse biped setup",
+      robot_id: biped.id,
+      task_template_id: "stand-balance",
+      scene_preset_id: "flat-arena",
+      objects: [{
+        object_type: "box",
+        x: 2,
+        y: 0,
+        z: 0,
+        yaw_degrees: 0,
+        width: 1,
+        depth: 1,
+        height: 0.3,
+      }],
+    });
     expect(screen.getAllByText("Setup validated").length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Prepare for training" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "See a verified example" }).length).toBeGreaterThan(0);
   });
 
-  it("renders the full workflow at a 375px viewport using native keyboard controls", async () => {
+  it("[component:keyboard-mobile] renders the full workflow at a 375px viewport using native keyboard controls", async () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
     window.dispatchEvent(new Event("resize"));
     vi.stubGlobal("fetch", workspaceFetch({ robots: [biped] }));
@@ -377,7 +422,7 @@ describe("My Robots workspace", () => {
     ).toBe(true);
   });
 
-  it("prepares an eligible setup and starts its fixed training job", async () => {
+  it("[component:lifecycle-start] prepares an eligible setup and starts its fixed training job", async () => {
     const base: RobotSetup = {
       id: "setup-trainable", name: "Trainable biped", robot_id: biped.id, robot_name: biped.name,
       robot_type: "biped", task_template_id: "walk-forward", scene_preset_id: "flat-arena",
@@ -450,7 +495,7 @@ describe("My Robots workspace", () => {
     expect(String(startCall?.[1]?.body)).toContain("idempotency_key");
   });
 
-  it("hands a validation-only setup to the gallery without creating a job or changing the saved setup", async () => {
+  it("[component:verified-example] hands a validation-only setup to the gallery without creating a job or changing the saved setup", async () => {
     const validationOnly: RobotSetup = {
       id: "setup-validation-only", name: "Saved validation", robot_id: biped.id, robot_name: biped.name,
       robot_type: "biped", task_template_id: "walk-forward", scene_preset_id: "flat-arena",
@@ -483,7 +528,7 @@ describe("My Robots workspace", () => {
     expect(fetch.mock.calls.some(([path]) => String(path) === "/jobs")).toBe(false);
   });
 
-  it("shows a sanitized preparation failure and submits an explicit retry", async () => {
+  it("[component:lifecycle-retry] shows a sanitized preparation failure and submits an explicit retry", async () => {
     const failed: RobotSetup = {
       id: "setup-failed", name: "Retry biped", robot_id: biped.id, robot_name: biped.name,
       robot_type: "biped", task_template_id: "stand-balance", scene_preset_id: "ramp-course",

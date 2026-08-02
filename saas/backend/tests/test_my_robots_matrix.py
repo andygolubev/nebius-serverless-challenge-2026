@@ -22,6 +22,7 @@ from validation_suite.matrix import (
     EXPECTED_ROBOT_TYPES,
     capacity_cases,
     expected_case_ids,
+    non_finite_parameter_cases,
     object_parameter_cases,
     positive_setup_cases,
     select_shard,
@@ -37,6 +38,9 @@ PARAMETER_CASES = select_shard(
 )
 CAPACITY_CASES = select_shard(
     capacity_cases(), index=SHARD_INDEX, total=SHARD_TOTAL
+)
+NON_FINITE_CASES = select_shard(
+    non_finite_parameter_cases(), index=SHARD_INDEX, total=SHARD_TOTAL
 )
 
 
@@ -238,6 +242,17 @@ def test_every_positive_setup_combination(client, login, monkeypatch, case) -> N
     )
     assert setup["can_prepare"] is (case.expected_reason == "not-prepared")
     assert setup["can_start_training"] is False
+    assert setup["robot_id"] == robot["id"]
+    assert setup["task_template_id"] == case.task_id
+    assert setup["scene_preset_id"] == case.scene_id
+    assert re.fullmatch(r"[0-9a-f]{64}", setup["digest"])
+    assert all(item["source"] == "preset" for item in setup["objects"][:preset_count])
+    if case.object_type is not None:
+        custom = setup["objects"][-1]
+        assert custom["object_type"] == case.object_type
+        assert custom["source"] == "custom"
+        assert all(math.isfinite(custom[name]) for name in EXPECTED_PARAMETER_NAMES)
+    assert client.get(f"/robot-setups/{setup['id']}", headers=headers).json() == setup
     duplicate = client.post(
         "/robot-setups", json={**body, "name": "Idempotent rename"}, headers=headers
     )
@@ -267,21 +282,31 @@ def test_every_object_parameter_boundary(client, login, case) -> None:
         assert response.status_code == 201, response.text
         custom = response.json()["objects"][-1]
         assert custom[case.parameter] == pytest.approx(case.value)
+        catalog = client.get("/environment-catalog", headers=headers).json()
+        definition = next(
+            item for item in catalog["object_types"] if item["id"] == case.object_type
+        )
+        defaults = {item["name"]: item["default"] for item in definition["parameters"]}
+        for name in EXPECTED_PARAMETER_NAMES:
+            expected = case.value if name == case.parameter else defaults[name]
+            assert custom[name] == pytest.approx(expected)
     else:
         assert response.status_code == 422
         assert response.json()["detail"]["field"] == "objects.0"
         assert client.get("/robot-setups", headers=headers).json() == []
 
 
-@pytest.mark.parametrize("literal", ("NaN", "Infinity", "-Infinity"))
-def test_non_finite_object_parameter_is_rejected(client, login, literal: str) -> None:
+@pytest.mark.parametrize("case", NON_FINITE_CASES, ids=lambda case: case.case_id)
+def test_non_finite_object_parameter_is_rejected(client, login, case) -> None:
     headers = login(_email("non-finite"))
     robot = _upload(client, headers, "biped")
     body = (
         '{"name":"Non finite","robot_id":'
         + json.dumps(robot["id"])
         + ',"task_template_id":"walk-forward","scene_preset_id":"flat-arena",'
-        + f'"objects":[{{"object_type":"box","x":{literal}}}]}}'
+        + '"objects":['
+        + json.dumps({"object_type": case.object_type, case.parameter: case.value})
+        + "]}"
     )
     response = client.post(
         "/robot-setups",

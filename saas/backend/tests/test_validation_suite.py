@@ -25,6 +25,7 @@ def test_manifest_counts_and_four_way_shards_are_complete() -> None:
         "eligible_setups": 8,
         "object_parameters": 28,
         "parameter_cases": 140,
+        "non_finite_parameter_cases": 84,
         "capacity_cases": 8,
         "controls": 32,
     }

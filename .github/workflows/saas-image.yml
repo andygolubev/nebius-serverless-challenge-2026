@@ -55,7 +55,7 @@ jobs:
               --junitxml="../../.form-validation-runs/backend-${FORM_MATRIX_SHARD_INDEX}.xml"
           else
             python -m pytest tests/test_my_robots_matrix.py -q \
-              -k 'every_positive_setup_combination or every_object_parameter_boundary or every_scene_capacity_transition' \
+              -k 'every_positive_setup_combination or every_object_parameter_boundary or non_finite_object_parameter or every_scene_capacity_transition' \
               --junitxml="../../.form-validation-runs/backend-${FORM_MATRIX_SHARD_INDEX}.xml"
           fi
       - uses: actions/upload-artifact@v4
@@ -168,7 +168,10 @@ jobs:
           while IFS= read -r result; do junit_args+=(--junit "$result"); done \
             < <(find ../../.form-validation-runs -name '*.xml' -type f -print | sort)
           test "${#junit_args[@]}" -gt 0
+          python -m validation_suite.matrix \
+            --output ../../.form-validation-runs/expected.json
           python -m validation_suite.report merge "${junit_args[@]}" \
+            --expected ../../.form-validation-runs/expected.json \
             --run-id "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --output ../../.form-validation-runs/report.json \
             --markdown ../../.form-validation-runs/report.md

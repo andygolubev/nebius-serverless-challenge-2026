@@ -74,6 +74,12 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
     expect(catalog.scene_presets).toHaveLength(4);
     expect(catalog.object_types).toHaveLength(4);
     expect(catalog.object_types.flatMap((item: { parameters: unknown[] }) => item.parameters)).toHaveLength(28);
+    const existingRobots = await request.get("/robots", { headers });
+    const existingSetups = await request.get("/robot-setups", { headers });
+    expect(existingRobots.status()).toBe(200);
+    expect(existingSetups.status()).toBe(200);
+    expect((await existingRobots.json()).length, "tenant needs room for two smoke models").toBeLessThanOrEqual(18);
+    expect((await existingSetups.json()).length, "tenant needs room for one smoke setup").toBeLessThan(catalog.max_setups);
 
     const samplesResponse = await request.get("/robot-samples", { headers });
     expect(samplesResponse.status()).toBe(200);
@@ -82,6 +88,7 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
     const runPrefix = `Codex form smoke ${Date.now().toString(36)}`;
     for (const type of ["quadruped", "biped"] as const) {
       const sample = samples.find((item: { robot_type: string }) => item.robot_type === type);
+      if (!sample) throw new Error(`deployed sample catalog is missing ${type}`);
       const raw = await request.get(`/robot-samples/${sample.id}`, { headers });
       expect(raw.status()).toBe(200);
       await page.getByLabel("Robot name").fill(`${runPrefix} ${type}`);
@@ -103,6 +110,14 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
       await expect(page.getByRole("heading", { name: `${runPrefix} ${type}` })).toBeVisible();
     }
 
+    const bipedCard = page
+      .getByRole("heading", { name: `${runPrefix} biped` })
+      .locator("xpath=ancestor::article");
+    await bipedCard.getByRole("button", { name: "Build environment" }).click();
+    await expect(page.getByRole("radiogroup", { name: "Locomotion task" }).getByRole("radio")).toHaveCount(2);
+    await expect(page.getByRole("radio", { name: /Recover from a fall/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "Close builder" }).click();
+
     const quadrupedCard = page
       .getByRole("heading", { name: `${runPrefix} quadruped` })
       .locator("xpath=ancestor::article");
@@ -118,11 +133,15 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
       await page.getByRole("button", { name: "Add object" }).click();
       const editor = page.locator(".object-editor");
       await expect(editor.locator('input[type="number"]')).toHaveCount(7);
-      const first = editor.locator('input[type="number"]').first();
-      const maximum = Number(await first.getAttribute("max"));
-      await first.fill(String(maximum + 1));
-      await expect(page.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
-      await first.fill(String(object.parameters[0].default));
+      for (const parameter of object.parameters) {
+        const input = editor.getByRole("spinbutton", { name: new RegExp(`^${parameter.label} `) });
+        await input.fill("");
+        await expect(input).toHaveAttribute("aria-invalid", "true");
+        await input.fill(String(parameter.maximum + 1));
+        await expect(page.getByRole("button", { name: "Save validated setup" })).toBeDisabled();
+        await input.fill(String(parameter.default));
+        await expect(input).toHaveAttribute("aria-invalid", "false");
+      }
       await page.getByRole("button", { name: "Remove" }).click();
     }
 
@@ -137,28 +156,44 @@ test("[deployed:no-cost-smoke] validates every deployed form choice with exact-I
     expect(setupResponse.status()).toBe(201);
     const setup = await setupResponse.json();
     created.setups.push(setup.id);
+    expect(setup.reason).toBe("not-prepared");
+    expect(setup.training_readiness).toBe("not_prepared");
+    expect(setup.objects).toEqual([]);
+    expect(setup.digest).toMatch(/^[0-9a-f]{64}$/);
     await page.reload();
     await page.getByRole("button", { name: "My Robots" }).click();
     await expect(page.getByRole("heading", { name: `${runPrefix} setup` })).toBeVisible();
+    await expect(page.getByText("Preparation required before training").first()).toBeVisible();
     expect(remotePreparation).toBeFalsy();
     await expect(page.getByRole("button", { name: "Prepare for training" })).toBeVisible();
   } finally {
-    if (!preserveResources) {
-      for (const setupId of [...created.setups].reverse()) {
-        const response = await request.delete(`/robot-setups/${setupId}`, { headers });
-        if ([204, 404].includes(response.status())) deleted.setups.push(setupId);
+    try {
+      if (!preserveResources) {
+        for (const setupId of [...created.setups].reverse()) {
+          try {
+            const response = await request.delete(`/robot-setups/${setupId}`, { headers });
+            if ([204, 404].includes(response.status())) deleted.setups.push(setupId);
+          } catch {
+            // Continue exact-ID cleanup and let the final accounting fail the run.
+          }
+        }
+        for (const robotId of [...created.robots].reverse()) {
+          try {
+            const response = await request.delete(`/robots/${robotId}`, { headers });
+            if ([204, 404].includes(response.status())) deleted.robots.push(robotId);
+          } catch {
+            // Continue exact-ID cleanup and let the final accounting fail the run.
+          }
+        }
+        cleanup =
+          deleted.setups.length === created.setups.length &&
+          deleted.robots.length === created.robots.length
+            ? "clean"
+            : "failed";
       }
-      for (const robotId of [...created.robots].reverse()) {
-        const response = await request.delete(`/robots/${robotId}`, { headers });
-        if ([204, 404].includes(response.status())) deleted.robots.push(robotId);
-      }
-      cleanup =
-        deleted.setups.length === created.setups.length &&
-        deleted.robots.length === created.robots.length
-          ? "clean"
-          : "failed";
+    } finally {
+      await writeOutcome(created, deleted, cleanup);
     }
-    await writeOutcome(created, deleted, cleanup);
   }
   expect(cleanup).not.toBe("failed");
 });

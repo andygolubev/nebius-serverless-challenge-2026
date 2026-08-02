@@ -13,7 +13,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence, TypeVar
 
-from app import environment_catalog
+from app import environment_catalog, main as app_main
 
 EXPECTED_ROBOT_TYPES = ("quadruped", "biped")
 EXPECTED_COMPATIBILITY = {
@@ -39,35 +39,56 @@ EXPECTED_PARAMETER_NAMES = (
 EXPECTED_ELIGIBLE_TASKS = frozenset({"stand-balance", "walk-forward"})
 EXPECTED_ELIGIBLE_SCENES = frozenset({"flat-arena", "ramp-course"})
 EXPECTED_MAX_OBJECTS = 6
+EXPECTED_SAMPLE_TYPES = {
+    "sample-quadruped": "quadruped",
+    "sample-biped": "biped",
+}
 
 # Every visible control/state is mapped to a durable scenario family. Frontend tests
 # assert the same keys so a new control cannot land without coverage in both layers.
 CONTROL_INVENTORY: Mapping[str, tuple[str, ...]] = {
-    "sample-download": ("browser:sample-download",),
+    "sample-download": ("component:model-download", "browser:upload-happy"),
     "upload-name": ("component:upload-required", "browser:upload-happy"),
-    "upload-robot-type": ("component:upload-types", "browser:upload-happy"),
+    "upload-robot-type": ("component:upload-required", "browser:upload-happy"),
     "upload-file": ("component:upload-required", "browser:upload-happy"),
-    "upload-submit": ("component:upload-errors", "browser:upload-happy"),
+    "upload-submit": (
+        "component:upload-required",
+        "component:upload-errors",
+        "browser:upload-happy",
+    ),
     "upload-errors": ("component:upload-errors",),
     "model-statistics": ("component:model-card", "browser:upload-happy"),
     "model-digest": ("component:model-card", "browser:upload-happy"),
-    "model-download": ("component:model-download", "browser:model-download"),
-    "model-delete-cancel": ("component:model-delete", "browser:model-delete"),
-    "build-environment": ("component:builder-open", "browser:builder-pairwise"),
-    "builder-close": ("component:builder-close",),
-    "setup-name": ("component:builder-name", "browser:builder-pairwise"),
-    "task-choice": ("component:task-matrix", "browser:builder-pairwise"),
-    "scene-choice": ("component:scene-matrix", "browser:builder-pairwise"),
-    "object-type": ("component:object-matrix", "browser:builder-pairwise"),
-    "object-add": ("component:object-matrix", "browser:builder-pairwise"),
-    "object-remove": ("component:object-remove", "browser:builder-pairwise"),
-    "object-parameters": ("component:parameter-matrix", "browser:builder-bounds"),
+    "model-download": ("component:model-download", "browser:upload-happy"),
+    "model-delete-cancel": ("component:model-download", "browser:upload-happy"),
+    "build-environment": ("component:choice-inventory", "browser:builder-pairwise"),
+    "builder-close": ("component:choice-inventory",),
+    "setup-name": ("component:builder-review", "browser:builder-pairwise"),
+    "task-choice": ("component:choice-inventory", "browser:builder-pairwise"),
+    "scene-choice": ("component:choice-inventory", "browser:builder-pairwise"),
+    "object-type": ("component:choice-inventory", "browser:builder-pairwise"),
+    "object-add": (
+        "component:choice-inventory",
+        "component:capacity-flat-arena",
+        "component:capacity-ramp-course",
+        "component:capacity-hurdle-course",
+        "component:capacity-step-course",
+        "browser:builder-pairwise",
+    ),
+    "object-remove": ("component:choice-inventory", "browser:builder-pairwise"),
+    "object-parameters": (
+        "component:parameter-box",
+        "component:parameter-ramp",
+        "component:parameter-hurdle",
+        "component:parameter-step",
+        "browser:builder-pairwise",
+    ),
     "builder-review": ("component:builder-review", "browser:builder-pairwise"),
-    "setup-save": ("component:setup-save", "browser:builder-pairwise"),
-    "setup-errors": ("component:setup-errors", "browser:builder-bounds"),
-    "setup-reload": ("component:setup-persistence", "browser:setup-reload"),
-    "setup-delete-cancel": ("component:setup-delete", "browser:setup-delete"),
-    "prepare": ("component:lifecycle-prepare", "browser:lifecycle"),
+    "setup-save": ("component:builder-review", "browser:builder-pairwise"),
+    "setup-errors": ("component:setup-errors", "browser:builder-pairwise"),
+    "setup-reload": ("browser:builder-pairwise",),
+    "setup-delete-cancel": ("component:setup-delete",),
+    "prepare": ("component:lifecycle-start", "browser:lifecycle"),
     "preparing": ("component:lifecycle-preparing", "browser:lifecycle"),
     "retry": ("component:lifecycle-retry", "browser:lifecycle"),
     "start-training": ("component:lifecycle-start", "browser:lifecycle"),
@@ -149,6 +170,14 @@ def assert_current_contract(payload: Mapping[str, Any] | None = None) -> None:
     if catalog["max_objects"] != EXPECTED_MAX_OBJECTS:
         raise AssertionError(
             f"max_objects drift: expected {EXPECTED_MAX_OBJECTS}, got {catalog['max_objects']}"
+        )
+    samples = {
+        sample_id: definition[2]
+        for sample_id, definition in app_main._SAMPLE_DEFINITIONS.items()
+    }
+    if samples != EXPECTED_SAMPLE_TYPES:
+        raise AssertionError(
+            f"sample catalog drift: expected {EXPECTED_SAMPLE_TYPES}, got {samples}"
         )
 
 
@@ -242,6 +271,32 @@ def object_parameter_cases() -> tuple[ObjectParameterCase, ...]:
     return tuple(cases)
 
 
+def non_finite_parameter_cases() -> tuple[ObjectParameterCase, ...]:
+    """Generate every API-representable non-finite value for all 28 fields."""
+    payload = _catalog_payload()
+    assert_current_contract(payload)
+    cases = tuple(
+        ObjectParameterCase(
+            case_id=f"api:parameter:{object_type['id']}:{parameter['name']}:{variant}",
+            object_type=object_type["id"],
+            parameter=parameter["name"],
+            variant=variant,
+            value=value,
+            valid=False,
+        )
+        for object_type in payload["object_types"]
+        for parameter in object_type["parameters"]
+        for variant, value in (
+            ("nan", float("nan")),
+            ("positive-infinity", float("inf")),
+            ("negative-infinity", float("-inf")),
+        )
+    )
+    if len(cases) != 84:
+        raise AssertionError(f"expected 84 non-finite parameter cases, got {len(cases)}")
+    return cases
+
+
 def capacity_cases() -> tuple[CapacityCase, ...]:
     payload = _catalog_payload()
     assert_current_contract(payload)
@@ -270,7 +325,7 @@ def capacity_cases() -> tuple[CapacityCase, ...]:
 def expected_case_ids() -> tuple[str, ...]:
     uploads = tuple(
         f"api:upload:{sample}:{declared}"
-        for sample in ("sample-quadruped", "sample-biped")
+        for sample in EXPECTED_SAMPLE_TYPES
         for declared in EXPECTED_ROBOT_TYPES
     )
     controls = tuple(
@@ -280,6 +335,7 @@ def expected_case_ids() -> tuple[str, ...]:
         uploads
         + tuple(case.case_id for case in positive_setup_cases())
         + tuple(case.case_id for case in object_parameter_cases())
+        + tuple(case.case_id for case in non_finite_parameter_cases())
         + tuple(case.case_id for case in capacity_cases())
         + controls
     )
@@ -320,6 +376,7 @@ def manifest() -> dict[str, Any]:
             ),
             "object_parameters": len(EXPECTED_OBJECT_TYPES) * len(EXPECTED_PARAMETER_NAMES),
             "parameter_cases": len(object_parameter_cases()),
+            "non_finite_parameter_cases": len(non_finite_parameter_cases()),
             "capacity_cases": len(capacity_cases()),
             "controls": len(CONTROL_INVENTORY),
         },
