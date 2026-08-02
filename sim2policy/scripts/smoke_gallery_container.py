@@ -54,6 +54,7 @@ def smoke_mjx() -> None:
         _apply_initial_hyperparameters,
         _environment_overrides,
         _parse_initial_worker_flags,
+        classify_g1_termination,
         fixed_forward_command_state,
         local_forward_velocity,
         validate_mjx_environment,
@@ -132,4 +133,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-        classify_g1_termination,

@@ -12,11 +12,13 @@ from typing import Any
 import pytest
 
 from sim2policy import train_mjx as train_mjx_module
+from sim2policy.checkpoint import checkpoint_path, write_checkpoint_metadata
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
 from sim2policy.train_mjx import (
     _apply_initial_hyperparameters,
+    _build_cli_g1_transition,
     _environment_overrides,
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
@@ -91,6 +93,42 @@ def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
         "sim2policy.playground_train",
     ]
     assert "--env_name=G1ForwardRoughTerrain" in command
+
+
+def test_cli_g1_transition_is_persisted_and_binds_fresh_learner_state(
+    tmp_path: Path,
+) -> None:
+    flat_path = ROOT / "configs/g1_forward_flat_mjx.yaml"
+    rough_path = ROOT / "configs/g1_forward_rough_mjx.yaml"
+    flat = load_config(flat_path, {"training.total_steps": 163_840})
+    rough = load_config(rough_path, {"training.total_steps": 163_840})
+    checkpoint = checkpoint_path(tmp_path / "source", "final", 163_840)
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    write_checkpoint_metadata(checkpoint, flat, 163_840)
+
+    record = _build_cli_g1_transition(
+        resume=checkpoint,
+        config=rough,
+        config_path=rough_path,
+        source_config_path=flat_path,
+        source_run_id="flat-run",
+        run_id="rough-run",
+        runs_root=tmp_path / "runs",
+        matrix_digest="matrix-digest",
+        image_digest="sha256:image",
+        remaining_budget=163_840,
+    )
+
+    assert record["source_environment"] == "G1ForwardFlatTerrain"
+    assert record["target_environment"] == "G1ForwardRoughTerrain"
+    assert record["restore"]["reinitialized_components"] == [
+        "optimizer_state",
+        "learner_step",
+        "rollout_state",
+        "prng_state",
+    ]
+    assert (tmp_path / "runs/rough-run/report/g1-transition.json").is_file()
 
 
 def test_initial_worker_parses_playground_impl_before_config_access() -> None:

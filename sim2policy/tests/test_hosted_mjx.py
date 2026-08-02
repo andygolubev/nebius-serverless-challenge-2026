@@ -50,6 +50,26 @@ def test_remote_resume_can_name_a_distinct_source_run() -> None:
     assert train[train.index("--resume-run-id") + 1] == "flat-run"
 
 
+def test_g1_transition_evidence_is_passed_to_training_only() -> None:
+    train, finalize = build_commands(
+        [
+            "--config", "configs/g1_forward_rough_mjx.yaml",
+            "--run-id", "rough-run",
+            "--resume", "remote",
+            "--resume-run-id", "flat-run",
+            "--g1-transition-source-config", "configs/g1_forward_flat_mjx.yaml",
+            "--g1-transition-matrix-digest", "matrix-digest",
+            "--g1-transition-image-digest", "sha256:image",
+            "--g1-transition-remaining-budget", "163840",
+        ]
+    )
+    assert train[train.index("--g1-transition-source-config") + 1] == (
+        "configs/g1_forward_flat_mjx.yaml"
+    )
+    assert train[train.index("--g1-transition-remaining-budget") + 1] == "163840"
+    assert "--g1-transition-source-config" not in finalize
+
+
 def test_resume_is_absent_unless_requested() -> None:
     train, _finalize = build_commands(["--config", "c.yaml", "--run-id", "r1"])
     assert "--resume" not in train

@@ -1,0 +1,57 @@
+name: saas-form-smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Explicit deployed SaaS origin
+        required: true
+        default: https://sim-policy-trainer-challenge.info
+        type: string
+      preserve_resources:
+        description: Keep exact test-created model/setup IDs for short-lived inspection
+        required: true
+        default: false
+        type: boolean
+
+concurrency:
+  group: saas-form-smoke-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  no-cost-deployed-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: saas/frontend/package-lock.json
+      - name: Install browser test dependencies
+        working-directory: saas/frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run no-cost deployed form smoke
+        working-directory: saas/frontend
+        env:
+          SAAS_SMOKE_BASE_URL: ${{ inputs.base_url }}
+          SAAS_SMOKE_BEARER_TOKEN: ${{ secrets.SAAS_SMOKE_BEARER_TOKEN }}
+          SAAS_SMOKE_PRESERVE_RESOURCES: ${{ inputs.preserve_resources }}
+          SAAS_SMOKE_RUN_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+        run: npm run test:e2e:deployed
+      - name: Scan validation evidence
+        working-directory: saas/backend
+        run: python -m validation_suite.report scan ../../.form-validation-runs
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saas-form-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .form-validation-runs/
+          if-no-files-found: error
+          retention-days: 7
