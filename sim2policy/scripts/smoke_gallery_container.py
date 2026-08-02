@@ -49,6 +49,10 @@ def smoke_mjx() -> None:
     import jax
     from mujoco_playground import registry
 
+    from sim2policy.g1_forward_env import (
+        is_g1_forward_environment,
+        upstream_environment,
+    )
     from sim2policy.train_mjx import (
         _NETWORK_FACTORY_HYPERPARAMETERS,
         _apply_initial_hyperparameters,
@@ -58,10 +62,6 @@ def smoke_mjx() -> None:
         fixed_forward_command_state,
         local_forward_velocity,
         validate_mjx_environment,
-    )
-    from sim2policy.g1_forward_env import (
-        is_g1_forward_environment,
-        upstream_environment,
     )
 
     # Importing Playground's CLI module defines the Abseil flags consumed by
