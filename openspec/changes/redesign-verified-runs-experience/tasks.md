@@ -1,8 +1,8 @@
 ## 1. Baseline and guardrails
 
-- [ ] 1.1 Re-read this change's proposal, design, specs, `ARCHITECTURE.md`, the handoff README/reference files, active overlapping changes, and current `IMPLEMENTATION_LOG.MD`; record the exact baseline, commands, observed results, blockers, and safe next step without overwriting unrelated work.
-- [ ] 1.2 Inventory global token/class consumers and current showcase, detail, route, catalog-order, unit, Playwright, and deployed-smoke assertions; identify broad CSS selectors and shared `ResultPanels` behavior that require compatibility coverage.
-- [ ] 1.3 Add or update focused tests first for the new server order, compact card fields/accessibility, public routes/footer, light-only token contract, approved static copy, and preserved read-only CTA behavior; confirm each test fails for the intended pre-change reason.
+- [x] 1.1 Re-read this change's proposal, design, specs, `ARCHITECTURE.md`, the handoff README/reference files, active overlapping changes, and current `IMPLEMENTATION_LOG.MD`; record the exact baseline, commands, observed results, blockers, and safe next step without overwriting unrelated work.
+- [x] 1.2 Inventory global token/class consumers and current showcase, detail, route, catalog-order, unit, Playwright, and deployed-smoke assertions; identify broad CSS selectors and shared `ResultPanels` behavior that require compatibility coverage.
+- [x] 1.3 Add or update focused tests first for the new server order, compact card fields/accessibility, public routes/footer, light-only token contract, approved static copy, and preserved read-only CTA behavior; confirm each test fails for the intended pre-change reason.
 
 ## 2. Part 1 — visual foundation and shared top bar
 

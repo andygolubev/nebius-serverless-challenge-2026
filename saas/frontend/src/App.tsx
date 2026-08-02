@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, session, SESSION_EXPIRED_EVENT } from "./api";
+import { About } from "./views/About";
 import { Dashboard } from "./views/Dashboard";
 import { JobDetail } from "./views/JobDetail";
 import { Login } from "./views/Login";
 import { MyRobots } from "./views/MyRobots";
 import { Showcase, ShowcaseDetail } from "./views/Showcase";
+import { Terms } from "./views/Terms";
 
 // The showcase is the root view whether or not there is a session, so a visitor
 // never meets a login wall before they have seen anything. Login is a destination
@@ -12,12 +14,14 @@ import { Showcase, ShowcaseDetail } from "./views/Showcase";
 type Route =
   | { view: "showcase" }
   | { view: "showcase-example"; id: string }
+  | { view: "about" }
+  | { view: "terms" }
   | { view: "login" }
   | { view: "dashboard" }
   | { view: "robots" }
   | { view: "job"; id: string };
 
-const PUBLIC_VIEWS = new Set<Route["view"]>(["showcase", "showcase-example", "login"]);
+const PUBLIC_VIEWS = new Set<Route["view"]>(["showcase", "showcase-example", "about", "terms", "login"]);
 
 export function App() {
   const [authed, setAuthed] = useState(() => session.token !== null);
@@ -53,10 +57,6 @@ export function App() {
 
   function trainYourOwn() {
     setRoute(authed ? { view: "robots" } : { view: "login" });
-  }
-
-  if (route.view === "login") {
-    return <Login onLogin={afterLogin} onCancel={() => setRoute({ view: "showcase" })} />;
   }
 
   // An authenticated-only view reached without a session falls back to the showcase
@@ -131,6 +131,11 @@ export function App() {
             onBack={() => setRoute({ view: "showcase" })}
           />
         )}
+        {active.view === "about" && <About />}
+        {active.view === "terms" && <Terms />}
+        {active.view === "login" && (
+          <Login onLogin={afterLogin} onCancel={() => setRoute({ view: "showcase" })} />
+        )}
         {active.view === "dashboard" && (
           <Dashboard
             onOpenJob={(id) => setRoute({ view: "job", id })}
@@ -146,6 +151,17 @@ export function App() {
         )}
         {active.view === "job" && <JobDetail jobId={active.id} onBack={() => setRoute({ view: "dashboard" })} />}
       </main>
+
+      <footer className={`site-footer${active.view === "terms" ? " terms-footer" : ""}`}>
+        <div className="site-footer-inner">
+          <span className="wordmark">Sim2Policy</span>
+          <nav aria-label="Footer">
+            <button type="button" onClick={() => setRoute({ view: "about" })}>About me</button>
+            <button type="button" onClick={() => setRoute({ view: "terms" })}>Terms of use</button>
+          </nav>
+          <span className="meta">Nebius Serverless Challenge 2026</span>
+        </div>
+      </footer>
     </div>
   );
 }

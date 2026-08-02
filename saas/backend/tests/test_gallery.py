@@ -18,12 +18,12 @@ from app.store import JobStore
 from tests.test_gallery_artifacts import MemoryS3, SHOWCASE_METRICS
 
 GALLERY_ORDER = [
+    "g1-rough-terrain",
     "go1-walker",
     "ant-explorer",
     "halfcheetah-sprint",
     "hopper-balance",
     "walker2d-stride",
-    "g1-rough-terrain",
     "reacher-target",
 ]
 

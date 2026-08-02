@@ -5,12 +5,12 @@ import { JobDetail } from "./JobDetail";
 import { Showcase, ShowcaseDetail } from "./Showcase";
 
 const showcaseIds = [
+  "g1-rough-terrain",
   "go1-walker",
   "ant-explorer",
   "halfcheetah-sprint",
   "hopper-balance",
   "walker2d-stride",
-  "g1-rough-terrain",
   "reacher-target",
 ];
 
@@ -93,17 +93,40 @@ describe("public showcase", () => {
     expect(fetchMock).toHaveBeenCalledWith("/showcase");
   });
 
-  it("renders every published card with a local avatar and measured guidance", async () => {
+  it("renders compact cards in server order with accessible local avatars and evidence facts", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json(showcaseEntries)));
     const { container } = render(
       <Showcase authed={false} onSignIn={() => undefined} onOpenExample={() => undefined} />,
     );
-    await screen.findByRole("button", { name: /Go1 Walker/ });
+    await screen.findByRole("button", { name: /G1 Rough Terrain/ });
+    const cards = Array.from(container.querySelectorAll<HTMLButtonElement>(".gallery-card"));
+    expect(cards.map((card) => card.getAttribute("aria-label"))).toEqual(
+      showcaseIds.map((id) => `${labels[id]} — Walk forward`),
+    );
     for (const id of showcaseIds) {
-      expect(container.querySelector(`img[src="/avatars/${id}.svg"]`)).toBeInTheDocument();
+      const avatar = container.querySelector(`img[src="/avatars/${id}.svg"]`);
+      expect(avatar).toBeInTheDocument();
+      expect(avatar).toHaveAttribute("alt", "");
     }
-    expect(screen.getAllByText("Observed about 12 min").length).toBe(showcaseIds.length);
-    expect(screen.getAllByText("Measured $0.12").length).toBe(showcaseIds.length);
+    expect(screen.getAllByText("mean reward ≥ 1000")).toHaveLength(showcaseIds.length);
+    expect(screen.queryByText("Observed about 12 min")).not.toBeInTheDocument();
+    expect(screen.queryByText("Measured $0.12")).not.toBeInTheDocument();
+    expect(screen.queryByText("1,000,000")).not.toBeInTheDocument();
+    expect(screen.queryByText("A replayable trained policy")).not.toBeInTheDocument();
+  });
+
+  it("presents the challenge story, pipeline, evidence bands, and final train-your-own poster", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json(showcaseEntries)));
+    render(<Showcase authed={false} onSignIn={() => undefined} onOpenExample={() => undefined} />);
+    expect(await screen.findByText("Verified training runs · Nebius Serverless Challenge 2026")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Watch robots learn to move" })).toBeVisible();
+    expect(screen.getByText("Simulate")).toBeVisible();
+    expect(screen.getByText("Train")).toBeVisible();
+    expect(screen.getByText("Keep")).toBeVisible();
+    expect(screen.getByText("What every run leaves behind")).toBeVisible();
+    expect(screen.getByText("Built with passion and love")).toBeVisible();
+    expect(screen.getByText("Bring your own robot.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sign in to train →" })).toBeVisible();
   });
 
   it("offers no control that starts, re-runs, or queues a showcase example", async () => {
@@ -126,6 +149,7 @@ describe("public showcase", () => {
     // The empty state is a designed state, not an error or a spinner.
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(document.querySelector(".skeleton")).not.toBeInTheDocument();
+    expect(screen.getByText("Bring your own robot.")).toBeVisible();
   });
 
   it("routes the sign-in call to action to login", async () => {
@@ -144,7 +168,27 @@ describe("public showcase", () => {
     ));
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /Hopper Balance/ }));
-    expect(await screen.findByRole("heading", { name: /Hopper Balance · Walk forward/ })).toBeVisible();
+    expect(await screen.findByRole("heading", { name: "Hopper Balance" })).toBeVisible();
+    expect(screen.getByText("Walk forward — Story for Hopper Balance")).toBeVisible();
+    expect(screen.getByText("Observed about 12 min")).toBeVisible();
+    expect(screen.getByText("Measured $0.12")).toBeVisible();
+  });
+
+  it("routes shared footer links to public About and Terms views", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => json(showcaseEntries)));
+    render(<App />);
+    await screen.findByRole("heading", { name: "Watch robots learn to move" });
+
+    fireEvent.click(screen.getByRole("button", { name: "About me" }));
+    expect(screen.getByRole("heading", { name: "Andy Golubev" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveAttribute("rel", "noreferrer");
+    expect(screen.getByRole("link", { name: "GitHub repository" })).toHaveAttribute("target", "_blank");
+
+    fireEvent.click(screen.getByRole("button", { name: "Terms of use" }));
+    expect(screen.getByRole("heading", { name: "The short version" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Download your results early" })).toBeVisible();
+    expect(screen.getByText(/Files can disappear when the project ends or before that/)).toBeVisible();
+    expect(screen.getByText("Last updated 2 August 2026 · Andy Golubev")).toBeVisible();
   });
 
   it("plays and switches rollout media, and gates the bundle behind the simulator disclosure", async () => {
@@ -309,16 +353,18 @@ describe("job results", () => {
     expect(screen.queryByText("GPU utilization")).not.toBeInTheDocument();
   });
 
-  it("keeps dark-mode tokens and all result breakpoints in the shipped stylesheet", async () => {
+  it("keeps the chosen light token contract, Archivo fallback, and result breakpoints", async () => {
     // The application tsconfig intentionally omits Node types; Vitest itself runs in Node.
     // @ts-expect-error -- test-only runtime import, never bundled into the application.
     const { readFileSync } = await import("node:fs");
     const cwd = (globalThis as unknown as { process: { cwd: () => string } }).process.cwd();
     const stylesheet = readFileSync(`${cwd}/src/styles.css`, "utf8") as string;
-    expect(stylesheet).toContain("@media (prefers-color-scheme: dark)");
-    for (const token of ["--bg", "--surface", "--surface-2", "--border", "--text", "--text-muted", "--accent", "--focus-ring"]) {
-      expect(stylesheet.match(new RegExp(`${token}:`, "g"))).toHaveLength(2);
-    }
+    const index = readFileSync(`${cwd}/index.html`, "utf8") as string;
+    expect(stylesheet).not.toContain("@media (prefers-color-scheme: dark)");
+    expect(stylesheet).toContain("--grad-action:");
+    expect(stylesheet).toContain("--grad-poster:");
+    expect(stylesheet).toContain('--font: "Archivo", system-ui');
+    expect(index).toContain("family=Archivo:wght@400;500;600;700;800");
     expect(stylesheet).toContain("@media (max-width: 900px)");
     expect(stylesheet).toContain("@media (max-width: 640px)");
     expect(stylesheet).toContain("@media (max-width: 390px)");

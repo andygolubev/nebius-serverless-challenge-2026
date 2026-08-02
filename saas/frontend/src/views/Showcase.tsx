@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, ShowcaseDetail as ShowcaseDetailData, ShowcaseEntry } from "../api";
+import { Credit } from "./About";
 import { buildResultView } from "./resultView";
 import {
   ArtifactFiles,
@@ -72,81 +73,111 @@ export function Showcase({
     };
   }, []);
 
+  const revision = entries?.[0]?.acceptance_revision;
+
   return (
     <div className="showcase">
-      <header className="showcase-hero">
-        <p className="eyebrow">Verified training runs</p>
-        <h1 className="section-title">Watch robots learn to move</h1>
-        <p className="section-sub">
-          Every run below was trained on real GPU hardware and recorded — policy, metrics, and rollout video. Browse
-          them freely, then bring your own robot.
-        </p>
-        {!authed && (
-          <button className="btn" onClick={onSignIn}>
-            Sign in to train your own robot
-          </button>
-        )}
-      </header>
-
-      {failed && (
-        <div className="alert alert-error" role="alert">
-          The showcase could not be loaded right now. Please try again shortly.
-        </div>
-      )}
-
-      {entries === null && !failed && (
-        <div className="gallery-grid" aria-label="Loading verified runs">
-          {[0, 1, 2].map((index) => (
-            <div className="skeleton" style={{ height: "20rem" }} key={index} />
-          ))}
-        </div>
-      )}
-
-      {entries !== null && entries.length === 0 && (
-        <div className="empty-state" role="status">
-          <h2>Verified runs are being prepared</h2>
-          <p>
-            The training runs for this showcase are still being produced. Each one appears here as soon as its policy,
-            metrics, and rollout video are recorded and validated.
+      <section className="showcase-hero">
+        <div>
+          <p className="eyebrow">Verified training runs · Nebius Serverless Challenge 2026</p>
+          <h1>Watch robots<br />learn to move</h1>
+          <p className="showcase-lede">
+            Seven policies trained on real hardware and recorded end to end — policy weights,
+            metrics and rollout video. Browse them freely, then bring your own robot.
           </p>
-          {/* The hero already offers the sign-in call to action directly above. */}
+          <div className="hero-actions">
+            <a className="btn" href="#gallery">Browse the seven runs</a>
+            <button className="btn btn-ghost" onClick={onSignIn}>
+              {authed ? "Go to My Robots" : "Sign in to train your own"}
+            </button>
+          </div>
+          <p className="hero-note">
+            This is my project for the <strong>Nebius Serverless Challenge 2026</strong> — so it is
+            free of charge for you. No credit card. Just your email, and you get a personal space
+            where you can train your own robots.
+          </p>
         </div>
-      )}
 
-      {entries !== null && entries.length > 0 && (
-        <div className="gallery-grid">
-          {entries.map((entry) => (
-            <ShowcaseCard key={entry.id} entry={entry} onOpen={() => onOpenExample(entry.id)} />
+        <div className="pipeline">
+          <p className="pipeline-label">How a run happens</p>
+          {PIPELINE.map((step, index) => (
+            <div className="pipeline-step" key={step.title}>
+              <b>{String(index + 1).padStart(2, "0")}</b>
+              <div><h3>{step.title}</h3><p>{step.body}</p></div>
+            </div>
           ))}
         </div>
-      )}
+      </section>
+
+      <div className="showcase-wrap">
+        <div className="gallery-head">
+          <h2 id="gallery">The gallery</h2>
+          <p>{entries ? `${entries.length} runs` : "Loading"}{revision ? ` · revision ${revision}` : ""}</p>
+        </div>
+
+        {failed && (
+          <div className="alert alert-error" role="alert">
+            The showcase could not be loaded right now. Please try again shortly.
+          </div>
+        )}
+
+        <div className="gallery-grid" aria-busy={entries === null && !failed}>
+          {entries === null && !failed && [0, 1, 2].map((index) => (
+            <div className="gallery-card gallery-skeleton" key={index}>
+              <div className="skeleton" style={{ height: "20rem" }} />
+            </div>
+          ))}
+          {entries?.map((entry, index) => (
+            <ShowcaseCard key={entry.id} entry={entry} index={index} onOpen={() => onOpenExample(entry.id)} />
+          ))}
+          {entries !== null && (
+            <div className="gallery-poster">
+              <p className="kicker">Your turn</p>
+              <p className="statement">Bring your own robot.</p>
+              <p>Free of charge — no credit card. Give an email, get a personal space, upload a model, build a bounded environment and train it.</p>
+              <button className="btn btn-invert" onClick={onSignIn}>
+                {authed ? "Go to My Robots →" : "Sign in to train →"}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {entries !== null && entries.length === 0 && (
+          <div className="empty-state" role="status">
+            <h2>Verified runs are being prepared</h2>
+            <p>The training runs for this showcase are still being produced. Each one appears here as soon as its policy, metrics, and rollout video are recorded and validated.</p>
+          </div>
+        )}
+      </div>
+
+      <section className="showcase-band">
+        <div className="showcase-band-inner">
+          <p className="band-label">What every run leaves behind</p>
+          <div className="band-cols">
+            {KEEPS.map((keep) => <div key={keep.title}><h3>{keep.title}</h3><p>{keep.body}</p></div>)}
+          </div>
+        </div>
+      </section>
+      <Credit />
     </div>
   );
 }
 
-function ShowcaseCard({ entry, onOpen }: { entry: ShowcaseEntry; onOpen: () => void }) {
+function ShowcaseCard({ entry, index, onOpen }: { entry: ShowcaseEntry; index: number; onOpen: () => void }) {
   return (
     // A single button per card: the accessible name carries the label and task, so
     // the avatar stays decorative and screen readers do not depend on it.
     <button className="gallery-card" type="button" onClick={onOpen} aria-label={`${entry.label} — ${entry.task}`}>
       <div className="gallery-card-top">
-        <img src={entry.avatar} alt="" />
+        <span className="gallery-index">{String(index + 1).padStart(2, "0")}</span>
         <EvaluationBadge entry={entry} />
       </div>
-      <div className="gallery-card-copy">
-        <p className="eyebrow">{entry.task}</p>
-        <h2>{entry.label}</h2>
-        <p>{entry.description}</p>
-      </div>
-      <div className="badge-row">
-        <span className="badge backend-badge">{entry.backend_label}</span>
-        <span className="badge">{entry.hardware_label}</span>
-      </div>
+      <img src={entry.avatar} alt="" />
+      <div><p className="card-task">{entry.task}</p><h3>{entry.label}</h3><p className="card-desc">{entry.description}</p></div>
       <dl className="gallery-card-facts">
-        <KeyValue label="Observed duration" value={formatDuration(entry.observed_duration)} />
-        <KeyValue label="Observed cost" value={formatCost(entry.observed_cost)} />
-        <KeyValue label="Timesteps" value={formatTimesteps(entry.executed_config.total_timesteps)} />
-        <KeyValue label="Expected" value={entry.expected_result} />
+        <KeyValue label="Backend" value={entry.backend_label} />
+        <KeyValue label="Hardware" value={entry.hardware_label} />
+        <KeyValue label="Criterion" value={entry.evaluation.criterion} />
       </dl>
       <p className="recommended-line">{entry.has_media ? "Watch the rollout" : "Inspect the run"} →</p>
     </button>
@@ -155,13 +186,25 @@ function ShowcaseCard({ entry, onOpen }: { entry: ShowcaseEntry; onOpen: () => v
 
 function EvaluationBadge({ entry }: { entry: ShowcaseEntry }) {
   if (entry.evaluation.success === false) {
-    return <span className="badge warning" title={entry.evaluation.criterion}>Below task threshold</span>;
+    return <span className="tag below" title={entry.evaluation.criterion}>Below task threshold</span>;
   }
   if (entry.evaluation.success === true) {
-    return <span className="badge completed" title={entry.evaluation.criterion}>Met task threshold</span>;
+    return <span className="tag" title={entry.evaluation.criterion}>Met task threshold</span>;
   }
-  return <span className="badge" title={entry.evaluation.criterion}>Recorded run</span>;
+  return <span className="tag neutral" title={entry.evaluation.criterion}>Recorded run</span>;
 }
+
+const PIPELINE = [
+  { title: "Simulate", body: "MuJoCo physics — no physical robot, no lab time." },
+  { title: "Train", body: "PPO as a serverless AI job — SB3 on CPU, MJX/JAX on GPU." },
+  { title: "Keep", body: "Policy, metrics and rollout video land in durable storage — the machine can go away." },
+];
+
+const KEEPS = [
+  { title: "A policy you can replay", body: "Checkpoint weights and the exact executed configuration — environment, algorithm, timesteps, seed." },
+  { title: "Measured, not claimed", body: "Observed runtime and cost recorded from the job itself, next to the success criterion it was judged against." },
+  { title: "A rollout video", body: "Rendered from the trained policy, so the result is watchable and not only a number on a chart." },
+];
 
 export function ShowcaseDetail({
   exampleId,
