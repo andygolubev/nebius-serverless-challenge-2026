@@ -674,7 +674,7 @@ function EnvironmentBuilder({
                             min={parameter.minimum}
                             max={parameter.maximum}
                             step="any"
-                            value={value}
+                            value={Number.isFinite(value) ? value : ""}
                             aria-invalid={invalid}
                             onChange={(event) => {
                               const number = event.target.value === "" ? Number.NaN : Number(event.target.value);

@@ -248,13 +248,13 @@ describe("My Robots workspace", () => {
     expect(screen.getByRole("button", { name: "Preparing…" })).toBeDisabled();
   });
 
-  it.each<Array<{
+  it.each<{
     caseId: string;
     setup: RobotSetup;
     action: string;
     status: number;
     message: string;
-  }>>([
+  }>([
     {
       caseId: "component:lifecycle-quota",
       setup: setupFixture(),
