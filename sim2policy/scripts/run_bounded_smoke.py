@@ -201,6 +201,17 @@ def _cloud_checks(
     metrics = store.get_json_optional("report/metrics.json") or {}
     transition = store.get_json_optional("report/g1-transition.json") or {}
     names = set((artifacts.get("artifacts") or {}).keys())
+    artifact_paths = artifacts.get("artifacts") or {}
+    expected_checksums = artifacts.get("checksums") or {}
+    checksum_results: dict[str, bool] = {}
+    for name, relative in artifact_paths.items():
+        expected = expected_checksums.get(name) or {}
+        head = store.head_object_optional(str(relative)) or {}
+        checksum_results[str(name)] = (
+            bool(expected.get("sha256"))
+            and head.get("Metadata", {}).get("sha256") == expected.get("sha256")
+            and int(head.get("ContentLength", -1)) == int(expected.get("size_bytes", -2))
+        )
     run_status = str(status.get("status", ""))
     episodes = metrics.get("episodes") or []
     telemetry_ok = bool(episodes) and all(
@@ -236,6 +247,8 @@ def _cloud_checks(
         "checkpoint": bool((metrics.get("selected_checkpoint") or {}).get("sha256")),
         "artifact_names": sorted(names),
         "has_final_policy": "final_policy" in names,
+        "artifact_checksums": bool(checksum_results) and all(checksum_results.values()),
+        "artifact_checksum_results": checksum_results,
         "g1_termination_telemetry": telemetry_ok if require_g1_telemetry else True,
         "g1_transition": transition_ok if require_transition else True,
     }
@@ -386,7 +399,13 @@ def main(argv: list[str] | None = None) -> int:
             require_transition=args.g1_transition,
             require_g1_telemetry="g1_forward_" in args.config,
         )
-        for name in ("durable_upload", "cloud_side_read", "finalization", "checkpoint"):
+        for name in (
+            "durable_upload",
+            "cloud_side_read",
+            "finalization",
+            "checkpoint",
+            "artifact_checksums",
+        ):
             checks[name] = bool(cloud.get(name))
         if "g1_forward_" in args.config:
             checks["g1_termination_telemetry"] = bool(cloud.get("g1_termination_telemetry"))
