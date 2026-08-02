@@ -127,16 +127,22 @@ def stale_validation_preparation(
     attempt = main._custom_store.latest_preparation(session.email, setup_id)
     if attempt is None:
         raise HTTPException(status_code=404, detail="preparation not found")
+    if attempt.state != "accepted":
+        raise HTTPException(status_code=409, detail="accepted preparation required")
     stale = attempt.model_copy(update={"fingerprint": "f" * 64})
     # `put_preparation` intentionally cannot change the indexed fingerprint. The
     # local harness updates both representations atomically so the next Prepare
     # request reserves a genuinely new current-fingerprint attempt.
     with main._custom_store._lock:
         main._custom_store._conn.execute(
-            """UPDATE preparation_attempts SET fingerprint = ?, data = ?
+            """UPDATE preparation_attempts SET fingerprint = ?
+               WHERE tenant_id = ? AND setup_id = ?""",
+            (stale.fingerprint, stale.tenant_id, stale.setup_id),
+        )
+        main._custom_store._conn.execute(
+            """UPDATE preparation_attempts SET data = ?
                WHERE id = ? AND tenant_id = ?""",
             (
-                stale.fingerprint,
                 main._custom_store._attempt_json(stale),
                 stale.id,
                 stale.tenant_id,
