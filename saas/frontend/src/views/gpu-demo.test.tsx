@@ -155,7 +155,7 @@ describe("public showcase", () => {
   it("routes the sign-in call to action to login", async () => {
     vi.stubGlobal("fetch", vi.fn(() => json(showcaseEntries)));
     render(<App />);
-    fireEvent.click(await screen.findByRole("button", { name: "Sign in to train your own robot" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Sign in to train your own" }));
     expect(await screen.findByLabelText("Email")).toBeVisible();
     // Login is escapable: the visitor can return to the public showcase.
     fireEvent.click(screen.getByRole("button", { name: "← Back to verified runs" }));
@@ -181,7 +181,7 @@ describe("public showcase", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "About me" }));
     expect(screen.getByRole("heading", { name: "Andy Golubev" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveAttribute("rel", "noreferrer");
+    expect(screen.getAllByRole("link", { name: "LinkedIn" })[0]).toHaveAttribute("rel", "noreferrer");
     expect(screen.getByRole("link", { name: "GitHub repository" })).toHaveAttribute("target", "_blank");
 
     fireEvent.click(screen.getByRole("button", { name: "Terms of use" }));

@@ -80,7 +80,7 @@ export function Showcase({
       <section className="showcase-hero">
         <div>
           <p className="eyebrow">Verified training runs · Nebius Serverless Challenge 2026</p>
-          <h1>Watch robots<br />learn to move</h1>
+          <h1 aria-label="Watch robots learn to move">Watch robots<br />learn to move</h1>
           <p className="showcase-lede">
             Seven policies trained on real hardware and recorded end to end — policy weights,
             metrics and rollout video. Browse them freely, then bring your own robot.
@@ -266,24 +266,27 @@ export function ShowcaseDetail({
 
   return (
     <div className="job-detail showcase-detail">
-      <button className="btn-link back-link" onClick={onBack}>← Back to verified runs</button>
       <header className="job-detail-header">
-        <div className="job-title-row">
-          <div className="job-title-identity">
-            <img src={detail.avatar} alt="" />
-            <div>
-              <p className="eyebrow">Verified example</p>
-              <h1>{detail.label} · {detail.task}</h1>
+        <div className="job-detail-header-inner">
+          <button className="btn-link back-link" onClick={onBack}>← Back to verified runs</button>
+          <div className="job-title-row">
+            <div className="job-title-identity">
+              <img src={detail.avatar} alt="" />
+              <div>
+                <p className="eyebrow">Verified example · Recorded run</p>
+                <h1>{detail.label}</h1>
+                <p className="showcase-description">{detail.task} — {detail.description}</p>
+              </div>
             </div>
+            <EvaluationBadge entry={detail} />
           </div>
-          <EvaluationBadge entry={detail} />
+          <dl className="job-meta">
+            <KeyValue label="Backend" value={detail.backend_label} />
+            <KeyValue label="Hardware" value={detail.hardware_label} />
+            <KeyValue label="Timesteps" value={formatTimesteps(detail.executed_config.total_timesteps)} />
+            <KeyValue label="Revision" value={detail.acceptance_revision} />
+          </dl>
         </div>
-        <p className="job-meta">
-          <span>{detail.backend_label}</span>
-          <span>{detail.hardware_label}</span>
-          <span>Revision {detail.acceptance_revision}</span>
-        </p>
-        <p className="showcase-description">{detail.description}</p>
       </header>
 
       <section className="results-shell" aria-labelledby="showcase-results-heading">
@@ -351,19 +354,17 @@ export function ShowcaseDetail({
       <aside className="showcase-cta">
         <div>
           <strong>Want a policy for your own robot?</strong>
-          <span>Upload a model, build a bounded environment, and train it on your own account.</span>
+          <span>Free of charge — no credit card. Just your email, and you get a personal space to train in.</span>
         </div>
-        {authed ? (
-          <button className="btn" onClick={onSignIn}>Go to My Robots</button>
-        ) : (
-          <button className="btn" onClick={onSignIn}>Sign in to train your own robot</button>
-        )}
+        <button className="btn btn-invert" onClick={onSignIn}>
+          {authed ? "Go to My Robots →" : "Sign in to train your own →"}
+        </button>
       </aside>
     </div>
   );
 }
 
-function formatTimesteps(value: number | null): string {
+export function formatTimesteps(value: number | null): string {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("en-US").format(value);
 }

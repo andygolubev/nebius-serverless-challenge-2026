@@ -23,8 +23,8 @@ export function KeyValue({ label, value }: { label: string; value: string }) {
 export function SimulatorDisclosure() {
   return (
     <div className="alert alert-info simulator-disclosure" role="note">
-      <strong>Simulator-only policy.</strong> This bundle matches the recorded simulator and runtime. It is not
-      directly deployable to physical hardware.
+      <strong>Simulator-only policy.</strong>
+      <span>This bundle matches the recorded simulator and runtime. It is not directly deployable to physical hardware.</span>
     </div>
   );
 }
@@ -34,10 +34,10 @@ export function BundleCallout({ bundle }: { bundle: Artifact }) {
     <div className="bundle-callout">
       <div>
         <strong>Policy bundle ready</strong>
-        <span>Checkpoint, resolved configuration, evaluation, versions, and checksums.</span>
+        <span>Checkpoint, resolved configuration, evaluation, versions, and checksums. {formatBytes(bundle.size_bytes)}.</span>
       </div>
       <a
-        className="btn"
+        className="btn btn-invert"
         href={bundle.download_url}
         onClick={(event) => {
           if (!window.confirm(SIMULATOR_ONLY_NOTICE)) event.preventDefault();
