@@ -28,19 +28,19 @@
 ## 4. Local Full-Stack Browser Suite
 
 - [x] 4.1 Add Playwright as a development-only dependency with a local FastAPI/Vite test harness, temporary SQLite database, mock delivery/orchestration, isolated worker tenants, downloads, and artifact paths.
-- [ ] 4.2 Implement quadruped and biped canonical upload-to-model-card paths, including download digest verification and targeted deletion confirmation.
-- [ ] 4.3 Implement a catalog-driven pairwise task/scene/object browser set that covers every discrete value, every compatibility edge, parameter bounds, capacity, add/remove, save, and reload persistence.
-- [ ] 4.4 Implement preparation, retry, stale, quota, idempotent Start training, failure, and success browser paths against controlled full-stack responses without creating cloud jobs.
-- [ ] 4.5 Implement keyboard and 375-pixel browser cases, accessible-state assertions, per-case timeouts, failure screenshots, and sanitized artifacts.
+- [x] 4.2 Implement quadruped and biped canonical upload-to-model-card paths, including download digest verification and targeted deletion confirmation.
+- [x] 4.3 Implement a catalog-driven pairwise task/scene/object browser set that covers every discrete value, every compatibility edge, parameter bounds, capacity, add/remove, save, and reload persistence.
+- [x] 4.4 Implement preparation, retry, stale, quota, idempotent Start training, failure, and success browser paths against controlled full-stack responses without creating cloud jobs.
+- [x] 4.5 Implement keyboard and 375-pixel browser cases, accessible-state assertions, per-case timeouts, failure screenshots, and sanitized artifacts.
 - [x] 4.6 Verify parallel local workers share no mutable tenant, database, idempotency key, download path, or evidence path and clean all created resources.
 
 ## 5. CI and Deployed Smoke
 
 - [x] 5.1 Add parallel backend, component, and local-browser shards to the SaaS CI gate with cached Playwright assets, merged coverage reporting, and no Playwright dependency in the production runtime stage.
-- [ ] 5.2 Add a manually invoked deployed smoke runner that accepts only an explicit base URL and masked existing test-tenant session, preflights identity/quotas/catalog, and never logs authorization or private XML.
-- [ ] 5.3 Implement the default no-cost deployed matrix for both upload paths, task filtering, all scene/object controls, bounds, save/reload/delete, readiness copy, exact created-ID cleanup, and serialized mutation when only one tenant is available.
-- [ ] 5.4 Implement separate `remote-preparation` and `remote-training` gates limited to one representative case, with cheap-gate prerequisites, bounded polling, fresh idempotency, sanitized evidence, and mandatory provider resource audit/cleanup.
-- [ ] 5.5 Ensure unrequested paid gates report `not-run-cost-gated`, cleanup failures fail the run, and no run can report cloud resources clean while its own work remains active.
+- [x] 5.2 Add a manually invoked deployed smoke runner that accepts only an explicit base URL and masked existing test-tenant session, preflights identity/quotas/catalog, and never logs authorization or private XML.
+- [x] 5.3 Implement the default no-cost deployed matrix for both upload paths, task filtering, all scene/object controls, bounds, save/reload/delete, readiness copy, exact created-ID cleanup, and serialized mutation when only one tenant is available.
+- [x] 5.4 Implement separate `remote-preparation` and `remote-training` gates limited to one representative case, with cheap-gate prerequisites, bounded polling, fresh idempotency, sanitized evidence, and mandatory provider resource audit/cleanup.
+- [x] 5.5 Ensure unrequested paid gates report `not-run-cost-gated`, cleanup failures fail the run, and no run can report cloud resources clean while its own work remains active.
 - [x] 5.6 Document local, CI, deployed no-cost, and paid-canary commands plus session handling, evidence retention, cleanup, and reproduction guidance without including real credentials or secret selectors.
 
 ## 6. Defect Repair and Acceptance
@@ -49,7 +49,7 @@
 - [x] 6.2 Run the complete component and local-browser matrices, add minimal regressions for each deterministic defect, repair the owning frontend/full-stack boundary, and rerun the affected shards.
 - [x] 6.3 Run the merged cheap gate, frontend production build, strict OpenSpec validation, `git diff --check`, and tracked-file secret/large-artifact scans; record exact commands and results.
 - [x] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
-- [ ] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
+- [x] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [x] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.
 
 ## 7. Support Every Valid Builder Configuration
