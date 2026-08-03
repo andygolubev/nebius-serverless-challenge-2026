@@ -46,8 +46,8 @@ The campaign does not authorize:
 
 - editing the matrix during execution;
 - changing a seed, step budget, checkpoint interval, timeout, preset, algorithm, or gate;
-- launching a fourth base seed, a second extension, a second G1 recovery pilot, or any full G1
-  recovery campaign before the reviewed pilot gate passes;
+- launching a fourth base seed, a second extension, any G1 recovery pilot, or any G1 full campaign
+  outside the exact `user_reviewed_direct_full_v1` authorization;
 - using preemptible capacity;
 - pinning a hard-floor-only result that misses its preferred target;
 - deleting provider job history, SaaS rows, or durable S3 evidence;
@@ -468,27 +468,20 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
   `G1JoystickRoughTerrain`; fresh canonical identities: `G1ForwardFlatTerrain` and
   `G1ForwardRoughTerrain`; backend: dedicated MJX recovery curriculum.
 - Hardware: `gpu-h100-sxm` / `1gpu-16vcpu-200gb`; disk: 100 GiB; non-preemptible;
-  pilot timeout: 90 minutes; full timeout: 5 hours. Read-only provider evidence proves the prior
-  full flat/rough workload and finalization completed in 244 minutes; the earlier OOM/timeout
+  failed sweep timeout: 90 minutes; full timeout: 5 hours. Read-only provider evidence proves the
+  prior full flat/rough workload and finalization completed in 244 minutes; the earlier OOM/timeout
   inference was false.
-- Seed: 0 only; pilot ceiling: 50,000,000 rough steps, quantized to 46,202,880 under the reviewed
-  batch contract; conditional fresh result ceiling: 450,000,000 effective steps across flat and
-  rough phases.
+- Authorization: `user_reviewed_direct_full_v1`, only campaign
+  `gallery-g1-direct-full-20260803-01`, one job, seed 0, zero retries/extensions/overrides.
+- Seed: 0 only; fresh result ceiling: 450,000,000 effective steps across flat and rough phases.
 - Fixed-forward contract: command `[1.0, 0.0, 0.0]` at reset and every step through horizon 1,000;
   no zero-command branch, no effective command resampling, pushes disabled, unchanged reviewed PPO
   and reward settings.
 - MJX phase requests are rounded down to whole PPO epoch quanta before submission, and provenance
   records requested and measured steps, so upstream batch rounding cannot exceed the ceiling.
-- Diagnostic sweep: evaluate every retained rejected-campaign flat checkpoint on both fixed-forward
-  flat and rough terrain, selection seeds only, four episodes per seed. Pilot-parent eligibility
-  requires 20/20 flat horizon, every flat episode >=0.4 m/s, and successful restoration of pinned
-  Brax observation-normalizer, policy, and value parameters. Rank eligible parents by rough
-  zero-shot horizon count, mean length, minimum velocity, mean velocity, reward, then earlier step;
-  zero rough completions does not by itself make a flat-stable parent ineligible.
-- Pilot: one quantum-aligned 50M-ceiling rough continuation from the exact diagnostic parent;
-  candidates at the derived roughly 25M/50M boundaries.
-  Full-campaign unlock requires >=5/10 horizon, mean length >=900, minimum velocity >=0.4 m/s, no
-  NaN termination, complete provenance, and clean audit.
+- Superseded diagnostic path: the evaluation-only sweep reached its 90-minute provider timeout and
+  wrote no durable eligibility report. Retain its provider record, infer no parent, submit no pilot,
+  and never create a synthetic pilot gate.
 - Brax phase-boundary contract: restore observation-normalizer, policy, and value parameters; record
   fresh seed-0 optimizer, learner-step, rollout-state, and PRNG initialization. Never call the pinned
   checkpoint an exact optimizer continuation.
@@ -506,21 +499,18 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
 - Hard floor: 20/20 rough-terrain episodes reach 1,000 steps without environment termination and
   every episode is >= 0.4 m/s.
 - Preferred target: hard floor plus mean velocity >= 0.6 m/s.
-- Extension: none. No second pilot, seed, reward change, threshold change, or hardware comparison is
-  authorized.
-- Expected full completion: 3h50–4h15 end to end based on measured H100 throughput; the pilot adds
-  at most 90 minutes and protects the larger spend.
+- Extension: none. No retry, pilot, second job, seed, reward change, threshold change, or hardware
+  comparison is authorized.
+- Expected full completion: 3h50–4h15 end to end based on measured H100 throughput.
 
-## 12. G1 recovery state machine
+## 12. G1 reviewed direct-full state machine
 
 The reviewed recovery is internally deterministic:
 
 ```text
-CLASSIFY_TERMINATIONS -> SWEEP_RETAINED_FLAT_ON_FLAT_AND_ROUGH
-  no flat-stable, supported-tuple-restorable 20/20 parent -> CLEAN -> NEEDS_HUMAN
-  eligible parent -> RECORD_PILOT_TRANSITION -> PILOT_ROUGH_QUANTIZED_50M
-    pilot gate fail/ambiguous -> CLEAN -> NEEDS_HUMAN
-    pilot gate pass -> CLEAN -> AUTHORIZE_FRESH
+RETAIN_FAILED_SWEEP -> VERIFY_USER_REVIEWED_DIRECT_FULL_V1
+  any mode/campaign/revision/image/matrix/seed/hardware/budget drift -> NEEDS_HUMAN
+  exact reviewed tuple -> FRESH_FLAT_TRAIN_TO_QUANTIZED_150M
 
 FRESH_FLAT_TRAIN_TO_QUANTIZED_150M -> FLAT_GATE_AT_DERIVED_FINAL_STEP
   fail -> FINALIZE_DIAGNOSTIC -> CLEAN -> NEEDS_HUMAN
@@ -534,9 +524,11 @@ WRITE_AND_VERIFY_TRANSITION -> FRESH_ROUGH_TRAIN_TO_TOTAL_450M
     hard pass/preferred fail -> NEEDS_HUMAN
 ```
 
-The diagnostic sweep and pilot are validation evidence, never public candidates. The fresh flat gait
+The failed diagnostic sweep is retained evidence and its pilot is superseded, never a public
+candidate or fabricated prerequisite. The fresh flat gait
 prerequisite must include full-horizon commanded motion and no-termination stability; reward-only or
-standing-only criteria are forbidden. The selection seeds are used for sweep, pilot, and flat gates.
+standing-only criteria are forbidden. The selection seeds are used for the fresh flat and rough
+checkpoint gates.
 Final seeds are not touched until one fresh rough checkpoint is chosen.
 
 Training continues through the declared rough budget even after a promising checkpoint so the
@@ -560,10 +552,9 @@ Sequence:
 4. Hopper seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 5. Walker2D seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 6. Go1 H100 seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
-7. G1 termination diagnostic and retained-flat sweep -> cleanup audit.
-8. If an eligible parent exists, one G1 50M H100 pilot -> structured gate -> cleanup audit.
-9. If and only if the pilot passes, one fresh G1 450M H100 curriculum -> acceptance or terminal
-   diagnostic -> cleanup audit.
+7. Retain the failed G1 diagnostic sweep and its clean terminal audit; submit no pilot.
+8. Verify the exact `user_reviewed_direct_full_v1` tuple and submit one fresh G1 450M H100
+   curriculum -> acceptance or terminal diagnostic -> cleanup audit.
 
 Do not reorder to keep H100 warm. Serverless jobs and artifacts are the boundary; there is no
 authorization to leave an instance running between examples.
@@ -580,8 +571,8 @@ Approximate first-pass wall time, including three base seeds but excluding exten
 | Hopper | 70–90 minutes |
 | Walker2D | 85–105 minutes |
 | Go1 | 75–100 minutes |
-| G1 recovery | pilot <=1h30; full 3h50–4h15 with a 5h timeout, only after pilot pass |
-| **Sequential total** | **about 9–12.5 hours when pilot and full G1 both run** |
+| G1 recovery | full 3h50–4h15 with a 5h timeout under the reviewed direct-full mode |
+| **Sequential total** | **about 8–11 hours including the one full G1 result attempt** |
 
 Queue delays or a single extension can add time. These estimates are not cancellation deadlines;
 only the matrix timeout controls. A watcher reports at 60-second intervals. If no heartbeat is

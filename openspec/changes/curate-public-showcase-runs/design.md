@@ -121,7 +121,7 @@ The initial matrix is:
 | Hopper | 5M | 0, 7, 42 | 250k | reward >= 1800 and mean length >= 500 | best seed to 8M |
 | Walker2D | 5M | 0, 7, 42 | 250k | reward >= 3500 and mean length = 1000 | best seed to 8M |
 | Go1 | 200M | 0, 7, 42 | 10M | 20/20 no-fall, min >= 0.75 m/s, mean >= 0.9 m/s | best seed to 300M |
-| G1 recovery | 50M pilot, then fresh 450M total curriculum only if gated | 0 | see recovery curriculum | 20/20 no-termination, min >= 0.4 m/s, mean >= 0.6 m/s | none |
+| G1 recovery | one reviewed fresh 450M total curriculum | 0 | see recovery curriculum | 20/20 no-termination, min >= 0.4 m/s, mean >= 0.6 m/s | none |
 
 Hard publication floors remain Reacher -10, HalfCheetah 1500, Ant 1000, Hopper 1000, Walker2D 1800,
 Go1 minimum 0.5 m/s in every full no-fall episode, and G1 minimum 0.4 m/s in every full episode with
@@ -193,14 +193,22 @@ preferred target, only its seed resumes to 300M. Final acceptance retains the ex
 Alternative: L40S-first because it is cheaper. Rejected for this campaign because the operator
 explicitly accepts a 3–4 hour training window and prioritizes predictable completion and result.
 
-### 5. G1 recovery aligns training with acceptance and gates full spend behind a pilot
+### 5. G1 recovery aligns training with acceptance under one reviewed direct-full authorization
 
-The rejected G1 policy does not justify another identical 450M attempt. The recovery is one reviewed,
-bounded experiment with three stages: diagnostic re-evaluation, a disposable 50M pilot, and—only
-after a machine-verifiable pilot pass—one fresh 450M result campaign. Every GPU workload uses one
-non-preemptible H100, 100 GiB disk, seed 0, and an immutable image. The pilot timeout is 90 minutes;
-the fresh campaign timeout remains five hours, backed by the measured completed 244-minute
-flat/rough workload and its finalization.
+The rejected G1 policy does not justify another identical joystick-command attempt. Fixed-forward
+environment, transition, restore, telemetry, rendering, and one-update smoke validation completed on
+Nebius. The subsequent all-checkpoint diagnostic sweep reached its reviewed 90-minute provider
+timeout and produced no durable result because its serial evaluation workload was larger than the
+timeout allowed. No pilot parent can therefore be claimed. The operator deliberately supersedes
+that sweep and its dependent disposable pilot for the time-bounded result attempt and authorizes
+exactly one fresh 450M campaign using `user_reviewed_direct_full_v1`.
+
+This is not a generic bypass. The normalized matrix binds the sole campaign ID
+`gallery-g1-direct-full-20260803-01`, one allowed job, seed 0, the fixed-forward identities, exact
+149,422,080 flat and 300,318,720 rough executable budgets, one non-preemptible H100 with 100 GiB,
+and a five-hour timeout. The plan additionally binds the exact immutable revision, image digest, and
+matrix digest and declares zero retries, extensions, overrides, or second submissions. Any different
+mode, campaign ID, seed, hardware, budget, or mutable identity fails before submission.
 
 #### 5.1 Exact task and environment contract
 
@@ -210,13 +218,13 @@ noise, reset randomization, physics, termination conditions, reward terms, and P
 `sample_command` always returns `[1.0, 0.0, 0.0]`. Consequently the upstream 500-step resampling call
 returns the same command, and the 10 percent zero-command branch is absent. Pushes remain disabled.
 
-The first recovery experiment does not change reward coefficients, discounting, architecture,
-optimizer, batch shape, or acceptance thresholds. Changing command distribution and reward shaping
-at once would make a pass uninterpretable and a failure unactionable. If the fixed-forward pilot
-fails, the workflow stops at `NEEDS_HUMAN`; a later reward change requires another reviewed decision
-using the recorded termination distribution.
+The recovery does not change reward coefficients, discounting, architecture, optimizer, batch shape,
+or acceptance thresholds. Changing command distribution and reward shaping at once would make a
+pass uninterpretable and a failure unactionable. If the fresh fixed-forward campaign fails, the
+workflow stops at `NEEDS_HUMAN`; a later reward change requires another reviewed decision using the
+recorded termination distribution.
 
-#### 5.2 Termination taxonomy and read-only checkpoint sweep
+#### 5.2 Termination taxonomy and superseded read-only checkpoint sweep
 
 Evaluation records `horizon`, `torso_inversion`, `foot_foot_contact`, `foot_shin_contact`,
 `nan_state`, or `unknown_environment_done`. When several conditions occur on one step, evidence
@@ -224,8 +232,8 @@ retains all causes and chooses a deterministic primary reason in the order NaN, 
 foot-foot, foot-shin, unknown. Every non-horizon reason remains a hard-gate failure; better labels do
 not weaken acceptance.
 
-Before pilot training, one evaluation-only H100 job downloads the retained flat checkpoints from the
-rejected fresh campaign and evaluates each checkpoint under both `G1ForwardFlatTerrain` and
+The original recovery design required one evaluation-only H100 job to download retained flat
+checkpoints from the rejected campaign and evaluate each under both `G1ForwardFlatTerrain` and
 `G1ForwardRoughTerrain` using only selection seeds `[101, 151, 211, 271, 331]`, four episodes per
 seed. The sweep never touches final seeds and cannot produce a public candidate. A pilot parent is
 eligible only when its fixed-forward flat result has 20/20 full-horizon episodes, every episode has
@@ -234,8 +242,9 @@ observation-normalizer parameters, policy parameters, and value parameters. Amon
 the rough zero-shot result ranks them by full-horizon count, mean episode length, minimum velocity,
 mean velocity, mean reward, then earlier step. Rough success is diagnostic, not an eligibility
 condition: requiring the unadapted flat parent to pass rough terrain would assume the result the
-pilot exists to test. If no checkpoint passes the flat eligibility and restore checks, the pilot is
-not submitted.
+pilot exists to test. The job timed out after 90 minutes without its atomic final report. The
+provider record and absence of durable eligibility evidence are retained. The sweep is not retried,
+no eligible parent is inferred, and its dependent pilot is not submitted.
 
 Pinned Brax 0.14.2 does not store or restore optimizer state, environment-step counters, rollout
 state, or the learner PRNG in its PPO policy checkpoint. Every declared resume therefore restores
@@ -245,10 +254,11 @@ the operation an exact optimizer continuation. Implementing a custom full-state 
 for this recovery because it would add a second, high-risk learning-system change to the
 fixed-forward experiment.
 
-#### 5.3 Bounded pilot
+#### 5.3 Superseded bounded pilot
 
-The pilot resumes the exact selected diagnostic parent into `G1ForwardRoughTerrain` with a 50M
-effective-step ceiling and 25M checkpoint cadence. Preflight rounds down to the largest whole rough
+The planned pilot would have resumed the exact selected diagnostic parent into
+`G1ForwardRoughTerrain` with a 50M effective-step ceiling and 25M checkpoint cadence. Preflight
+rounds down to the largest whole rough
 PPO epoch quantum and, under the reviewed batch contract, asserts 46,202,880 executable steps. It
 uses the normal locomotion selection seeds with two episodes per seed. The fresh campaign is unlocked
 only when the best pilot checkpoint satisfies all of:
@@ -259,15 +269,16 @@ only when the best pilot checkpoint satisfies all of:
 - no NaN termination; and
 - complete transition, checkpoint, runtime, and cleanup evidence.
 
-This is deliberately a progress gate, not publication acceptance. It is materially stronger than
+This was deliberately a progress gate, not publication acceptance. It is materially stronger than
 the failed baseline (1/10 and 823.4 mean steps) while allowing the full campaign to finish learning.
 A failed or ambiguous pilot stops without a full run; the operator does not reinterpret videos or
-training reward.
+training reward. Because the sweep produced no eligible-parent evidence, the pilot is superseded and
+is not fabricated, retried, or counted as passed.
 
-#### 5.4 Fresh fixed-forward result campaign
+#### 5.4 One reviewed fresh fixed-forward result campaign
 
-After a passing pilot, the public candidate trains from scratch rather than inheriting the pilot or
-the rejected campaign:
+Under the exact `user_reviewed_direct_full_v1` authorization, the public candidate trains from
+scratch rather than inheriting the failed sweep, a pilot, or the rejected campaign:
 
 1. Train `G1ForwardFlatTerrain` uninterrupted from scratch to the largest whole PPO epoch quantum at
    or below the nominal 150M boundary. Under the reviewed batch contract, preflight must derive and
@@ -292,9 +303,9 @@ the rejected campaign:
    and mean velocity is at least 0.6 m/s. No threshold relaxation, second seed, reward mutation, or
    post-hoc final-set reselection is authorized.
 
-The pilot is intentionally not resumed into the public result: its purpose is to validate the causal
-change cheaply, while the fresh run preserves a clean from-scratch provenance chain. The maximum new
-training authorized by this design is 50M pilot steps plus one 450M result curriculum.
+The failed diagnostic path contributes no parent or policy bytes to the public result. The maximum
+new training authorized by this emergency decision is one 450M result curriculum, executable as
+149,422,080 flat plus 300,318,720 rough steps for 449,740,800 total.
 
 Alternative: modify stability rewards immediately. Rejected for this iteration because the failed
 run already used a -100 termination cost and strong orientation penalty; without exact termination
@@ -350,10 +361,8 @@ blocked until the cleanup audit passes.
 
 ## Risks / Trade-offs
 
-- **G1 pilot fails**: preserve exact termination evidence, clean up, leave G1 unpublished, and do not
-  spend the fresh 450M budget. A reward/task redesign requires another reviewed change.
-- **G1 pilot passes but the fresh campaign fails**: preserve all milestone evidence, clean up, leave
-  G1 unpublished, and do not launch another seed, reward vector, or continuation.
+- **G1 direct-full campaign fails**: preserve all milestone evidence, clean up, leave G1 unpublished,
+  and do not launch another seed, reward vector, retry, or continuation.
 - **Fixed-forward specialization reduces general joystick capability**: the public example is
   explicitly Walk Forward and its measured resolved configuration exposes this specialization; the
   tenant G1 joystick training card remains unchanged.
@@ -380,9 +389,9 @@ blocked until the cleanup audit passes.
    install dependencies, run all lint/type/unit/integration/frontend/build validation, build immutable
    SB3/MJX images, and push exact
    commit tags/digests, and stop the builder.
-3. Run bounded CPU and GPU smoke jobs in Nebius, then execute the G1 evaluation-only checkpoint
-   sweep and 50M pilot. Submit the fresh 450M curriculum only after the structured pilot gate passes.
-   Each job must verify artifacts and cleanup before the next submission.
+3. Retain the failed G1 evaluation-only sweep as terminal evidence and do not submit its dependent
+   pilot. Under the exact reviewed direct-full mode, submit one fresh 450M curriculum after the
+   immutable Nebius validation/image/preflight gates pass.
 4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
    fixtures, and provenance checks pass.
 5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production
@@ -393,7 +402,7 @@ does not mutate or delete private artifacts.
 
 ## Open Questions
 
-No operator choice remains. Exact implementation values and pilot gates are declared above. Any
-missing immutable image, eligible pilot parent, passing pilot evidence, infrastructure output,
-quota, or runner capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight
-operator is not authorized to fill the gap by guessing.
+No operator choice remains. Exact direct-full values are declared above. Any missing immutable
+revision/image/matrix binding, mismatched campaign ID, infrastructure output, quota, clean audit, or
+runner capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight operator is
+not authorized to fill the gap by guessing.

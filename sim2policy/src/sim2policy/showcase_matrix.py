@@ -164,7 +164,7 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         raise MatrixError(f"examples.{name}.ranking must use the fixed locomotion order")
     if name == "g1":
         curriculum = _mapping(value.get("curriculum"), "examples.g1.curriculum")
-        _only(curriculum, {"flat_config", "rough_config", "flat_environment", "rough_environment", "flat_nominal_steps", "flat_effective_steps", "candidate_every_steps", "pushes_enabled", "diagnostic", "pilot", "full"}, "examples.g1.curriculum")
+        _only(curriculum, {"flat_config", "rough_config", "flat_environment", "rough_environment", "flat_nominal_steps", "flat_effective_steps", "candidate_every_steps", "pushes_enabled", "authorization", "diagnostic", "pilot", "full"}, "examples.g1.curriculum")
         if curriculum.get("flat_config") != "configs/g1_forward_flat_mjx.yaml" or curriculum.get("rough_config") != "configs/g1_forward_rough_mjx.yaml":
             raise MatrixError("G1 curriculum config identities are invalid")
         if curriculum.get("flat_environment") != "G1ForwardFlatTerrain" or curriculum.get("rough_environment") != "G1ForwardRoughTerrain":
@@ -173,6 +173,20 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
             raise MatrixError("G1 curriculum flat step contract is invalid")
         if curriculum.get("candidate_every_steps") != cadence or curriculum.get("pushes_enabled") is not False:
             raise MatrixError("G1 curriculum cadence or push setting is invalid")
+        authorization = _mapping(curriculum.get("authorization"), "examples.g1.curriculum.authorization")
+        _only(authorization, {"mode", "campaign_id", "allowed_jobs", "retries_allowed", "extensions_allowed", "runtime_overrides_allowed", "superseded_sweep_run_id", "superseded_sweep_job_id", "pilot_required"}, "examples.g1.curriculum.authorization")
+        if authorization != {
+            "mode": "user_reviewed_direct_full_v1",
+            "campaign_id": "gallery-g1-direct-full-20260803-01",
+            "allowed_jobs": 1,
+            "retries_allowed": 0,
+            "extensions_allowed": False,
+            "runtime_overrides_allowed": False,
+            "superseded_sweep_run_id": "sweep-g1-c1a522b-20260802-01",
+            "superseded_sweep_job_id": "aijob-e00c8fwyh15gy7qggk",
+            "pilot_required": False,
+        }:
+            raise MatrixError("G1 direct-full authorization contract is invalid")
         diagnostic = _mapping(curriculum.get("diagnostic"), "examples.g1.curriculum.diagnostic")
         _only(diagnostic, {"source_run_id", "source_environment", "environments", "episodes_per_seed", "flat_required_horizons", "min_velocity", "ranking"}, "examples.g1.curriculum.diagnostic")
         if (
@@ -201,9 +215,10 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         }:
             raise MatrixError("G1 pilot contract is invalid")
         full = _mapping(curriculum.get("full"), "examples.g1.curriculum.full")
-        _only(full, {"total_step_ceiling", "timeout_minutes", "seed", "flat_gate_episodes", "flat_required_horizons", "flat_min_velocity", "extension_steps"}, "examples.g1.curriculum.full")
+        _only(full, {"total_step_ceiling", "rough_effective_steps", "timeout_minutes", "seed", "flat_gate_episodes", "flat_required_horizons", "flat_min_velocity", "extension_steps"}, "examples.g1.curriculum.full")
         if full != {
             "total_step_ceiling": 450_000_000,
+            "rough_effective_steps": 300_318_720,
             "timeout_minutes": 300,
             "seed": 0,
             "flat_gate_episodes": 10,

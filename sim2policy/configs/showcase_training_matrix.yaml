@@ -100,6 +100,16 @@ examples:
       flat_effective_steps: 149422080
       candidate_every_steps: 25000000
       pushes_enabled: false
+      authorization:
+        mode: user_reviewed_direct_full_v1
+        campaign_id: gallery-g1-direct-full-20260803-01
+        allowed_jobs: 1
+        retries_allowed: 0
+        extensions_allowed: false
+        runtime_overrides_allowed: false
+        superseded_sweep_run_id: sweep-g1-c1a522b-20260802-01
+        superseded_sweep_job_id: aijob-e00c8fwyh15gy7qggk
+        pilot_required: false
       diagnostic:
         source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat
         source_environment: G1JoystickFlatTerrain
@@ -120,6 +130,7 @@ examples:
         max_nan_terminations: 0
       full:
         total_step_ceiling: 450000000
+        rough_effective_steps: 300318720
         timeout_minutes: 300
         seed: 0
         flat_gate_episodes: 10

@@ -40,14 +40,16 @@ conditions—not prose that asks the operator to “monitor and decide.”
   preferred showcase target is missed.
 - Train Go1 directly on one H100 for three independent 200M-step seeds, select by full-horizon
   locomotion quality, and permit one 300M continuation of only the best seed when needed.
-- Replace the failed G1 run card with a reviewed recovery experiment. First classify exact G1
-  termination causes, bind recovery to the checkpoint actually loaded at the flat-to-rough
-  transition, and run a 50M rough-terrain pilot on the selection seeds only. The pilot and subsequent
-  fresh 450M campaign train the exact fixed-forward `[1, 0, 0]` command for the same uninterrupted
-  1,000-step horizon used by acceptance. The full campaign is authorized only when the pilot clears
-  its declared stability gate. Later provider inspection proved the completed 450M-class workload
-  finalized in 244 minutes, so the five-hour timeout remains evidence-backed; reward and PPO settings
-  stay unchanged so the result tests one causal change rather than an opaque retune.
+- Replace the failed G1 run card with a reviewed fixed-forward recovery. Exact termination telemetry,
+  transition binding, and the fixed-forward environments were validated on Nebius. The subsequent
+  all-checkpoint diagnostic sweep exhausted its 90-minute provider timeout without producing a
+  durable report, so it cannot prove a pilot parent and is superseded rather than reported as passed.
+  To finish the result attempt on the reviewed day, authorize exactly one fresh seed-0 450M campaign
+  through the narrowly named `user_reviewed_direct_full_v1` mode. The campaign trains the exact
+  fixed-forward `[1, 0, 0]` command for the same uninterrupted 1,000-step horizon used by acceptance.
+  Later provider inspection proved the completed 450M-class workload finalized in 244 minutes, so
+  the five-hour timeout remains evidence-backed; reward and PPO settings stay unchanged so the result
+  still tests one causal change rather than an opaque retune.
 - Keep final acceptance strict: SB3 examples must pass their configured deterministic reward floor;
   Go1 must complete 20/20 deterministic 1,000-step episodes without falling, and G1 must complete
   20/20 without any environment termination. Both locomotion examples must meet their per-episode

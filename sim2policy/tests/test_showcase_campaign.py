@@ -345,11 +345,10 @@ def _run_documents(run_id: str, matrix_digest: str, *, preferred: bool = True) -
     }
 
 
-@pytest.fixture()
-def campaign(tmp_path: Path):
-    """An initialized campaign whose implementation gate has passed."""
+def _campaign_fixture(tmp_path: Path, campaign_id: str):
+    """Build an initialized campaign whose implementation gate has passed."""
     matrix = load_matrix(MATRIX)
-    store = CampaignStore(tmp_path, "gallery-result-20260726")
+    store = CampaignStore(tmp_path, campaign_id)
 
     def build(provider=None, evidence=None, environment_extra=None, **kwargs):
         kwargs.setdefault("prober", FakeProber())
@@ -360,7 +359,6 @@ def campaign(tmp_path: Path):
             evidence_reader_factory=evidence,
             sleeper=lambda _s: None,
             environment={
-                **(environment_extra or {}),
                 "SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40,
                 "SIM2POLICY_BRANCH": "debug-portal",
                 "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
@@ -370,6 +368,7 @@ def campaign(tmp_path: Path):
                 "SIM2POLICY_SUBNET_ID": "vpcsubnet-e00re7tmw1apqd4pmm",
                 "NEBIUS_ARTIFACT_SECRET_VERSION": "mbsecver-e00artifact",
                 "NEBIUS_REGISTRY_SECRET_VERSION": "mbsecver-e00registry",
+                **(environment_extra or {}),
             },
             **kwargs,
         )
@@ -383,23 +382,24 @@ def campaign(tmp_path: Path):
     ):
         payload: dict[str, Any] = {"provider": "nebius", "region": "eu-north1"}
         if name.endswith("-image.json"):
-            payload |= {"tag": f"registry.example/sim2policy-{name.split('-')[0]}", "digest": IMAGE_DIGEST}
+            runtime = name.split("-")[0]
+            payload |= {
+                "tag": f"registry.example/sim2policy-{runtime}:{runtime}-{'a' * 40}",
+                "digest": IMAGE_DIGEST,
+            }
         store.write_json(store.evidence_path(name), payload)
-    store.write_json(
-        store.evidence_path("g1-pilot-gate.json"),
-        {
-            "schema_version": 1,
-            "matrix_digest": matrix.digest,
-            "image_digest": IMAGE_DIGEST,
-            "pilot_run_id": "g1-pilot-verified",
-            "pilot_record_digest": "f" * 64,
-            "gate": {"passed": True},
-            "cloud_audit": {"clean": True, "unaccounted_resources": []},
-            "full_campaign_authorized": True,
-        },
-    )
     instance.implementation_gate()
     return build, store, matrix
+
+
+@pytest.fixture()
+def campaign(tmp_path: Path):
+    return _campaign_fixture(tmp_path, "gallery-result-20260726")
+
+
+@pytest.fixture()
+def g1_campaign(tmp_path: Path):
+    return _campaign_fixture(tmp_path, "gallery-g1-direct-full-20260803-01")
 
 
 # -- init and idempotency ---------------------------------------------------
@@ -481,10 +481,10 @@ def test_plan_is_reviewable_and_names_everything_the_runbook_requires(campaign) 
     assert envelope["next_command"].startswith("submit --example reacher --seed 0 --confirm-plan-digest")
 
 
-def test_g1_plan_declares_both_exact_phase_evidence_prefixes(campaign) -> None:
-    build, *_ = campaign
+def test_g1_plan_declares_both_exact_phase_evidence_prefixes(g1_campaign) -> None:
+    build, *_ = g1_campaign
     plan = build().build_plan("g1", 0)
-    run_id = "showcase-gallery-result-20260726-g1-s0"
+    run_id = "showcase-gallery-g1-direct-full-20260803-01-g1-s0"
     assert plan["run_id"] == run_id
     assert plan["evidence_run_ids"] == [f"{run_id}-rough", f"{run_id}-flat"]
     assert plan["durable_prefix"] == f"sim2policy/{run_id}-rough/"
@@ -496,20 +496,34 @@ def test_g1_plan_declares_both_exact_phase_evidence_prefixes(campaign) -> None:
     assert recovery["flat_effective_steps"] == 149_422_080
     assert recovery["pilot"]["effective_steps"] == 46_202_880
     assert recovery["full"]["timeout_minutes"] == 300
-    assert recovery["authorization"] == {
-        "diagnostic_sweep_required": True,
-        "pilot_required": True,
-        "full_requires_passing_pilot": True,
-        "second_pilot_allowed": False,
-        "extension_allowed": False,
-    }
-    assert recovery["pilot_acceptance"]["pilot_run_id"] == "g1-pilot-verified"
+    assert recovery["full"]["rough_effective_steps"] == 300_318_720
+    assert recovery["authorization"]["mode"] == "user_reviewed_direct_full_v1"
+    assert recovery["authorization"]["campaign_id"] == "gallery-g1-direct-full-20260803-01"
+    assert recovery["authorization"]["allowed_jobs"] == 1
+    assert recovery["authorization"]["retries_allowed"] == 0
+    assert recovery["authorization"]["source_revision"] == "git:" + "a" * 40
+    assert recovery["authorization"]["image_digest"] == IMAGE_DIGEST
+    assert recovery["authorization"]["matrix_digest"] == plan["matrix_digest"]
+    assert "pilot_acceptance" not in recovery
+    assert plan["max_retries_remaining"] == 0
 
 
-def test_g1_full_plan_is_blocked_without_pilot_authorization(campaign) -> None:
-    build, store, _ = campaign
-    store.evidence_path("g1-pilot-gate.json").unlink()
-    with pytest.raises(CampaignError, match="passing pilot"):
+def test_g1_full_plan_is_blocked_for_any_other_campaign(campaign) -> None:
+    build, *_ = campaign
+    with pytest.raises(CampaignError, match="different campaign"):
+        build().build_plan("g1", 0)
+
+
+def test_g1_direct_full_rejects_mutable_revision_or_image_binding(g1_campaign) -> None:
+    build, store, _ = g1_campaign
+    with pytest.raises(CampaignError, match="immutable revision or image"):
+        build(environment_extra={"SIM2POLICY_IMMUTABLE_REVISION": "git:not-a-sha"}).build_plan("g1", 0)
+
+    store.write_json(
+        store.evidence_path("mjx-image.json"),
+        {"provider": "nebius", "region": "eu-north1", "tag": "registry.example/mjx:latest", "digest": IMAGE_DIGEST},
+    )
+    with pytest.raises(CampaignError, match="immutable revision or image"):
         build().build_plan("g1", 0)
 
 

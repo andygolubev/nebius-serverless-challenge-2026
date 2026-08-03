@@ -105,47 +105,31 @@ once to 300M. Final publication SHALL still require 20/20 1,000-step no-fall epi
   and mean 0.9 m/s target
 - **THEN** no further training is submitted automatically and the example enters needs-human
 
-### Requirement: Pilot-gated fixed-forward H100 G1 recovery
+### Requirement: Reviewed fixed-forward H100 G1 recovery
 The G1 recovery SHALL align training with the public Walk Forward acceptance task by using
 server-owned flat and rough environments whose command is always `[1.0, 0.0, 0.0]` for the full
 1,000-step episode, with pushes disabled and the reviewed PPO and reward settings otherwise
-unchanged. Before a new full campaign, the workflow SHALL classify exact termination causes, perform
-an evaluation-only sweep of retained flat checkpoints on selection seeds, and run at most one 50M
-rough-terrain pilot from an eligible swept parent. Only a passing pilot MAY authorize one fresh
-seed-0, non-preemptible H100 curriculum job with a 450M effective-step ceiling and five-hour timeout.
+unchanged. The workflow SHALL classify exact termination causes and retain terminal evidence from
+the timed-out evaluation-only sweep. For the reviewed time-bounded result attempt, it SHALL supersede
+that incomplete sweep and its dependent pilot without claiming either passed, and SHALL authorize
+exactly one fresh seed-0, non-preemptible H100 curriculum job only under
+`user_reviewed_direct_full_v1`, with a 450M effective-step ceiling and five-hour timeout.
 Each phase SHALL round down to whole PPO epoch quanta and the measured combined spend SHALL NOT
 exceed that ceiling. Final publication SHALL require 20/20 1,000-step episodes without any
 environment termination and at least 0.4 m/s measured forward velocity in every episode. The
 preferred mean SHALL be at least 0.6 m/s.
 
-#### Scenario: Diagnostic parent is eligible for the pilot
-- **WHEN** a retained flat checkpoint completes 20/20 fixed-forward flat-terrain selection episodes
-  without termination, every episode averages at least 0.4 m/s, and its observation-normalizer,
-  policy, and value parameters restore under pinned Brax 0.14.2
-- **THEN** it may be selected as the non-public 50M pilot parent using its rough-terrain zero-shot
-  full-horizon count, mean episode length, minimum velocity, mean velocity, mean reward, and
-  earlier-step tie-breaking
+#### Scenario: Operator supersedes the incomplete diagnostic path
+- **WHEN** the reviewed sweep has reached provider timeout without a durable eligibility report and
+  the normalized matrix declares `user_reviewed_direct_full_v1`
+- **THEN** the workflow retains the failed sweep, submits no pilot, and permits exactly one fresh
+  campaign only for the matrix-bound campaign ID, seed 0, immutable revision/image/matrix, exact
+  fixed-forward phase budgets, H100 shape, 100 GiB disk, and five-hour timeout
 
-#### Scenario: Flat parent has no zero-shot rough completion
-- **WHEN** an otherwise eligible flat checkpoint completes no fixed-forward rough-terrain episode
-- **THEN** its measured rough result remains in the diagnostic ranking and does not by itself make
-  the checkpoint ineligible, because the pilot is the bounded test of rough-terrain adaptation
-
-#### Scenario: No diagnostic parent is eligible
-- **WHEN** every retained flat checkpoint fails the diagnostic parent gate
-- **THEN** no pilot or full campaign is submitted, cleanup runs, and G1 remains unpublished at
-  needs-human
-
-#### Scenario: Pilot demonstrates material stability progress
-- **WHEN** the best checkpoint from the quantum-aligned 50M-ceiling pilot completes at least 5/10
-  selection episodes, has mean episode length at least 900, every episode averages at least 0.4 m/s,
-  has no NaN termination, and its provenance and cleanup validate
-- **THEN** exactly one fresh 450M fixed-forward result campaign is authorized
-
-#### Scenario: Pilot misses or ambiguously satisfies its gate
-- **WHEN** any pilot criterion or required evidence is false, missing, or contradictory
-- **THEN** the workflow submits no full campaign and records needs-human without changing reward,
-  PPO, hardware, seed, or thresholds
+#### Scenario: Direct-full authorization drifts
+- **WHEN** the mode, campaign ID, seed, job allowance, phase budget, hardware, timeout, image,
+  revision, or matrix digest differs from the reviewed direct-full contract
+- **THEN** planning or preflight fails before submission and no pilot evidence is synthesized
 
 #### Scenario: Fresh flat gait passes at the exact phase boundary
 - **WHEN** the fresh result campaign's uninterrupted quantum-aligned nominal-150M flat checkpoint
@@ -161,7 +145,7 @@ preferred mean SHALL be at least 0.6 m/s.
   campaign stops at needs-human
 
 #### Scenario: Brax phase boundary reinitializes learner-only state
-- **WHEN** the pilot or fresh rough phase restores a pinned Brax 0.14.2 checkpoint
+- **WHEN** the fresh rough phase restores a pinned Brax 0.14.2 checkpoint
 - **THEN** evidence proves restoration of observation-normalizer, policy, and value parameters and
   explicitly records deterministic seed-0 reinitialization of optimizer, learner step, rollout
   state, and PRNG rather than claiming full-state continuation
@@ -171,8 +155,8 @@ preferred mean SHALL be at least 0.6 m/s.
 - **THEN** that checkpoint is the selected public policy and later regression remains visible
 
 #### Scenario: G1 recovery exhausts its authorization
-- **WHEN** the pilot or fresh 450M campaign fails its declared gate
-- **THEN** the workflow launches no second pilot, second seed, hardware comparison, reward change, or
+- **WHEN** the fresh 450M campaign fails its declared gate
+- **THEN** the workflow launches no retry, pilot, second seed, hardware comparison, reward change, or
   extra training without a new reviewed decision
 
 ### Requirement: Exact G1 termination and transition evidence

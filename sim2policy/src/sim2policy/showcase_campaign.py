@@ -565,27 +565,41 @@ class Campaign:
             return None
         return document
 
-    def _g1_full_authorization(self, image_digest: str) -> dict[str, Any]:
-        evidence = self.store.read_json(self.store.evidence_path("g1-pilot-gate.json"))
-        if not isinstance(evidence, dict):
-            raise CampaignError("G1 full campaign requires a recorded passing pilot gate")
-        audit = evidence.get("cloud_audit")
+    def _g1_full_authorization(
+        self, card: Mapping[str, Any], image: Mapping[str, Any]
+    ) -> dict[str, Any]:
+        """Bind the single reviewed direct-full decision without inventing pilot evidence."""
+        curriculum = card.get("curriculum")
+        authorization = curriculum.get("authorization") if isinstance(curriculum, dict) else None
+        if not isinstance(authorization, dict):
+            raise CampaignError("G1 full campaign requires reviewed direct-full authorization")
+        if authorization.get("mode") != "user_reviewed_direct_full_v1":
+            raise CampaignError("G1 direct-full authorization mode is invalid")
+        if authorization.get("campaign_id") != self.store.campaign_id:
+            raise CampaignError("G1 direct-full authorization is bound to a different campaign")
+
+        revision = self._environment.get("SIM2POLICY_IMMUTABLE_REVISION", "")
+        revision_sha = revision.removeprefix("git:")
+        image_tag = image.get("tag")
+        image_digest = image.get("digest")
         if (
-            evidence.get("schema_version") != 1
-            or evidence.get("matrix_digest") != self.matrix.digest
-            or evidence.get("image_digest") != image_digest
-            or evidence.get("full_campaign_authorized") is not True
-            or not isinstance(evidence.get("pilot_run_id"), str)
-            or not evidence.get("pilot_run_id")
-            or not isinstance(evidence.get("pilot_record_digest"), str)
-            or not isinstance(evidence.get("gate"), dict)
-            or evidence["gate"].get("passed") is not True
-            or not isinstance(audit, dict)
-            or audit.get("clean") is not True
-            or audit.get("unaccounted_resources") != []
+            not revision.startswith("git:")
+            or len(revision_sha) != 40
+            or any(character not in "0123456789abcdef" for character in revision_sha)
+            or not isinstance(image_tag, str)
+            or not image_tag.endswith(f"mjx-{revision_sha}")
+            or not isinstance(image_digest, str)
+            or not image_digest.startswith("sha256:")
+            or len(image_digest) != 71
         ):
-            raise CampaignError("G1 pilot gate or cleanup evidence is incomplete or inconsistent")
-        return evidence
+            raise CampaignError("G1 direct-full immutable revision or image binding is invalid")
+
+        return {
+            **authorization,
+            "source_revision": revision,
+            "image_digest": image_digest,
+            "matrix_digest": self.matrix.digest,
+        }
 
     # -- plan (5.6) ----------------------------------------------------------
 
@@ -602,11 +616,7 @@ class Campaign:
         image = self._image_evidence(card["image"]["runtime"])
         if image is None:
             raise CampaignError(f"no immutable {card['image']['runtime']} image digest is recorded")
-        g1_authorization = (
-            self._g1_full_authorization(str(image["digest"]))
-            if example == "g1"
-            else None
-        )
+        g1_authorization = self._g1_full_authorization(card, image) if example == "g1" else None
 
         steps = card["base_steps"] if phase == "base" else card["extension_steps"]
         suffix = "" if phase == "base" else "-ext"
@@ -674,7 +684,9 @@ class Campaign:
             ),
             "acceptance": card["acceptance"],
             "ranking": card["ranking"],
-            "max_retries_remaining": MAX_RETRIES_BEFORE_CHECKPOINT,
+            "max_retries_remaining": (
+                0 if example == "g1" else MAX_RETRIES_BEFORE_CHECKPOINT
+            ),
             "cleanup_action": "delete campaign-owned compute, retain provider history and S3 evidence",
             "command": command,
             "subnet_id": self._environment.get("SIM2POLICY_SUBNET_ID", ""),
@@ -687,21 +699,10 @@ class Campaign:
         }
         if example == "g1":
             assert g1_authorization is not None
-            # The recovery stages are normalized into the reviewed plan even
-            # though only a passing pilot permits submission of this full job.
+            # The recovery stages are normalized into the reviewed plan. The
+            # exact direct-full mode supersedes, but never fabricates, pilot evidence.
             plan["g1_recovery"] = dict(card["curriculum"])
-            plan["g1_recovery"]["authorization"] = {
-                "diagnostic_sweep_required": True,
-                "pilot_required": True,
-                "full_requires_passing_pilot": True,
-                "second_pilot_allowed": False,
-                "extension_allowed": False,
-            }
-            plan["g1_recovery"]["pilot_acceptance"] = {
-                "pilot_run_id": g1_authorization["pilot_run_id"],
-                "pilot_record_digest": g1_authorization["pilot_record_digest"],
-                "evidence_digest": _digest(g1_authorization),
-            }
+            plan["g1_recovery"]["authorization"] = g1_authorization
         if not plan["subnet_id"]:
             raise CampaignError("job subnet is not configured")
         if not plan["registry_secret"]:

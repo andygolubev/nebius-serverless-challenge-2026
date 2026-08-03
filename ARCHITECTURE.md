@@ -298,12 +298,16 @@ disabled. Exact termination telemetry distinguishes torso inversion, foot-foot c
 foot-shin contact, NaN state, and an unknown upstream `done`, retaining simultaneous causes while
 treating every non-horizon result as a hard failure.
 
-Full G1 spend is gated behind an evaluation-only sweep of the rejected campaign's retained flat
-checkpoints and one 46,202,880-step rough pilot. A full plan cannot be built until the pilot gate and
-clean cloud audit are bound to the exact matrix and image digests. The fresh result then trains flat
-once, uninterrupted, to the derived 149,422,080-step PPO boundary and evaluates only that final
-checkpoint. A pass atomically creates an immutable transition record binding the exact parent
-object/path, sidecar step and hashes, source/target environments, image/config/matrix digests,
+The original G1 recovery gated full spend behind an evaluation-only sweep and a 46,202,880-step
+rough pilot. The sweep reached its 90-minute provider timeout without a durable report, so it cannot
+prove a parent and its dependent pilot is superseded rather than fabricated. The reviewed emergency
+path permits exactly one fresh plan only under `user_reviewed_direct_full_v1`, bound to campaign
+`gallery-g1-direct-full-20260803-01`, seed 0, one job, immutable revision/image/matrix evidence, the
+fixed H100 shape, 100 GiB disk, five-hour timeout, and zero retries/extensions/overrides. Any drift
+fails before submission. The fresh result trains flat once, uninterrupted, to the derived
+149,422,080-step PPO boundary and evaluates only that final checkpoint. A pass atomically creates an
+immutable transition record binding the exact parent object/path, sidecar step and hashes,
+source/target environments, image/config/matrix digests,
 measured spend, rough budget, and trainer load path. Before rough updates, Brax restores only its
 supported observation-normalizer/policy/value tuple; optimizer, learner step, rollout state, and
 PRNG state are explicitly fresh at seed 0. Finalization-only recovery must consume this record and
@@ -342,5 +346,6 @@ publish on merit instead of as hard-floor overrides.
 G1 is the open example. The prior joystick-command curriculum completed in 244 minutes but its exact
 selected rough checkpoint achieved 0/20 no-termination episodes despite 0.862 m/s mean velocity.
 It remains an unpublished diagnostic baseline. The fixed-forward recovery above is a new causal
-experiment: no reward, PPO, seed, hardware, threshold, or total-step increase is authorized, and a
-failed sweep or pilot stops before the full campaign.
+experiment: no reward, PPO, seed, hardware, threshold, or total-step increase is authorized. The
+failed sweep and unrun pilot remain historical evidence; only the exact reviewed direct-full campaign
+may proceed.
