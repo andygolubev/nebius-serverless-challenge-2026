@@ -16,10 +16,10 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v2"
+REWARD_VERSION = "locomotion-rewards-v3"
 SCENE_VERSION = "custom-locomotion-scenes-v2"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
-TRAINING_PROFILE_VERSION = "custom-ppo-quick-v1"
+TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
 
 SUPPORTED_ROBOT_TYPES = ("biped", "quadruped")
 SUPPORTED_TASKS = ("stand-balance", "walk-forward", "recover-from-fall")
@@ -86,31 +86,46 @@ class PreparationProfile:
 
 @dataclass(frozen=True)
 class TrainingProfile:
+    """Locomotion training budget sized to converge rather than to smoke-test.
+
+    v1 ran 100k timesteps on a serial ``DummyVecEnv``, which is roughly twelve PPO
+    updates: not enough to learn to stand, and measured runs regressed after 25k steps.
+    v2 keeps the same fixed, server-owned shape but spends real compute: subprocess
+    vector environments across sixteen vCPUs, running observation/reward normalisation,
+    and a budget in the range MuJoCo locomotion baselines actually need.
+    """
+
     version: str = TRAINING_PROFILE_VERSION
     platform: str = "cpu-d3"
-    preset: str = "8vcpu-32gb"
+    preset: str = "16vcpu-64gb"
     disk_gib: int = 100
-    timeout_seconds: int = 3600
-    cpu_count: int = 8
-    memory_gib: int = 32
+    timeout_seconds: int = 10_800
+    cpu_count: int = 16
+    memory_gib: int = 64
     max_input_bytes: int = 1024 * 1024
     max_artifact_bytes: int = 512 * 1024 * 1024
-    total_timesteps: int = 100_000
-    n_envs: int = 8
-    checkpoint_every_steps: int = 25_000
-    evaluation_every_steps: int = 25_000
-    progress_evaluation_episodes: int = 2
-    progress_evaluation_seeds: tuple[int, ...] = (101, 151)
+    total_timesteps: int = 3_000_000
+    n_envs: int = 16
+    checkpoint_every_steps: int = 250_000
+    evaluation_every_steps: int = 250_000
+    progress_evaluation_episodes: int = 4
+    progress_evaluation_seeds: tuple[int, ...] = (101, 151, 199, 251)
     evaluation_episodes: int = 20
     evaluation_seeds: tuple[int, ...] = (11, 23, 37, 53, 71)
     ppo_learning_rate: float = 3e-4
-    ppo_n_steps: int = 1024
-    ppo_batch_size: int = 256
+    ppo_n_steps: int = 512
+    ppo_batch_size: int = 512
     ppo_n_epochs: int = 10
     ppo_gamma: float = 0.99
     ppo_gae_lambda: float = 0.95
     ppo_clip_range: float = 0.2
-    hourly_rate: float = 0.1984
+    ppo_ent_coef: float = 0.0
+    policy_net_arch: tuple[int, ...] = (256, 256)
+    normalize_observations: bool = True
+    normalize_reward: bool = True
+    normalize_clip_obs: float = 10.0
+    publish_best_checkpoint: bool = True
+    hourly_rate: float = 0.3968
     currency: str = "USD"
     rate_date: str = "2026-07-14"
 
@@ -138,10 +153,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "target_height_scale": 0.9,
         "fall_height_scale": 0.45,
         "minimum_upright": 0.45,
+        "settle_steps": 20,
         "success_upright": 0.85,
         "success_height_tolerance": 0.25,
         "success_max_root_speed": 0.5,
         "weights": {
+            "alive": 1.0,
             "upright": 1.5,
             "height": 1.0,
             "root_motion": -0.08,
@@ -155,10 +172,16 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "target_height_scale": 0.9,
         "fall_height_scale": 0.42,
         "minimum_upright": 0.4,
+        "settle_steps": 20,
         "target_velocity": 0.8,
+        # Width of the Gaussian used to score forward velocity against
+        # ``target_velocity``.  v2 rewarded raw unbounded velocity, which paid more for
+        # diving forward than for walking at the commanded speed.
+        "velocity_tolerance": 0.5,
         "success_min_velocity": 0.35,
         "success_max_lateral_drift": 1.5,
         "weights": {
+            "alive": 1.0,
             "forward_velocity": 1.4,
             "upright": 0.8,
             "lateral_velocity": -0.15,
@@ -175,10 +198,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "minimum_upright": 0.45,
         "reset_roll_radians": [1.2, 1.45],
         "reset_height_scale": 0.55,
+        "settle_steps": 0,
         "success_upright": 0.8,
         "success_height_scale": 0.75,
         "success_max_root_speed": 0.75,
         "weights": {
+            "alive": 1.0,
             "upright": 1.8,
             "height": 1.2,
             "root_motion": -0.04,

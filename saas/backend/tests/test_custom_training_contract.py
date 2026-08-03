@@ -110,7 +110,7 @@ def test_input_documents_are_canonical_and_fingerprinted() -> None:
     assert setup_bytes.endswith(b"}") and not setup_bytes.endswith(b"\n")
     assert (
         manifest["fingerprint"]
-        == "bc5a3c36d7907b94782dc5d2133b1c87370f8f2fdc0a405c1fa885f037697cbb"
+        == "7910984c15895ded12541fce56860cce217a7419c99102aebef1d32f17ed7ef0"
     )
     assert manifest["adapter_version"] == ADAPTER_VERSION
     assert manifest["reward_version"] == REWARD_VERSION
@@ -141,7 +141,7 @@ def test_control_plane_matches_runtime_golden_contracts() -> None:
     assert resolved_profile_payload()["training"] == golden_training
     assert (TRAINING_PROFILE.platform, TRAINING_PROFILE.preset) == (
         "cpu-d3",
-        "8vcpu-32gb",
+        "16vcpu-64gb",
     )
 
 

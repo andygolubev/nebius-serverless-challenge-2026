@@ -38,6 +38,8 @@ from sim2policy.custom_robot_contract import (
     validate_safe_id,
 )
 from sim2policy.custom_robot_env import (
+    FRAME_SKIP,
+    SERVER_TIMESTEP,
     CustomRobotCompatibilityError,
     CustomRobotEnv,
     make_vectorized_env,
@@ -52,6 +54,11 @@ from sim2policy.custom_robot_io import (
 
 PREPARATION_REPORT = "report/preparation.json"
 PREPARATION_PROBE = "report/render-probe.png"
+# One rendered frame per control step, so playback runs at true wall-clock speed.
+VIDEO_FPS = round(1.0 / (SERVER_TIMESTEP * FRAME_SKIP))
+VIDEO_MIN_FRAMES = VIDEO_FPS * 6
+VIDEO_MAX_FRAMES = VIDEO_FPS * 20
+VIDEO_MAX_EPISODES = 8
 REQUIRED_BUNDLE_MEMBERS = (
     "README.md",
     "checkpoint/policy.zip",
@@ -394,11 +401,35 @@ def run_preparation(
         return report
 
 
+def _observation_normalizer(vector: Any, profile: TrainingProfile) -> Any:
+    """Apply the live training observation statistics to a raw environment observation.
+
+    Evaluation and rendering run on unwrapped environments, so a policy trained behind
+    ``VecNormalize`` has to see the same normalisation here or it is replayed on inputs
+    from a completely different distribution.  Statistics are read on each call so the
+    mid-training progress evaluations track the running values.
+    """
+    if not profile.normalize_observations:
+        return lambda observation: observation
+    clip = float(profile.normalize_clip_obs)
+
+    def normalize(observation: Any) -> Any:
+        stats = vector.obs_rms
+        scaled = (np.asarray(observation, dtype=np.float64) - stats.mean) / np.sqrt(
+            stats.var + vector.epsilon
+        )
+        return np.clip(scaled, -clip, clip).astype(np.float32)
+
+    return normalize
+
+
 def _evaluate_policy(
     model: Any,
     documents: CustomInputDocuments,
     profile: TrainingProfile,
+    normalize: Any = None,
 ) -> dict[str, Any]:
+    normalize = normalize or (lambda observation: observation)
     episodes: list[dict[str, Any]] = []
     for index in range(profile.evaluation_episodes):
         seed = profile.evaluation_seeds[index % len(profile.evaluation_seeds)] + index
@@ -410,7 +441,7 @@ def _evaluate_policy(
             length = 0
             for step in range(1, int(env.contract["episode_steps"]) + 1):
                 length = step
-                action, _ = model.predict(observation, deterministic=True)
+                action, _ = model.predict(normalize(observation), deterministic=True)
                 observation, reward, terminated, truncated, info = env.step(action)
                 total_reward += reward
                 final_metrics = dict(info["task_metrics"])
@@ -443,28 +474,54 @@ def _evaluate_policy(
     }
 
 
-def _render_video(model: Any, documents: CustomInputDocuments, output: Path) -> dict[str, Any]:
+def _render_video(
+    model: Any,
+    documents: CustomInputDocuments,
+    output: Path,
+    normalize: Any = None,
+) -> dict[str, Any]:
+    """Render a watchable rollout at true wall-clock speed.
+
+    One control step advances ``FRAME_SKIP`` physics steps of ``SERVER_TIMESTEP``, so a
+    frame per control step is exactly ``VIDEO_FPS`` frames per simulated second.  A
+    policy that terminates early would otherwise produce a fraction of a second of
+    video, so short episodes are replayed from fresh seeds until the clip reaches
+    ``VIDEO_MIN_FRAMES``.
+    """
+    normalize = normalize or (lambda observation: observation)
     env = CustomRobotEnv(documents.robot_xml, documents.setup, render_mode="rgb_array")
-    writer = imageio.get_writer(output, fps=50, codec="libx264", quality=7)
+    writer = imageio.get_writer(output, fps=VIDEO_FPS, codec="libx264", quality=7)
     frames = 0
+    episodes = 0
     try:
-        observation, _ = env.reset(seed=307)
-        for step in range(500):
-            if step % 2 == 0:
+        for episode in range(VIDEO_MAX_EPISODES):
+            if frames >= VIDEO_MIN_FRAMES:
+                break
+            observation, _ = env.reset(seed=307 + episode)
+            episodes += 1
+            for _ in range(VIDEO_MAX_FRAMES):
                 frame = env.render()
                 assert frame is not None
                 writer.append_data(frame)
                 frames += 1
-            action, _ = model.predict(observation, deterministic=True)
-            observation, _, terminated, truncated, _ = env.step(action)
-            if terminated or truncated:
-                break
+                if frames >= VIDEO_MAX_FRAMES:
+                    break
+                action, _ = model.predict(normalize(observation), deterministic=True)
+                observation, _, terminated, truncated, _ = env.step(action)
+                if terminated or truncated:
+                    break
     finally:
         writer.close()
         env.close()
     if frames < 2 or not output.is_file() or output.stat().st_size == 0:
         raise CustomRobotCompatibilityError("final-video-invalid")
-    return {"frames": frames, "size_bytes": output.stat().st_size}
+    return {
+        "frames": frames,
+        "size_bytes": output.stat().st_size,
+        "fps": VIDEO_FPS,
+        "episodes": episodes,
+        "duration_seconds": frames / VIDEO_FPS,
+    }
 
 
 def _reward_curve(rewards: list[float], output: Path) -> None:
@@ -603,6 +660,7 @@ def run_training(
 ) -> dict[str, Any]:
     from stable_baselines3 import PPO
     from stable_baselines3.common.callbacks import BaseCallback
+    from stable_baselines3.common.vec_env import VecNormalize
 
     started_at = time.monotonic()
     validate_safe_id(publisher.identity, "run identity")
@@ -616,8 +674,21 @@ def run_training(
             seed=401,
             n_envs=profile.n_envs,
         )
+        if profile.normalize_observations or profile.normalize_reward:
+            # Raw observations mix heights near 0.5 with velocities clipped to +/-10.
+            # Unnormalised PPO on those scales climbs and then collapses, which is what
+            # the v1 profile measured.
+            vector = VecNormalize(
+                vector,
+                norm_obs=profile.normalize_observations,
+                norm_reward=profile.normalize_reward,
+                clip_obs=profile.normalize_clip_obs,
+                gamma=profile.ppo_gamma,
+            )
+        normalize_observation = _observation_normalizer(vector, profile)
         episode_rewards: list[float] = []
         progress_evaluations: list[dict[str, Any]] = []
+        best: dict[str, Any] = {"mean_reward": -math.inf, "timesteps": 0, "path": None}
 
         class RewardCallback(BaseCallback):
             def _on_step(self) -> bool:
@@ -654,13 +725,27 @@ def run_training(
                         evaluation_episodes=profile.progress_evaluation_episodes,
                         evaluation_seeds=profile.progress_evaluation_seeds,
                     )
-                    evaluation = _evaluate_policy(self.model, documents, interim_profile)
+                    evaluation = _evaluate_policy(
+                        self.model, documents, interim_profile, normalize_observation
+                    )
                     progress_evaluations.append(
                         {
                             "timesteps": timesteps,
                             "aggregate": evaluation["aggregate"],
                         }
                     )
+                    # v1 always published the last checkpoint.  Measured runs peaked
+                    # early and regressed, so the shipped policy was worse than one
+                    # already computed; keep the best-scoring one instead.
+                    mean_reward = float(evaluation["aggregate"]["mean_reward"])
+                    if profile.publish_best_checkpoint and mean_reward > best["mean_reward"]:
+                        candidate = checkpoint_dir / f"best-{timesteps:09d}"
+                        self.model.save(candidate)
+                        best.update(
+                            mean_reward=mean_reward,
+                            timesteps=timesteps,
+                            path=candidate.with_suffix(".zip"),
+                        )
                     publisher.put_json(
                         "metadata/progress.json",
                         {
@@ -702,6 +787,8 @@ def run_training(
                 gamma=profile.ppo_gamma,
                 gae_lambda=profile.ppo_gae_lambda,
                 clip_range=profile.ppo_clip_range,
+                ent_coef=profile.ppo_ent_coef,
+                policy_kwargs={"net_arch": list(profile.policy_net_arch)},
                 verbose=0,
                 device="cpu",
             )
@@ -712,13 +799,27 @@ def run_training(
                     RewardCallback(),
                 ],
             )
+            last = checkpoint_dir / "final-last"
+            model.save(last)
+            selected = best["path"] if best["path"] is not None else last.with_suffix(".zip")
             final = checkpoint_dir / "final"
-            model.save(final)
             final_zip = final.with_suffix(".zip")
+            final_zip.write_bytes(Path(selected).read_bytes())
+            published_checkpoint = {
+                "selection": "best_evaluation" if best["path"] is not None else "last",
+                "timesteps": best["timesteps"] if best["path"] is not None else profile.total_timesteps,
+                "evaluation_mean_reward": (
+                    best["mean_reward"] if best["path"] is not None else None
+                ),
+            }
             reloaded = PPO.load(final_zip, env=vector, device="cpu")
-            evaluation = _evaluate_policy(reloaded, documents, profile)
+            evaluation = _evaluate_policy(
+                reloaded, documents, profile, normalize_observation
+            )
             video_path = root / "final.mp4"
-            video = _render_video(reloaded, documents, video_path)
+            video = _render_video(
+                reloaded, documents, video_path, normalize_observation
+            )
         finally:
             vector.close()
 
@@ -747,6 +848,7 @@ def run_training(
         resolved["training"]["progress_evaluation_seeds"] = list(
             profile.progress_evaluation_seeds
         )
+        resolved["training"]["policy_net_arch"] = list(profile.policy_net_arch)
         runtime_seconds = time.monotonic() - started_at
         metrics = {
             **evaluation,
@@ -762,7 +864,10 @@ def run_training(
                 "timesteps": profile.total_timesteps,
                 "episode_rewards": episode_rewards[-5000:],
                 "progress_evaluations": progress_evaluations,
+                "published_checkpoint": published_checkpoint,
             },
+            "checkpoint": f"step-{published_checkpoint['timesteps']:09d}",
+            "final_checkpoint": f"step-{published_checkpoint['timesteps']:09d}",
             "video": video,
             "simulator_only": True,
         }

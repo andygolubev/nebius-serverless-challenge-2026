@@ -126,11 +126,17 @@ def test_profiles_are_fixed_and_bounded() -> None:
     )
     assert (TRAINING_PROFILE.platform, TRAINING_PROFILE.preset) == (
         "cpu-d3",
-        "8vcpu-32gb",
+        "16vcpu-64gb",
     )
     assert PREPARATION_PROFILE.timeout_seconds <= 600
-    assert TRAINING_PROFILE.total_timesteps == 100_000
-    assert TRAINING_PROFILE.n_envs == 8
+    assert TRAINING_PROFILE.total_timesteps == 3_000_000
+    assert TRAINING_PROFILE.n_envs == 16
+    # One vector environment per provisioned vCPU, and a budget the timeout can hold at
+    # the throughput measured for the v1 profile (~1.4k steps/s on half the cores).
+    assert TRAINING_PROFILE.n_envs <= TRAINING_PROFILE.cpu_count
+    assert TRAINING_PROFILE.timeout_seconds <= 10_800
+    assert TRAINING_PROFILE.normalize_observations is True
+    assert TRAINING_PROFILE.publish_best_checkpoint is True
 
 
 def test_contract_summary_contains_complete_builder_matrix() -> None:

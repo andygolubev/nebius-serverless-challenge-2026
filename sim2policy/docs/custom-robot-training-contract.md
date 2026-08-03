@@ -63,9 +63,11 @@ Preparation profile `custom-prepare-v1` starts at `cpu-d3/4vcpu-16gb`, a 50 GiB 
 seeded reset and zero/random rollouts, headless rendering, the Gymnasium/SB3 checker, and a 2,048
 step PPO save/reload/inference cycle.
 
-Training profile `custom-ppo-quick-v1` starts at `cpu-d3/8vcpu-32gb`, a 100 GiB disk, a one-hour
-timeout, eight vector environments, and 100,000 PPO timesteps with fixed hyperparameters,
-checkpoints, and a 20-episode/five-seed final evaluation. These are provisional server-owned values;
+Training profile `custom-ppo-quick-v2` starts at `cpu-d3/16vcpu-64gb`, a 100 GiB disk, a
+three-hour timeout, sixteen subprocess vector environments, and 3,000,000 PPO timesteps with
+fixed hyperparameters, running observation/reward normalisation, periodic checkpoints, and a
+20-episode/five-seed final evaluation. The policy published as final is the best-scoring
+checkpoint across those evaluations, not simply the last one. These are provisional server-owned values;
 production validation expands from the eight historical V1 anchors to representative coverage of
 every new task, terrain, and object family before freezing dependable shapes without adding user
 controls.

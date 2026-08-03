@@ -198,10 +198,13 @@ creates a normal Job with the fixed `custom-ppo-quick` CPU profile. Preparation 
 compatibility, not that the policy will reach the task threshold.
 
 The frozen preparation shape is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; the eight
-historical V1 anchor combinations measured about 3m42s–3m57s end to end. `custom-ppo-quick` uses
-`cpu-d3` / `8vcpu-32gb`, 100 GiB, eight vector environments, 100k steps, and a one-hour cap; the
-same matrix measured about 3m31s–3m49s and roughly $0.01 per attempt at the 2026-07-14 list rate.
-These are observed bounds for the exact immutable profile, not a promise that 100k steps converges.
+historical V1 anchor combinations measured about 3m42s–3m57s end to end. `custom-ppo-quick` at
+contract version v2 uses `cpu-d3` / `16vcpu-64gb`, 100 GiB, sixteen subprocess vector
+environments, 3M steps, and a three-hour cap, with observation/reward normalisation and
+best-checkpoint publication. The v1 shape (eight serial environments, 100k steps) finished in
+minutes but produced 100% fall rates even for the bundled sample robots on flat ground; v2 trades
+that speed for an attempt that can actually converge. It is still not a promise that a given
+robot reaches its task threshold — evaluation reports the outcome honestly either way.
 
 The completed custom Job publishes evaluation, task metrics, reward curve, rollout MP4,
 checkpoint, resolved configuration, exact inputs, and a checksummed policy bundle. The bundle is

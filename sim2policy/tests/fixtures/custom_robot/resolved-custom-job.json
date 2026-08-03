@@ -1,12 +1,80 @@
 {
-  "adapter": {"version": "custom-robot-sb3-v1", "reward_version": "locomotion-rewards-v2", "scene_version": "custom-locomotion-scenes-v2"},
+  "adapter": {
+    "reward_version": "locomotion-rewards-v3",
+    "scene_version": "custom-locomotion-scenes-v2",
+    "version": "custom-robot-sb3-v1"
+  },
   "backend": "sb3",
   "job_kind": "custom-robot",
-  "preparation": {"id": "preparation-fixture", "fingerprint": "bc5a3c36d7907b94782dc5d2133b1c87370f8f2fdc0a405c1fa885f037697cbb"},
+  "preparation": {
+    "fingerprint": "7910984c15895ded12541fce56860cce217a7419c99102aebef1d32f17ed7ef0",
+    "id": "preparation-fixture"
+  },
   "profile": "custom-ppo-quick",
-  "robot": {"id": "robot-fixture", "name": "Fixture quadruped", "digest": "1111111111111111111111111111111111111111111111111111111111111111"},
-  "runtime": {"image_digest": "registry.example/sim2policy:sb3-abcdef123456"},
+  "robot": {
+    "digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "id": "robot-fixture",
+    "name": "Fixture quadruped"
+  },
+  "runtime": {
+    "image_digest": "registry.example/sim2policy:sb3-abcdef123456"
+  },
   "schema_version": 2,
-  "setup": {"id": "setup-fixture", "task_template_id": "walk-forward", "scene_preset_id": "flat-arena", "digest": "2222222222222222222222222222222222222222222222222222222222222222"},
-  "training": {"checkpoint_every_steps": 25000, "cpu_count": 8, "currency": "USD", "disk_gib": 100, "evaluation_episodes": 20, "evaluation_every_steps": 25000, "evaluation_seeds": [11, 23, 37, 53, 71], "hourly_rate": 0.1984, "max_artifact_bytes": 536870912, "max_input_bytes": 1048576, "memory_gib": 32, "n_envs": 8, "platform": "cpu-d3", "ppo_batch_size": 256, "ppo_clip_range": 0.2, "ppo_gae_lambda": 0.95, "ppo_gamma": 0.99, "ppo_learning_rate": 0.0003, "ppo_n_epochs": 10, "ppo_n_steps": 1024, "preset": "8vcpu-32gb", "profile": "custom-ppo-quick", "profile_version": "custom-ppo-quick-v1", "progress_evaluation_episodes": 2, "progress_evaluation_seeds": [101, 151], "rate_date": "2026-07-14", "timeout_seconds": 3600, "total_timesteps": 100000, "version": "custom-ppo-quick-v1"}
+  "setup": {
+    "digest": "2222222222222222222222222222222222222222222222222222222222222222",
+    "id": "setup-fixture",
+    "scene_preset_id": "flat-arena",
+    "task_template_id": "walk-forward"
+  },
+  "training": {
+    "checkpoint_every_steps": 250000,
+    "cpu_count": 16,
+    "currency": "USD",
+    "disk_gib": 100,
+    "evaluation_episodes": 20,
+    "evaluation_every_steps": 250000,
+    "evaluation_seeds": [
+      11,
+      23,
+      37,
+      53,
+      71
+    ],
+    "hourly_rate": 0.3968,
+    "max_artifact_bytes": 536870912,
+    "max_input_bytes": 1048576,
+    "memory_gib": 64,
+    "n_envs": 16,
+    "normalize_clip_obs": 10.0,
+    "normalize_observations": true,
+    "normalize_reward": true,
+    "platform": "cpu-d3",
+    "policy_net_arch": [
+      256,
+      256
+    ],
+    "ppo_batch_size": 512,
+    "ppo_clip_range": 0.2,
+    "ppo_ent_coef": 0.0,
+    "ppo_gae_lambda": 0.95,
+    "ppo_gamma": 0.99,
+    "ppo_learning_rate": 0.0003,
+    "ppo_n_epochs": 10,
+    "ppo_n_steps": 512,
+    "preset": "16vcpu-64gb",
+    "profile": "custom-ppo-quick",
+    "profile_version": "custom-ppo-quick-v2",
+    "progress_evaluation_episodes": 4,
+    "progress_evaluation_seeds": [
+      101,
+      151,
+      199,
+      251
+    ],
+    "publish_best_checkpoint": true,
+    "rate_date": "2026-07-14",
+    "timeout_seconds": 10800,
+    "total_timesteps": 3000000,
+    "version": "custom-ppo-quick-v2"
+  }
 }

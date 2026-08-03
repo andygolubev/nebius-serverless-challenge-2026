@@ -19,10 +19,15 @@ pricing date applies. Source: https://docs.nebius.com/compute/resources/pricing
 
 The showcase SB3 examples train on the `cpu-d3` `8vcpu-32gb` preset, which has no GPU component.
 Applying the same published per-resource rates gives `(8 × 0.012) + (32 × 0.0032) = 0.1984
-USD/hour`, recorded with access date 2026-07-14 — the same rate and date the custom-robot training
-profile already uses. The gallery SB3 run configs store that explicit rate, currency, and date, and
-`estimated_cost` is measured runtime in hours multiplied by it. The same caveats as the L40S rate
-apply: it is a benchmark input, not a billing promise, and excludes taxes and storage.
+USD/hour`, recorded with access date 2026-07-14. The gallery SB3 run configs store that explicit
+rate, currency, and date, and `estimated_cost` is measured runtime in hours multiplied by it.
+
+The custom-robot training profile moved to `16vcpu-64gb` at contract version
+`custom-ppo-quick-v2`. The same per-resource rates give `(16 × 0.012) + (64 × 0.0032) = 0.3968
+USD/hour`, on the same 2026-07-14 access date; the preparation profile stays on `4vcpu-16gb`.
+
+The same caveats as the L40S rate apply: these are benchmark inputs, not billing promises, and
+exclude taxes and storage.
 Source: https://docs.nebius.com/compute/resources/pricing
 
 ## SB3 Linux/NVIDIA smoke record

@@ -188,7 +188,7 @@ def test_reduced_training_publishes_complete_checksummed_simulator_bundle(
 
     assert metrics["training"]["timesteps"] == 64
     assert metrics["runtime_seconds"] > 0
-    assert metrics["benchmark"]["hourly_rate"] == 0.1984
+    assert metrics["benchmark"]["hourly_rate"] == 0.3968
     assert metrics["benchmark"]["currency"] == "USD"
     assert metrics["benchmark"]["estimated_cost"] > 0
     assert metrics["benchmark"]["process_peak_rss_mib"] > 0
@@ -224,7 +224,7 @@ def test_reduced_training_publishes_complete_checksummed_simulator_bundle(
 def test_recovery_training_saves_and_reloads_checkpoint(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    def fake_video(_model, _documents, output: Path) -> dict[str, int]:
+    def fake_video(_model, _documents, output: Path, _normalize=None) -> dict[str, int]:
         output.write_bytes(b"bounded-recovery-video")
         return {"frames": 2, "size_bytes": output.stat().st_size}
 
