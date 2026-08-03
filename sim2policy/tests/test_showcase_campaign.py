@@ -722,7 +722,7 @@ def test_verify_accepts_a_complete_prefix_and_is_idempotent(campaign) -> None:
     assert code == EXIT_OK and envelope["decision"] == "ALREADY_VERIFIED"
 
 
-def test_verify_recovers_complete_g1_rough_evidence_after_provider_failure(campaign) -> None:
+def test_verify_recovers_complete_g1_rough_evidence_after_provider_failure(g1_campaign) -> None:
     """A finalized hard-gate rejection is not a container crash.
 
     The G1 hosted entry point historically returned campaign exit 20 after it
@@ -730,8 +730,8 @@ def test_verify_recovers_complete_g1_rough_evidence_after_provider_failure(campa
     child-prefix evidence is sufficient to recover that old attempt without
     retraining or accepting the rejected policy.
     """
-    build, store, matrix = campaign
-    job_run_id = "showcase-gallery-result-20260726-g1-s0"
+    build, store, matrix = g1_campaign
+    job_run_id = "showcase-gallery-g1-direct-full-20260803-01-g1-s0"
     evidence_run_id = f"{job_run_id}-rough"
     instance = build(
         provider=FakeProvider(states=["FAILED"]),
@@ -1146,15 +1146,21 @@ def test_plan_carries_the_durable_artifact_destination(campaign) -> None:
     assert "storage.region=eu-north1" in command
 
 
-def test_every_example_enables_durable_storage_not_just_the_sb3_path(campaign) -> None:
+def test_every_example_enables_durable_storage_not_just_the_sb3_path(
+    campaign, g1_campaign
+) -> None:
     """G1 builds its own command, and an ArtifactStore is inert unless mode is s3.
 
     G1 trained for an hour twice and durably wrote nothing, because its branch
     passed bucket/endpoint/region but never the mode that turns writes on.
     """
     build, *_ = campaign
-    instance = build()
-    for example, seed in (("reacher", 0), ("go1", 0), ("g1", 0)):
+    g1_build, *_ = g1_campaign
+    for example, seed, instance in (
+        ("reacher", 0, build()),
+        ("go1", 0, build()),
+        ("g1", 0, g1_build()),
+    ):
         _code, planned = instance.plan(example, seed)
         command = planned["plan"]["command"]
         assert "storage.mode=s3" in command, f"{example} would write nothing durably"

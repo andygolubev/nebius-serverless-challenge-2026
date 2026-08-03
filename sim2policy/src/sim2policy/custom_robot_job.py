@@ -807,7 +807,9 @@ def run_training(
             final_zip.write_bytes(Path(selected).read_bytes())
             published_checkpoint = {
                 "selection": "best_evaluation" if best["path"] is not None else "last",
-                "timesteps": best["timesteps"] if best["path"] is not None else profile.total_timesteps,
+                "timesteps": (
+                    best["timesteps"] if best["path"] is not None else profile.total_timesteps
+                ),
                 "evaluation_mean_reward": (
                     best["mean_reward"] if best["path"] is not None else None
                 ),
