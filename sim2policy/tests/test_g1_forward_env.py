@@ -45,7 +45,10 @@ def test_fixed_forward_environment_preserves_upstream_contract() -> None:
         assert locomotion.get_domain_randomizer(forward) is locomotion.get_domain_randomizer(
             upstream
         )
-        environment = locomotion.load(forward)
+        # The reusable builder is deliberately CPU-only. Override Playground's
+        # GPU/Warp default for this constructor contract check; the exact Warp
+        # command-through-horizon behavior is proven by the bounded H100 smoke.
+        environment = locomotion.load(forward, config_overrides={"impl": "jax"})
         assert environment.sim2policy_fixed_forward is True
         assert environment.sim2policy_forward_command == command
 
