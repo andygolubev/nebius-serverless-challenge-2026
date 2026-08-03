@@ -14,8 +14,11 @@ from sim2policy.g1_forward_env import (
 def main(argv: Sequence[str] | None = None) -> Any:
     register_g1_forward_environments()
 
+    # Playground ships ``learning`` only with the optional mjx extra, so this
+    # import resolves differently in the sb3-only quality environment. The
+    # mypy override in pyproject.toml covers both resolutions.
     from absl import app
-    from learning import train_jax_ppo  # type: ignore[import-untyped]
+    from learning import train_jax_ppo
 
     original_get_rl_config = train_jax_ppo.get_rl_config
 

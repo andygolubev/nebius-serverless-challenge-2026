@@ -90,3 +90,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.12"
 strict = true
 packages = ["sim2policy"]
+
+# MuJoCo Playground ships ``learning`` only with the optional mjx extra, so the
+# module is untyped when that extra is installed and absent when it is not.
+[[tool.mypy.overrides]]
+module = ["learning.*", "learning"]
+ignore_missing_imports = true
