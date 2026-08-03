@@ -159,7 +159,7 @@ recovery work begins at section 13.
 - [x] 13.8 On Nebius CPU/GPU compute as appropriate, test exact termination classification, fixed command invariance through reset and step 1,000, unchanged reward/PPO contract, pinned Brax supported-tuple restore plus explicit learner-state reinitialization, transition mismatch rejection, recovery immutability, derived-flat-gate behavior, PPO-quantum budget arithmetic, pilot gating, final-seed isolation, and host-location rejection
 - [x] 13.9 Add the exact `user_reviewed_direct_full_v1` matrix authorization for only campaign `gallery-g1-direct-full-20260803-01`, one job, seed 0, immutable revision/image/matrix binding, fixed-forward identities, 149,422,080 flat plus 300,318,720 rough steps, non-preemptible H100, 100 GiB, five hours, and zero retry/extension/override
 - [x] 13.10 Permit G1 full planning without a pilot record only under that exact authorization and reject every mode/campaign/seed/budget/hardware/timeout/digest drift before submission; do not create or infer pilot evidence
-- [ ] 13.11 On Nebius CPU compute, prove the direct-full plan passes only for the exact reviewed tuple and that missing, generic, mutated, or pilot-shaped authorization cannot bypass the gate
+- [x] 13.11 On Nebius CPU compute, prove the direct-full plan passes only for the exact reviewed tuple and that missing, generic, mutated, or pilot-shaped authorization cannot bypass the gate
 
 ## 14. Record the superseded diagnostic and pilot path
 
@@ -171,7 +171,7 @@ recovery work begins at section 13.
 
 ## 15. Execute one fresh fixed-forward G1 result campaign
 
-- [ ] 15.1 Under the exact reviewed direct-full authorization, run a new campaign preflight that binds campaign `gallery-g1-direct-full-20260803-01`, the recovery matrix/image/config/revision digests, seed 0, non-preemptible H100 preset, 100 GiB disk, five-hour timeout, 450M total ceiling, the derived 149,422,080-step flat gate, the 300,318,720-step rough request, no retry/extension/override, and a clean accelerator audit
+- [x] 15.1 Under the exact reviewed direct-full authorization, run a new campaign preflight that binds campaign `gallery-g1-direct-full-20260803-01`, the recovery matrix/image/config/revision digests, seed 0, non-preemptible H100 preset, 100 GiB disk, five-hour timeout, 450M total ceiling, the derived 149,422,080-step flat gate, the 300,318,720-step rough request, no retry/extension/override, and a clean accelerator audit
 - [ ] 15.2 Train `G1ForwardFlatTerrain` uninterrupted from scratch to the asserted 149,422,080 effective-step boundary, evaluate only that final checkpoint on selection seeds, and require 10/10 1,000-step no-termination episodes with every episode at least 0.4 m/s before any rough transition; retain earlier 25M candidates only as progression
 - [ ] 15.3 Atomically persist and verify the exact selected flat transition record, then allocate `450M - measured_flat_training_steps` to `G1ForwardRoughTerrain` after rounding down to whole PPO epoch quanta; abort before rough PPO if path, step, digest, environment, or budget differs
 - [ ] 15.4 Train the complete declared rough remainder, retain 25M candidates and regressions, and never use final seeds, reward impressions, or rollout appearance to cancel or change the run
