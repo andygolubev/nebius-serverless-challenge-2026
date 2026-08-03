@@ -307,6 +307,32 @@ The failed diagnostic path contributes no parent or policy bytes to the public r
 new training authorized by this emergency decision is one 450M result curriculum, executable as
 149,422,080 flat plus 300,318,720 rough steps for 449,740,800 total.
 
+#### 5.5 Reviewed rough-speed v2 after the terminal flat-gate failure
+
+The v1 direct-full job is terminal and preserved. It trained the exact 149,422,080-step flat phase,
+but only 8/10 selection episodes reached the horizon; therefore no transition was written and rough
+training consumed zero steps. A generic diagnostic finalizer then evaluated reserved final seeds on
+the failed flat checkpoint. Those episodes cannot authorize selection or publication and reveal a
+failure-path isolation defect: a failed prerequisite must persist its selection evidence and return
+without invoking the generic finalizer.
+
+The operator's new explicit decision authorizes one fresh replacement campaign under the narrow mode
+`user_reviewed_rough_08_full_v2`, bound only to campaign
+`gallery-g1-rough08-full-20260803-01`. It preserves both prior Serverless AI jobs and permits one new
+job, seed 0, zero retries/extensions/overrides, the same non-preemptible H100/100 GiB/five-hour shape,
+and the same 450M ceiling. Flat uses invariant `[1.0, 0.0, 0.0]`; rough alone uses invariant
+`[0.8, 0.0, 0.0]`. A 0.8 m/s command lowers rough-terrain impact and recovery demand while retaining
+0.2 m/s headroom over the unchanged preferred mean threshold of 0.6 m/s. Choosing 0.6 would provide
+no tolerance for tracking error; changing rewards or PPO at the same time would obscure causality.
+
+The v2 phase split restores the demonstrated 200M-class flat preparation: nominal 200M quantizes to
+199,229,440 effective steps. The rough remainder quantizes independently to 250,511,360, preserving
+the same 449,740,800 total. This gives the prerequisite about 50M more steps than the failed v1 gate
+while retaining more than 250M rough adaptation steps. The prior complete 200M-flat/250M-rough-class
+workload trained, evaluated, rendered, bundled, and uploaded in 244 minutes, so a 300-minute provider
+timeout remains evidence-based. The job is still accepted only at 20/20 rough horizons, every episode
+at least 0.4 m/s, and mean at least 0.6 m/s.
+
 Alternative: modify stability rewards immediately. Rejected for this iteration because the failed
 run already used a -100 termination cost and strong orientation penalty; without exact termination
 causes, another reward vector would be guesswork. Alternative: continue the rejected rough
@@ -361,7 +387,7 @@ blocked until the cleanup audit passes.
 
 ## Risks / Trade-offs
 
-- **G1 direct-full campaign fails**: preserve all milestone evidence, clean up, leave G1 unpublished,
+- **G1 rough-0.8 campaign fails**: preserve all milestone evidence, clean up, leave G1 unpublished,
   and do not launch another seed, reward vector, retry, or continuation.
 - **Fixed-forward specialization reduces general joystick capability**: the public example is
   explicitly Walk Forward and its measured resolved configuration exposes this specialization; the
@@ -389,9 +415,9 @@ blocked until the cleanup audit passes.
    install dependencies, run all lint/type/unit/integration/frontend/build validation, build immutable
    SB3/MJX images, and push exact
    commit tags/digests, and stop the builder.
-3. Retain the failed G1 evaluation-only sweep as terminal evidence and do not submit its dependent
-   pilot. Under the exact reviewed direct-full mode, submit one fresh 450M curriculum after the
-   immutable Nebius validation/image/preflight gates pass.
+3. Retain the failed G1 evaluation-only sweep and terminal v1 direct-full job. Under the exact
+   reviewed rough-0.8 v2 mode, submit one fresh 450M curriculum after the immutable Nebius
+   validation/image/preflight gates pass.
 4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
    fixtures, and provenance checks pass.
 5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production
@@ -402,7 +428,7 @@ does not mutate or delete private artifacts.
 
 ## Open Questions
 
-No operator choice remains. Exact direct-full values are declared above. Any missing immutable
+No operator choice remains. Exact rough-0.8 v2 values are declared above. Any missing immutable
 revision/image/matrix binding, mismatched campaign ID, infrastructure output, quota, clean audit, or
 runner capability is a preflight failure and must stop at `NEEDS_HUMAN`; a lightweight operator is
 not authorized to fill the gap by guessing.

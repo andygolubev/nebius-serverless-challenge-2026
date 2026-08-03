@@ -222,7 +222,11 @@ def test_failed_derived_flat_gate_stops_before_transition(tmp_path: Path) -> Non
     assert result["outcome"] == "NEEDS_HUMAN"
     assert result["reason_code"] == "DERIVED_FLAT_GATE_FAILED"
     assert not (tmp_path / "g1-flat-fails-rough").exists()
-    assert len(finalized) == 1
+    assert finalized == []
+    lineage = json.loads(
+        (tmp_path / "g1-flat-fails-flat/report/g1-phase-lineage.json").read_text()
+    )
+    assert lineage["seed_roles"]["final_seeds_touched"] == []
 
 
 def test_recovery_refuses_missing_immutable_transition(tmp_path: Path) -> None:

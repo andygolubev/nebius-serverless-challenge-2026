@@ -44,12 +44,14 @@ conditions—not prose that asks the operator to “monitor and decide.”
   transition binding, and the fixed-forward environments were validated on Nebius. The subsequent
   all-checkpoint diagnostic sweep exhausted its 90-minute provider timeout without producing a
   durable report, so it cannot prove a pilot parent and is superseded rather than reported as passed.
-  To finish the result attempt on the reviewed day, authorize exactly one fresh seed-0 450M campaign
-  through the narrowly named `user_reviewed_direct_full_v1` mode. The campaign trains the exact
-  fixed-forward `[1, 0, 0]` command for the same uninterrupted 1,000-step horizon used by acceptance.
-  Later provider inspection proved the completed 450M-class workload finalized in 244 minutes, so
-  the five-hour timeout remains evidence-backed; reward and PPO settings stay unchanged so the result
-  still tests one causal change rather than an opaque retune.
+  The first narrowly authorized fixed-forward run stopped after its 149,422,080-step flat gate
+  reached only 8/10 horizons; it never started rough training. A new explicit operator decision now
+  authorizes one fresh seed-0 campaign through `user_reviewed_rough_08_full_v2`: flat retains the
+  invariant `[1.0, 0.0, 0.0]` command, rough alone uses `[0.8, 0.0, 0.0]`, and the proven flat phase
+  is restored to 199,229,440 effective steps before the 250,511,360-step rough remainder. The
+  five-hour timeout remains evidence-backed by the prior 244-minute completed workload. Rewards,
+  PPO, physics, termination rules, total ceiling, hardware, seed, and acceptance thresholds remain
+  unchanged, so the new attempt tests the rough command speed and better-supported transition only.
 - Keep final acceptance strict: SB3 examples must pass their configured deterministic reward floor;
   Go1 must complete 20/20 deterministic 1,000-step episodes without falling, and G1 must complete
   20/20 without any environment termination. Both locomotion examples must meet their per-episode

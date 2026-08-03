@@ -29,7 +29,7 @@ training:
     value_hidden_layer_sizes: [512, 256, 128]
 checkpoint: {every_steps: 25000000, keep: 20}
 evaluation: {episodes: 20, seeds: [0, 1, 2, 3, 4]}
-success: {kind: locomotion, min_velocity: 0.4, target_velocity: 1.0, require_not_fallen: true}
+success: {kind: locomotion, min_velocity: 0.4, target_velocity: 0.8, require_not_fallen: true}
 rendering: {frames: 500, fps: 30, width: 640, height: 480, seed: 0}
 storage: {mode: local, prefix: sim2policy}
 reporting:

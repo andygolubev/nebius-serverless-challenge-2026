@@ -2,7 +2,7 @@
 
 Exactly one Nebius job, one seed. This module trains `G1ForwardFlatTerrain`
 from scratch in one uninterrupted request, evaluates only the exact derived
-149,422,080-step boundary, publishes an immutable transition, resumes it into
+199,229,440-step boundary, publishes an immutable transition, resumes it into
 `G1ForwardRoughTerrain` for the bounded remainder, ranks retained rough
 candidates, and finalizes exactly one explicit selected checkpoint.
 
@@ -228,7 +228,7 @@ def run_g1_curriculum(
         unroll_length=int(raw_flat_config.training.hyperparameters["unroll_length"]),
     )
     if flat_steps != FLAT_EFFECTIVE_STEPS:
-        raise CurriculumError("derived flat request differs from reviewed 149,422,080 steps")
+        raise CurriculumError("derived flat request differs from reviewed 199,229,440 steps")
     flat_config: RunConfig = load_config(
         flat_config_path, {**overrides, "training.total_steps": flat_steps}
     )
@@ -278,20 +278,29 @@ def run_g1_curriculum(
     }
 
     if not flat_gate.passed:
-        # The exact final flat boundary is the only legal transition parent.
-        artifacts = finalize_fn(
-            str(flat_config_path),
-            flat_run_id,
-            runs_root,
-            _finalize_overrides(overrides, flat_steps),
-            matrix_digest=matrix_digest,
-            phase_lineage={"flat": flat_phase_lineage, "rough": None},
+        # Do not call the generic finalizer here: its config-owned evaluation
+        # seeds are the reserved final set. A failed prerequisite may persist
+        # selection evidence, but it must never touch final seeds.
+        phase_lineage = {
+            "flat": flat_phase_lineage,
+            "rough": None,
+            "seed_roles": {
+                "selection": list(selection_seeds),
+                "final": list(final_seeds),
+                "final_seeds_touched": [],
+            },
+        }
+        flat_paths = create_run_paths(flat_run_id, runs_root)
+        phase_lineage_path = flat_paths.report / "g1-phase-lineage.json"
+        write_immutable_local(phase_lineage_path, phase_lineage)
+        ArtifactStore(flat_config.storage, flat_run_id).put_immutable_json(
+            "report/g1-phase-lineage.json", phase_lineage
         )
         return {
             "outcome": "NEEDS_HUMAN",
             "reason_code": "DERIVED_FLAT_GATE_FAILED",
-            "phase_lineage": {"flat": flat_phase_lineage, "rough": None},
-            "artifacts": artifacts,
+            "phase_lineage": phase_lineage,
+            "artifacts": {"phase_lineage": "report/g1-phase-lineage.json"},
         }
 
     selected_flat_inventory = flat_evidence.inventory

@@ -47,7 +47,7 @@ The campaign does not authorize:
 - editing the matrix during execution;
 - changing a seed, step budget, checkpoint interval, timeout, preset, algorithm, or gate;
 - launching a fourth base seed, a second extension, any G1 recovery pilot, or any G1 full campaign
-  outside the exact `user_reviewed_direct_full_v1` authorization;
+  outside the exact `user_reviewed_rough_08_full_v2` authorization;
 - using preemptible capacity;
 - pinning a hard-floor-only result that misses its preferred target;
 - deleting provider job history, SaaS rows, or durable S3 evidence;
@@ -471,12 +471,12 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
   failed sweep timeout: 90 minutes; full timeout: 5 hours. Read-only provider evidence proves the
   prior full flat/rough workload and finalization completed in 244 minutes; the earlier OOM/timeout
   inference was false.
-- Authorization: `user_reviewed_direct_full_v1`, only campaign
-  `gallery-g1-direct-full-20260803-01`, one job, seed 0, zero retries/extensions/overrides.
+- Authorization: `user_reviewed_rough_08_full_v2`, only campaign
+  `gallery-g1-rough08-full-20260803-01`, one job, seed 0, zero retries/extensions/overrides.
 - Seed: 0 only; fresh result ceiling: 450,000,000 effective steps across flat and rough phases.
-- Fixed-forward contract: command `[1.0, 0.0, 0.0]` at reset and every step through horizon 1,000;
-  no zero-command branch, no effective command resampling, pushes disabled, unchanged reviewed PPO
-  and reward settings.
+- Fixed-forward contract: flat command `[1.0, 0.0, 0.0]` and rough command `[0.8, 0.0, 0.0]` at
+  reset and every step through horizon 1,000; no zero-command branch, no effective command
+  resampling, pushes disabled, unchanged reviewed PPO and reward settings.
 - MJX phase requests are rounded down to whole PPO epoch quanta before submission, and provenance
   records requested and measured steps, so upstream batch rounding cannot exceed the ceiling.
 - Superseded diagnostic path: the evaluation-only sweep reached its 90-minute provider timeout and
@@ -486,7 +486,7 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
   fresh seed-0 optimizer, learner-step, rollout-state, and PRNG initialization. Never call the pinned
   checkpoint an exact optimizer continuation.
 - Fresh flat stage: from scratch, uninterrupted to the largest PPO epoch quantum at or below nominal
-  150M—149,422,080 effective steps under the reviewed batch contract—with candidates every 25M.
+  200M—199,229,440 effective steps under the reviewed batch contract—with candidates every 25M.
   Gate only that derived final checkpoint at 10/10 horizon and minimum velocity >=0.4 m/s; earlier
   checkpoints are progression evidence and cannot become the transition parent.
 - Flat transition: atomically record and verify exact object/path, step, digest, environments,
@@ -503,16 +503,16 @@ These cards are the human-readable mirror of the matrix. The CLI output must mat
   comparison is authorized.
 - Expected full completion: 3h50–4h15 end to end based on measured H100 throughput.
 
-## 12. G1 reviewed direct-full state machine
+## 12. G1 reviewed rough-0.8 v2 state machine
 
 The reviewed recovery is internally deterministic:
 
 ```text
-RETAIN_FAILED_SWEEP -> VERIFY_USER_REVIEWED_DIRECT_FULL_V1
+RETAIN_FAILED_SWEEP_AND_V1_RESULT -> VERIFY_USER_REVIEWED_ROUGH_08_FULL_V2
   any mode/campaign/revision/image/matrix/seed/hardware/budget drift -> NEEDS_HUMAN
-  exact reviewed tuple -> FRESH_FLAT_TRAIN_TO_QUANTIZED_150M
+  exact reviewed tuple -> FRESH_FLAT_TRAIN_TO_QUANTIZED_200M
 
-FRESH_FLAT_TRAIN_TO_QUANTIZED_150M -> FLAT_GATE_AT_DERIVED_FINAL_STEP
+FRESH_FLAT_TRAIN_TO_QUANTIZED_200M -> FLAT_GATE_AT_DERIVED_FINAL_STEP
   fail -> FINALIZE_DIAGNOSTIC -> CLEAN -> NEEDS_HUMAN
   pass -> WRITE_AND_VERIFY_TRANSITION
 
@@ -524,8 +524,8 @@ WRITE_AND_VERIFY_TRANSITION -> FRESH_ROUGH_TRAIN_TO_TOTAL_450M
     hard pass/preferred fail -> NEEDS_HUMAN
 ```
 
-The failed diagnostic sweep is retained evidence and its pilot is superseded, never a public
-candidate or fabricated prerequisite. The fresh flat gait
+The failed diagnostic sweep and terminal v1 result are retained evidence, never public candidates
+or fabricated prerequisites. The fresh flat gait
 prerequisite must include full-horizon commanded motion and no-termination stability; reward-only or
 standing-only criteria are forbidden. The selection seeds are used for the fresh flat and rough
 checkpoint gates.
@@ -553,7 +553,7 @@ Sequence:
 5. Walker2D seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 6. Go1 H100 seeds 0/7/42 -> optional extension -> acceptance -> cleanup audit.
 7. Retain the failed G1 diagnostic sweep and its clean terminal audit; submit no pilot.
-8. Verify the exact `user_reviewed_direct_full_v1` tuple and submit one fresh G1 450M H100
+8. Verify the exact `user_reviewed_rough_08_full_v2` tuple and submit one fresh G1 450M H100
    curriculum -> acceptance or terminal diagnostic -> cleanup audit.
 
 Do not reorder to keep H100 warm. Serverless jobs and artifacts are the boundary; there is no
@@ -571,7 +571,7 @@ Approximate first-pass wall time, including three base seeds but excluding exten
 | Hopper | 70–90 minutes |
 | Walker2D | 85–105 minutes |
 | Go1 | 75–100 minutes |
-| G1 recovery | full 3h50–4h15 with a 5h timeout under the reviewed direct-full mode |
+| G1 recovery | full 3h50–4h15 with a 5h timeout under the reviewed rough-0.8 v2 mode |
 | **Sequential total** | **about 8–11 hours including the one full G1 result attempt** |
 
 Queue delays or a single extension can add time. These estimates are not cancellation deadlines;

@@ -448,7 +448,10 @@ def fixed_forward_command_state(
         raise RuntimeError("MJX locomotion environment has no joystick command contract")
     if bool(getattr(environment, "sim2policy_fixed_forward", False)):
         command = np.asarray(info["command"], dtype=float)
-        if command.shape != (3,) or not np.allclose(command, [1.0, 0.0, 0.0]):
+        expected = np.asarray(
+            getattr(environment, "sim2policy_forward_command", ()), dtype=float
+        )
+        if expected.shape != (3,) or command.shape != (3,) or not np.allclose(command, expected):
             raise RuntimeError("G1Forward environment violated its invariant command")
         return state
     command = jax.numpy.asarray(

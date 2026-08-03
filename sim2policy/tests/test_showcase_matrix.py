@@ -21,17 +21,21 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
     recovery = first.card("g1")["curriculum"]
     assert recovery["flat_environment"] == "G1ForwardFlatTerrain"
     assert recovery["rough_environment"] == "G1ForwardRoughTerrain"
-    assert recovery["flat_effective_steps"] == 149_422_080
-    assert recovery["full"]["rough_effective_steps"] == 300_318_720
+    assert recovery["flat_command"] == [1.0, 0.0, 0.0]
+    assert recovery["rough_command"] == [0.8, 0.0, 0.0]
+    assert recovery["flat_effective_steps"] == 199_229_440
+    assert recovery["full"]["rough_effective_steps"] == 250_511_360
     assert recovery["authorization"] == {
-        "mode": "user_reviewed_direct_full_v1",
-        "campaign_id": "gallery-g1-direct-full-20260803-01",
+        "mode": "user_reviewed_rough_08_full_v2",
+        "campaign_id": "gallery-g1-rough08-full-20260803-01",
         "allowed_jobs": 1,
         "retries_allowed": 0,
         "extensions_allowed": False,
         "runtime_overrides_allowed": False,
         "superseded_sweep_run_id": "sweep-g1-c1a522b-20260802-01",
         "superseded_sweep_job_id": "aijob-e00c8fwyh15gy7qggk",
+        "superseded_result_campaign_id": "gallery-g1-direct-full-20260803-01",
+        "superseded_result_job_id": "aijob-e00pc60w55v89z6t5v",
         "pilot_required": False,
     }
     assert (
@@ -51,11 +55,11 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
             "source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat",
             "source_run_id: gallery-g1-20260801-16-flat",
         ),
-        ("mode: user_reviewed_direct_full_v1", "mode: generic-direct-full"),
-        ("campaign_id: gallery-g1-direct-full-20260803-01", "campaign_id: another-campaign"),
+        ("mode: user_reviewed_rough_08_full_v2", "mode: generic-direct-full"),
+        ("campaign_id: gallery-g1-rough08-full-20260803-01", "campaign_id: another-campaign"),
         ("allowed_jobs: 1", "allowed_jobs: 2"),
         ("retries_allowed: 0", "retries_allowed: 1"),
-        ("rough_effective_steps: 300318720", "rough_effective_steps: 300000000"),
+        ("rough_effective_steps: 250511360", "rough_effective_steps: 250000000"),
         ("base_steps: 1000000", "base_steps: 0"),
     ],
 )

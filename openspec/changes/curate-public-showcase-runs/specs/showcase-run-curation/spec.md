@@ -107,33 +107,33 @@ once to 300M. Final publication SHALL still require 20/20 1,000-step no-fall epi
 
 ### Requirement: Reviewed fixed-forward H100 G1 recovery
 The G1 recovery SHALL align training with the public Walk Forward acceptance task by using
-server-owned flat and rough environments whose command is always `[1.0, 0.0, 0.0]` for the full
-1,000-step episode, with pushes disabled and the reviewed PPO and reward settings otherwise
-unchanged. The workflow SHALL classify exact termination causes and retain terminal evidence from
-the timed-out evaluation-only sweep. For the reviewed time-bounded result attempt, it SHALL supersede
-that incomplete sweep and its dependent pilot without claiming either passed, and SHALL authorize
-exactly one fresh seed-0, non-preemptible H100 curriculum job only under
-`user_reviewed_direct_full_v1`, with a 450M effective-step ceiling and five-hour timeout.
+server-owned phase-specific fixed-forward environments. Flat SHALL keep `[1.0, 0.0, 0.0]` while
+rough SHALL keep `[0.8, 0.0, 0.0]` for the full 1,000-step episode; pushes SHALL remain disabled and
+the reviewed PPO, reward, physics, reset, observation, action, and termination settings SHALL remain
+unchanged. The workflow SHALL retain the timed-out sweep and the terminal first fixed-forward result,
+which failed its flat selection gate and touched no rough PPO steps. It SHALL authorize exactly one
+new fresh seed-0, non-preemptible H100 curriculum job only under
+`user_reviewed_rough_08_full_v2`, with a 450M effective-step ceiling and five-hour timeout.
 Each phase SHALL round down to whole PPO epoch quanta and the measured combined spend SHALL NOT
 exceed that ceiling. Final publication SHALL require 20/20 1,000-step episodes without any
 environment termination and at least 0.4 m/s measured forward velocity in every episode. The
 preferred mean SHALL be at least 0.6 m/s.
 
-#### Scenario: Operator supersedes the incomplete diagnostic path
-- **WHEN** the reviewed sweep has reached provider timeout without a durable eligibility report and
-  the normalized matrix declares `user_reviewed_direct_full_v1`
-- **THEN** the workflow retains the failed sweep, submits no pilot, and permits exactly one fresh
-  campaign only for the matrix-bound campaign ID, seed 0, immutable revision/image/matrix, exact
-  fixed-forward phase budgets, H100 shape, 100 GiB disk, and five-hour timeout
+#### Scenario: Operator authorizes rough speed 0.8 after the flat-gate failure
+- **WHEN** the first fixed-forward result is terminal with 8/10 flat horizons and zero rough steps,
+  and the normalized matrix declares `user_reviewed_rough_08_full_v2`
+- **THEN** the workflow preserves both prior jobs and permits exactly one fresh campaign only for the
+  matrix-bound campaign ID, phase commands, seed 0, immutable revision/image/matrix, exact phase
+  budgets, H100 shape, 100 GiB disk, and five-hour timeout
 
-#### Scenario: Direct-full authorization drifts
-- **WHEN** the mode, campaign ID, seed, job allowance, phase budget, hardware, timeout, image,
-  revision, or matrix digest differs from the reviewed direct-full contract
+#### Scenario: Rough-0.8 authorization drifts
+- **WHEN** the mode, campaign ID, phase command, seed, job allowance, phase budget, hardware,
+  timeout, image, revision, or matrix digest differs from the reviewed rough-0.8 contract
 - **THEN** planning or preflight fails before submission and no pilot evidence is synthesized
 
 #### Scenario: Fresh flat gait passes at the exact phase boundary
-- **WHEN** the fresh result campaign's uninterrupted quantum-aligned nominal-150M flat checkpoint
-  (149,422,080 effective steps under the reviewed batch contract) completes 10/10 selection episodes
+- **WHEN** the fresh result campaign's uninterrupted quantum-aligned nominal-200M flat checkpoint
+  (199,229,440 effective steps under the reviewed batch contract) completes 10/10 selection episodes
   without termination, every episode averages at least 0.4 m/s, and the next phase can restore its
   observation-normalizer, policy, and value parameters
 - **THEN** an immutable transition record is published and rough training receives the remaining
@@ -141,8 +141,8 @@ preferred mean SHALL be at least 0.6 m/s.
 
 #### Scenario: Fresh flat gait never passes
 - **WHEN** the exact derived flat phase-boundary checkpoint fails its declared gate
-- **THEN** rough-terrain training is not started, diagnostics are finalized, cleanup runs, and the
-  campaign stops at needs-human
+- **THEN** rough-terrain training is not started, selection evidence is persisted without evaluating
+  reserved final seeds, cleanup runs, and the campaign stops at needs-human
 
 #### Scenario: Brax phase boundary reinitializes learner-only state
 - **WHEN** the fresh rough phase restores a pinned Brax 0.14.2 checkpoint

@@ -186,3 +186,14 @@ recovery work begins at section 13.
 - [ ] 16.2 If G1 is accepted, run complete runtime/backend/frontend suites, production builds, secret/large-file scans, and strict OpenSpec validation on the required Nebius/static locations; if rejected or needs-human, retain the placeholder and skip source pinning
 - [ ] 16.3 For an accepted result only, replace exactly the G1 showcase pin on `debug-portal`, inspect GitHub Actions with `gh`, verify GitOps/ArgoCD rollout, and anonymously test catalog/detail/progression playback/downloads on desktop and 375px light/dark layouts with no tenant/storage leak
 - [ ] 16.4 Repeat the final cloud audit, stop/delete every chargeable VM, update `IMPLEMENTATION_LOG.MD` with commands/results/blockers/safe next action, and archive the OpenSpec change only after every required production verification is complete
+
+## 17. Execute the reviewed rough-0.8 G1 replacement
+
+- [x] 17.1 Record the terminal v1 evidence without reinterpreting it: 149,422,080 flat steps, 8/10 selection horizons, no transition, zero rough steps, and an invalid diagnostic touch of final seeds; preserve both prior Serverless AI jobs
+- [ ] 17.2 Add phase-specific invariant commands—flat `[1.0,0.0,0.0]`, rough `[0.8,0.0,0.0]`—while preserving physics, reset/noise, observations/actions, rewards, termination rules, PPO, pushes-disabled behavior, and unchanged acceptance thresholds
+- [ ] 17.3 Bind `user_reviewed_rough_08_full_v2` only to campaign `gallery-g1-rough08-full-20260803-01`, seed 0, one non-preemptible H100 job, 100 GiB, five hours, zero retry/extension/override, 199,229,440 flat plus 250,511,360 rough effective steps, and the immutable revision/image/matrix tuple
+- [ ] 17.4 Repair failure-path final-seed isolation so a failed flat prerequisite atomically persists selection evidence with `final_seeds_touched: []` and returns without generic finalization or any final-seed evaluation
+- [ ] 17.5 On the approved Nebius builder, run complete quality gates and focused command/budget/isolation tests, build and attest an immutable MJX image, prove both phase commands through reset and step 1,000 on H100, and pass exact campaign implementation/preflight gates
+- [ ] 17.6 Submit exactly one fresh reviewed job, monitor only structured provider/durable evidence, train the full declared rough remainder after an exact flat pass, and never delete, restart, retry, extend, or override any Serverless AI job
+- [ ] 17.7 Verify transition/provenance, candidate ranking, final-seed isolation, 20/20 horizons, every velocity at least 0.4 m/s, mean at least 0.6 m/s, media/camera, artifacts, measured runtime/cost, and cleanup before publication
+- [ ] 17.8 Publish only an accepted result; otherwise retain the diagnostic privately. Audit all resource scopes, stop chargeable VMs, preserve provider history, and record the final sanitized handoff

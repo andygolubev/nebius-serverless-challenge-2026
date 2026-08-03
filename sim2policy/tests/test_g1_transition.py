@@ -21,12 +21,12 @@ ROOT = Path(__file__).parents[1]
 def _checkpoint(tmp_path: Path):
     config = load_config(
         ROOT / "configs/g1_forward_flat_mjx.yaml",
-        {"training.total_steps": 149_422_080},
+        {"training.total_steps": 199_229_440},
     )
-    checkpoint = checkpoint_path(tmp_path, "final", 149_422_080)
+    checkpoint = checkpoint_path(tmp_path, "final", 199_229_440)
     with zipfile.ZipFile(checkpoint, "w") as archive:
         archive.writestr("manifest.ocdbt", "test")
-    write_checkpoint_metadata(checkpoint, config, 149_422_080)
+    write_checkpoint_metadata(checkpoint, config, 199_229_440)
     return config, checkpoint
 
 
@@ -42,9 +42,9 @@ def _record(tmp_path: Path):
         image_digest="sha256:" + "b" * 64,
         flat_config_digest="c" * 64,
         rough_config_digest="d" * 64,
-        measured_flat_steps=149_422_080,
+        measured_flat_steps=199_229_440,
         remaining_rough_budget=300_577_920,
-        requested_rough_steps=300_318_720,
+        requested_rough_steps=250_511_360,
     )
     return checkpoint, record
 
@@ -53,7 +53,7 @@ def test_transition_binds_exact_parent_budget_and_declared_reinitialization(tmp_
     checkpoint, record = _record(tmp_path)
     rough = load_config(
         ROOT / "configs/g1_forward_rough_mjx.yaml",
-        {"training.total_steps": 300_318_720},
+        {"training.total_steps": 250_511_360},
     )
     verify_transition_record(
         record,
@@ -71,7 +71,7 @@ def test_transition_binds_exact_parent_budget_and_declared_reinitialization(tmp_
         "policy_parameters",
         "value_parameters",
     ]
-    assert record["budget"]["requested_rough_steps"] == 300_318_720
+    assert record["budget"]["requested_rough_steps"] == 250_511_360
 
 
 def test_transition_rejects_digest_or_load_path_mismatch(tmp_path: Path) -> None:

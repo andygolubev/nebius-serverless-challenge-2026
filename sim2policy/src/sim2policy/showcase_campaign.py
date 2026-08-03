@@ -568,13 +568,13 @@ class Campaign:
     def _g1_full_authorization(
         self, card: Mapping[str, Any], image: Mapping[str, Any]
     ) -> dict[str, Any]:
-        """Bind the single reviewed direct-full decision without inventing pilot evidence."""
+        """Bind the single reviewed rough-0.8 decision without inventing pilot evidence."""
         curriculum = card.get("curriculum")
         authorization = curriculum.get("authorization") if isinstance(curriculum, dict) else None
         if not isinstance(authorization, dict):
             raise CampaignError("G1 full campaign requires reviewed direct-full authorization")
-        if authorization.get("mode") != "user_reviewed_direct_full_v1":
-            raise CampaignError("G1 direct-full authorization mode is invalid")
+        if authorization.get("mode") != "user_reviewed_rough_08_full_v2":
+            raise CampaignError("G1 rough-0.8 authorization mode is invalid")
         if authorization.get("campaign_id") != self.store.campaign_id:
             raise CampaignError("G1 direct-full authorization is bound to a different campaign")
 

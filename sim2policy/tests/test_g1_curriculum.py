@@ -38,8 +38,8 @@ def _episode(
 def test_reviewed_quantum_contract_is_exact_and_below_ceiling() -> None:
     steps = assert_reviewed_step_contract()
     assert steps == {
-        "flat": 149_422_080,
-        "rough": 300_318_720,
+        "flat": 199_229_440,
+        "rough": 250_511_360,
         "pilot": 46_202_880,
     }
     assert steps["flat"] + steps["rough"] < TOTAL_STEPS
@@ -73,7 +73,7 @@ def test_all_measured_flat_work_is_charged_before_rough_quantization() -> None:
         n_envs=8_192,
         unroll_length=20,
     )
-    assert rough == 300_318_720
+    assert rough == 250_511_360
 
 
 def test_diagnostic_parent_gate_and_zero_shot_rank() -> None:

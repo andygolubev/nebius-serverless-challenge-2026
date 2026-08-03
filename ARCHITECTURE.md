@@ -293,19 +293,23 @@ campaigns, because selection ranks candidates within a single campaign.
 **The G1 recovery** aligns training with the public Walk Forward task through server-owned
 `G1ForwardFlatTerrain` and `G1ForwardRoughTerrain` identities. They wrap pinned Playground v0.2.0
 without changing physics, reset/noise, observations/actions, rewards, termination rules, domain
-randomization, or PPO defaults; only the command source is invariant `[1, 0, 0]`, and pushes are
-disabled. Exact termination telemetry distinguishes torso inversion, foot-foot contact,
+randomization, or PPO defaults; only the command source is phase-specific and invariant—flat
+`[1.0, 0.0, 0.0]`, rough `[0.8, 0.0, 0.0]`—and pushes are disabled. Exact termination telemetry distinguishes torso inversion, foot-foot contact,
 foot-shin contact, NaN state, and an unknown upstream `done`, retaining simultaneous causes while
 treating every non-horizon result as a hard failure.
 
 The original G1 recovery gated full spend behind an evaluation-only sweep and a 46,202,880-step
 rough pilot. The sweep reached its 90-minute provider timeout without a durable report, so it cannot
 prove a parent and its dependent pilot is superseded rather than fabricated. The reviewed emergency
-path permits exactly one fresh plan only under `user_reviewed_direct_full_v1`, bound to campaign
-`gallery-g1-direct-full-20260803-01`, seed 0, one job, immutable revision/image/matrix evidence, the
+first permitted exactly one plan under `user_reviewed_direct_full_v1`. That terminal job reached
+only 8/10 flat selection horizons at 149,422,080 steps, wrote no transition, and spent zero rough
+steps. A new reviewed decision permits exactly one replacement plan only under
+`user_reviewed_rough_08_full_v2`, bound to campaign `gallery-g1-rough08-full-20260803-01`, seed 0,
+one job, immutable revision/image/matrix evidence, the
 fixed H100 shape, 100 GiB disk, five-hour timeout, and zero retries/extensions/overrides. Any drift
 fails before submission. The fresh result trains flat once, uninterrupted, to the derived
-149,422,080-step PPO boundary and evaluates only that final checkpoint. A pass atomically creates an
+199,229,440-step PPO boundary and evaluates only that final checkpoint. A failed gate persists its
+selection evidence without invoking final-seed evaluation. A pass atomically creates an
 immutable transition record binding the exact parent object/path, sidecar step and hashes,
 source/target environments, image/config/matrix digests,
 measured spend, rough budget, and trainer load path. Before rough updates, Brax restores only its
@@ -347,5 +351,5 @@ G1 is the open example. The prior joystick-command curriculum completed in 244 m
 selected rough checkpoint achieved 0/20 no-termination episodes despite 0.862 m/s mean velocity.
 It remains an unpublished diagnostic baseline. The fixed-forward recovery above is a new causal
 experiment: no reward, PPO, seed, hardware, threshold, or total-step increase is authorized. The
-failed sweep and unrun pilot remain historical evidence; only the exact reviewed direct-full campaign
-may proceed.
+failed sweep, unrun pilot, and terminal v1 job remain historical evidence; only the exact reviewed
+rough-0.8 v2 campaign may proceed.
