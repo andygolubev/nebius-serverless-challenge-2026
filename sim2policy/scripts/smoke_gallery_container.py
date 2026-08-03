@@ -50,6 +50,7 @@ def smoke_mjx() -> None:
     from mujoco_playground import registry
 
     from sim2policy.g1_forward_env import (
+        forward_command,
         is_g1_forward_environment,
         upstream_environment,
     )
@@ -107,11 +108,12 @@ def smoke_mjx() -> None:
         if is_g1_forward_environment(config.environment):
             step = jax.jit(environment.step)
             action = jax.numpy.zeros(environment.action_size)
+            expected_command = jax.numpy.asarray(forward_command(config.environment))
             for index in range(1, 1001):
                 state = step(state, action)
                 command = jax.device_get(state.info["command"])
                 if command.shape != (3,) or not jax.numpy.allclose(
-                    command, jax.numpy.asarray([1.0, 0.0, 0.0])
+                    command, expected_command
                 ):
                     raise RuntimeError(
                         f"fixed-forward command changed at step {index}: {name}"
