@@ -204,4 +204,4 @@ recovery work begins at section 13.
 - [x] 18.2 Implement a fail-closed exact-tuple curation exception that publishes the reviewed G1 recording without changing its evaluation result, hard gate, thresholds, or the accepted-only rule for every other run
 - [x] 18.3 Replace only the G1 placeholder pin and add backend/frontend coverage proving the run appears as a verified recording with the existing `Below task threshold` badge and no `not verified` label
 - [x] 18.4 Run complete backend/frontend production validation and secret/large-file scans on the approved Nebius builder, retain location evidence, and run static diff/OpenSpec validation on the shared host
-- [ ] 18.5 Commit/push only `debug-portal`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
+- [x] 18.5 Commit/push only `debug-portal`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
