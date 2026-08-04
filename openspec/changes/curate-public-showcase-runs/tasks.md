@@ -205,3 +205,10 @@ recovery work begins at section 13.
 - [x] 18.3 Replace only the G1 placeholder pin and add backend/frontend coverage proving the run appears as a verified recording with the existing `Below task threshold` badge and no `not verified` label
 - [x] 18.4 Run complete backend/frontend production validation and secret/large-file scans on the approved Nebius builder, retain location evidence, and run static diff/OpenSpec validation on the shared host
 - [x] 18.5 Commit/push only `debug-portal`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
+
+## 19. Simplify the public showcase result presentation
+
+- [x] 19.1 Remove met/below task-threshold badges from public showcase cards and detail without changing the underlying evaluation evidence or the authenticated owner job result
+- [x] 19.2 Remove the KPI grid rendering and showcase-specific KPI CSS from `ShowcaseDetail`; retain the compact facts, bundle, media, accordions, artifacts/configuration, CTA, and the shared owner-job KPI implementation
+- [x] 19.3 Add frontend coverage proving public cards/detail contain no threshold badge or KPI grid while `JobDetail` retains its KPI grid
+- [x] 19.4 On approved Nebius compute run frontend tests, production build, and the Playwright suite; then run static diff/OpenSpec validation on the shared host, stop the builder, and record the sanitized result

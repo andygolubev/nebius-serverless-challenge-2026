@@ -6,7 +6,7 @@ const shardLabel = process.env.FORM_BROWSER_SHARD_LABEL ?? "local";
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: deployed ? /deployed-smoke\.spec\.ts/ : /local-my-robots\.spec\.ts/,
+  testMatch: deployed ? /deployed-smoke\.spec\.ts/ : /local-(my-robots|showcase)\.spec\.ts/,
   fullyParallel: !deployed,
   workers: 1,
   timeout: deployed && process.env.SAAS_SMOKE_REMOTE_TRAINING === "true" ? 70 * 60_000 : deployed ? 15 * 60_000 : 45_000,

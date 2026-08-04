@@ -396,10 +396,17 @@ checkpoint walks at 0.8619 m/s mean and 0.7769 m/s minimum velocity, but complet
 episodes and therefore remains below the locomotion threshold.
 
 This is a verified recording exception, not an acceptance override. The public serializer retains
-`success: false`, the actual aggregate values, and a below-task-threshold badge. It MUST NOT emit
-`success: true`, change the acceptance evidence, lower a threshold, or make any other run eligible.
-The exception is an exact server-owned tuple of example ID, run ID, canonical runtime environment,
-and backend; any drift fails closed. All ordinary showcase pins remain accepted-only.
+`success: false` and the actual aggregate values. The public gallery and public run detail do not
+render pass/fail threshold badges; the compact facts and structured evidence remain the source of
+truth. The UI MUST NOT emit `success: true`, change the acceptance evidence, lower a threshold, or
+make any other run eligible. The exception is an exact server-owned tuple of example ID, run ID,
+canonical runtime environment, and backend; any drift fails closed. All ordinary showcase pins
+remain accepted-only.
+
+The public detail also omits the derived KPI cell grid. It keeps the run header/meta rail,
+simulator disclosure, compact criterion/primary-metric/duration/cost facts, policy bundle, rollout
+media, evidence accordions, artifact/configuration sections, and closing CTA. The authenticated
+owner job result remains a separate surface and retains its KPI grid.
 
 ## Risks / Trade-offs
 

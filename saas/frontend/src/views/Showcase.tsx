@@ -170,7 +170,6 @@ function ShowcaseCard({ entry, index, onOpen }: { entry: ShowcaseEntry; index: n
     <button className="gallery-card" type="button" onClick={onOpen} aria-label={`${entry.label} — ${entry.task}`}>
       <div className="gallery-card-top">
         <span className="gallery-index">{String(index + 1).padStart(2, "0")}</span>
-        <EvaluationBadge entry={entry} />
       </div>
       <img src={entry.avatar} alt="" />
       <div><p className="card-task">{entry.task}</p><h3>{entry.label}</h3><p className="card-desc">{entry.description}</p></div>
@@ -182,16 +181,6 @@ function ShowcaseCard({ entry, index, onOpen }: { entry: ShowcaseEntry; index: n
       <p className="recommended-line">{entry.has_media ? "Watch the rollout" : "Inspect the run"} →</p>
     </button>
   );
-}
-
-function EvaluationBadge({ entry }: { entry: ShowcaseEntry }) {
-  if (entry.evaluation.success === false) {
-    return <span className="tag below" title={entry.evaluation.criterion}>Below task threshold</span>;
-  }
-  if (entry.evaluation.success === true) {
-    return <span className="tag" title={entry.evaluation.criterion}>Met task threshold</span>;
-  }
-  return <span className="tag neutral" title={entry.evaluation.criterion}>Recorded run</span>;
 }
 
 const PIPELINE = [
@@ -278,7 +267,6 @@ export function ShowcaseDetail({
                 <p className="showcase-description">{detail.task} — {detail.description}</p>
               </div>
             </div>
-            <EvaluationBadge entry={detail} />
           </div>
           <dl className="job-meta">
             <KeyValue label="Backend" value={detail.backend_label} />
@@ -298,16 +286,8 @@ export function ShowcaseDetail({
                 <p className="eyebrow">Recorded run</p>
                 <h2 id="showcase-results-heading">Training result</h2>
               </div>
-              {/* Infrastructure completion, stated separately from the evaluation badge. */}
+              {/* Infrastructure completion remains separate from task evaluation evidence. */}
               <span className="badge completed">{detail.status === "completed" ? "Artifacts ready" : detail.status}</span>
-            </div>
-            <div className="kpi-grid">
-              {view.kpis.map((kpi) => (
-                <div className={`kpi ${kpi.emphasis ? "primary" : ""}`} key={kpi.label}>
-                  <span>{kpi.label}</span>
-                  <strong title={kpi.title}>{kpi.value}</strong>
-                </div>
-              ))}
             </div>
             <dl className="compact-kv">
               <KeyValue label="Success criterion" value={detail.evaluation.criterion} />

@@ -301,7 +301,7 @@ and SHALL NOT weaken ordinary promotion rules or authorize another tuple.
 #### Scenario: Exact verified recording validates
 - **WHEN** all evidence gates validate for the exact reviewed tuple and recorded task success is false
 - **THEN** curation succeeds with `success: false` and the public surface identifies the measured
-  result as below task threshold
+  result through its retained criterion and metrics without a pass/fail threshold badge
 
 #### Scenario: A near-match attempts the exception
 - **WHEN** the example, run ID, environment, backend, or required evidence differs from the reviewed

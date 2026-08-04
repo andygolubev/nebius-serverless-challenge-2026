@@ -63,7 +63,7 @@ as a whole.
   immutable provenance, manifest, checksums, bundle, checkpoint, metrics, runtime/cost, and media all
   validate, and its recorded task success is false
 - **THEN** the entry is published as a verified recorded run with `evaluation.success: false`, its
-  actual 0/20 horizon result, and a below-task-threshold badge; it is never represented as an
+  actual 0/20 horizon result, and no pass/fail threshold badge; it is never represented as an
   accepted locomotion result
 
 #### Scenario: Curated run does not exist yet
@@ -89,6 +89,13 @@ runtime versions, measured runtime/cost, evaluated progress stages with exact st
 and publicly available artifacts with opaque identifiers, human-readable names, kinds, content
 types, sizes, and public access URLs. Nested metric objects SHALL be returned as structured data.
 
+The public gallery and detail UI SHALL NOT render met-task-threshold or below-task-threshold badges.
+The public detail SHALL NOT render the derived KPI metric grid. It SHALL retain the header/meta rail,
+simulator-only note, compact success-criterion/primary-metric/observed-duration/observed-cost facts,
+policy bundle, rollout media, evidence accordions, artifacts/configuration, and closing CTA. This
+presentation rule SHALL NOT remove or rewrite evaluation data returned by the API, and SHALL NOT
+remove the KPI grid from the authenticated owner job result.
+
 #### Scenario: Anonymous visitor opens an example
 - **WHEN** a client requests a published example ID with no credentials
 - **THEN** the API returns its measured configuration, final and progress metrics, selected
@@ -98,6 +105,16 @@ types, sizes, and public access URLs. Nested metric objects SHALL be returned as
 - **WHEN** a published example has initial, intermediate, and selected progress evidence
 - **THEN** detail identifies the exact checkpoint step and media for every stage and labels any
   measured regression honestly
+
+#### Scenario: Public result omits threshold chrome and KPI cells
+- **WHEN** a visitor opens the gallery or a published run detail
+- **THEN** no met/below threshold badge or KPI cell grid is rendered, while the compact measured
+  facts and structured evidence remain available
+
+#### Scenario: Owner result keeps its KPI summary
+- **WHEN** an authenticated owner opens a normal job result
+- **THEN** its existing KPI grid remains available because the public showcase presentation change
+  is scoped to `ShowcaseDetail`
 
 #### Scenario: Unknown or unpublished example is requested
 - **WHEN** a client requests an example ID that is unknown, hidden, below threshold, or failing any

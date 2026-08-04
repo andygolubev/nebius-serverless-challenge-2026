@@ -113,6 +113,7 @@ describe("public showcase", () => {
     expect(screen.queryByText("Measured $0.12")).not.toBeInTheDocument();
     expect(screen.queryByText("1,000,000")).not.toBeInTheDocument();
     expect(screen.queryByText("A replayable trained policy")).not.toBeInTheDocument();
+    expect(screen.queryByText(/task threshold/i)).not.toBeInTheDocument();
   });
 
   it("presents the challenge story, pipeline, evidence bands, and final train-your-own poster", async () => {
@@ -218,20 +219,22 @@ describe("public showcase", () => {
     expect(screen.getByRole("button", { name: "Retry playback" })).toBeVisible();
 
     expect(screen.getByText(/Simulator-only policy/)).toBeVisible();
+    expect(container.querySelector(".showcase-detail .kpi-grid")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Download policy bundle" }));
     expect(confirm).toHaveBeenCalledOnce();
   });
 
-  it("reports an unmet task threshold without implying success or failure of the run", async () => {
+  it("retains unmet-threshold evidence without rendering a threshold badge", async () => {
     vi.stubGlobal("fetch", vi.fn(() =>
       json({ ...showcaseDetail, evaluation: { ...showcaseDetail.evaluation, success: false } }),
     ));
-    render(
+    const { container } = render(
       <ShowcaseDetail exampleId="hopper-balance" authed={false} onBack={() => undefined} onSignIn={() => undefined} />,
     );
-    expect(await screen.findByText("Below task threshold")).toBeVisible();
+    expect(await screen.findByText("Artifacts ready")).toBeVisible();
+    expect(screen.queryByText(/task threshold/i)).not.toBeInTheDocument();
+    expect(container.querySelector(".kpi-grid")).not.toBeInTheDocument();
     // Infrastructure completion is stated separately.
-    expect(screen.getByText("Artifacts ready")).toBeVisible();
     expect(screen.getByText("Verified example · Recorded run")).toBeVisible();
     expect(screen.queryByText(/not verified/i)).not.toBeInTheDocument();
   });
@@ -347,9 +350,10 @@ describe("job results", () => {
     };
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => String(input).endsWith("/artifacts") ? json(artifacts) : json(job)));
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    render(<JobDetail jobId={job.id} onBack={() => undefined} />);
+    const { container } = render(<JobDetail jobId={job.id} onBack={() => undefined} />);
     expect(await screen.findByText(/Simulator-only policy/)).toBeVisible();
     expect(screen.getByText("Below task threshold")).toBeVisible();
+    expect(container.querySelector(".kpi-grid")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Buddy · walk forward/ })).toBeVisible();
     fireEvent.click(screen.getByText(/custom-ppo-quick · CPU/));
     expect(screen.getByText(/cpu-d3 · 8vcpu-32gb/)).toBeVisible();
