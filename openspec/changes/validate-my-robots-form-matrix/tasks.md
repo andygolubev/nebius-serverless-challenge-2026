@@ -68,4 +68,4 @@
 
 ## 9. Temporary Validation Override Cleanup
 
-- [ ] 9.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored. This must be the final task.
+- [x] 9.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored. This must be the final task.

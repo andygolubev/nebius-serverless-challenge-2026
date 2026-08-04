@@ -117,14 +117,14 @@ This section is retained as historical evidence for the completed rejected campa
 unchecked provenance/budget items are not authorization to rerun the old configuration; the reviewed
 recovery work begins at section 13.
 
-- [ ] 10.1 Run G1 preflight and prove exact curriculum module/config/matrix/image digests, H100 preset/quota, 100 GiB disk, five-hour timeout, non-preemptible setting, 450M ceiling, no extension, and clean accelerator audit
+- [x] 10.1 Run G1 preflight and prove exact curriculum module/config/matrix/image digests, H100 preset/quota, 100 GiB disk, five-hour timeout, non-preemptible setting, 450M ceiling, no extension, and clean accelerator audit
 - [x] 10.2 Plan and submit seed 0 once; record the immutable run ID, expected prefix, plan digest, flat/rough identities, gate schedule, and cleanup action without secrets
 - [x] 10.3 Watch at 60-second intervals through flat training; rely only on structured gates at 100M, 150M, and 200M and never cancel or alter settings from manual log impressions
-- [ ] 10.4 If a flat gate passes, verify exact selected flat checkpoint/digest and automatic remaining-budget arithmetic before rough resume; if none passes by 200M, finalize diagnostics, clean up, and stop G1 at needs-human
-- [ ] 10.5 Watch rough training through the fixed 450M total, retaining 25M candidates and regressions; do not use final acceptance seeds or cancel after weak intermediate metrics
+- [x] 10.4 If a flat gate passes, verify exact selected flat checkpoint/digest and automatic remaining-budget arithmetic before rough resume; if none passes by 200M, finalize diagnostics, clean up, and stop G1 at needs-human
+- [x] 10.5 Watch rough training through the fixed 450M total, retaining 25M candidates and regressions; do not use final acceptance seeds or cancel after weak intermediate metrics
 - [x] 10.6 Rank rough checkpoints with the declared locomotion rule and final-evaluate only the selected checkpoint on 20 deterministic episodes
 - [x] 10.7 Require 20/20 1,000-step no-fall episodes with every episode >=0.4 m/s and mean >=0.6 m/s for automatic acceptance; do not lower, average away, or reinterpret any failed episode
-- [ ] 10.8 Verify both-phase provenance, selected and final checkpoint evidence/media, report, manifest, native checkpoint, bundle, effective-step total, measured H100 runtime/cost, and public fixture
+- [x] 10.8 Verify both-phase provenance, selected and final checkpoint evidence/media, report, manifest, native checkpoint, bundle, effective-step total, measured H100 runtime/cost, and public fixture
 - [x] 10.9 Clean up and audit every chargeable resource; retain provider history/SaaS row/S3 evidence; launch no second seed, extra steps, L40S comparison, or reward variant
 - [x] 10.10 Generate the final G1 handoff with pass/fail metrics for every episode, selected checkpoint, flat transition step, total steps, measured timing, consumed retry state, cleanup, and exact blocker or pin-readiness
 
@@ -133,19 +133,19 @@ recovery work begins at section 13.
 - [x] 11.1 For each accepted example, run the curator against the exact fresh non-tenant run and produce a deterministic acceptance record with hard/preferred pass, immutable digests, selected checkpoint, public fixture, and cleanup proof
 - [x] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
 - [x] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
-- [ ] 11.4 For each promotion batch run complete runtime/backend/frontend suites, production builds, and executable secret/large-file scans on Nebius CPU compute with location attestations; run only static `git diff --check` and strict OpenSpec validation on the shared host
+- [x] 11.4 For each promotion batch run complete runtime/backend/frontend suites, production builds, and executable secret/large-file scans on Nebius CPU compute with location attestations; run only static `git diff --check` and strict OpenSpec validation on the shared host
 - [x] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
 - [x] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
-- [ ] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
-- [ ] 11.8 Verify signed-in tenant custom training/history, private artifact isolation, and user jobs remain unchanged by public pins
+- [x] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
+- [x] 11.8 Verify signed-in tenant custom training/history, private artifact isolation, and user jobs remain unchanged by public pins
 
 ## 12. Close out and hand off
 
-- [ ] 12.1 Run a final cloud audit covering Serverless AI jobs, H100/L40S/CPU instances, builder, disks, public IPs, temporary security rules, durable prefixes, SaaS rows, and provider-history retention; stop/delete every chargeable VM
+- [x] 12.1 Run a final cloud audit covering Serverless AI jobs, H100/L40S/CPU instances, builder, disks, public IPs, temporary security rules, durable prefixes, SaaS rows, and provider-history retention; stop/delete every chargeable VM
 - [x] 12.2 Produce a final campaign table for all seven examples with state, selected run/checkpoint, base/extension steps, hard/preferred metrics, measured duration/cost, retry/extension use, public pin state, and cleanup result
 - [x] 12.3 Record accepted pins, unpublished examples, exact blockers, commands/results, and safe next actions in `IMPLEMENTATION_LOG.MD` without credentials or secret selectors
 - [x] 12.4 Update architecture/operator documentation for the campaign matrix, state machine, explicit checkpoint finalization, G1 curriculum, recovery, cleanup, and public acceptance flow
-- [ ] 12.5 Re-run all executable gates on Nebius Cloud and retain their location attestations; on the shared host run only static Git/OpenSpec checks including `openspec validate curate-public-showcase-runs --strict`; check off tasks only after evidence exists and archive only after implementation and production verification are complete
+- [x] 12.5 Re-run all executable gates on Nebius Cloud and retain their location attestations; on the shared host run only static Git/OpenSpec checks including `openspec validate curate-public-showcase-runs --strict`; check off tasks only after evidence exists and archive only after implementation and production verification are complete
 
 ## 13. Implement the reviewed G1 recovery contract
 
@@ -172,20 +172,20 @@ recovery work begins at section 13.
 ## 15. Execute one fresh fixed-forward G1 result campaign
 
 - [x] 15.1 Under the exact reviewed direct-full authorization, run a new campaign preflight that binds campaign `gallery-g1-direct-full-20260803-01`, the recovery matrix/image/config/revision digests, seed 0, non-preemptible H100 preset, 100 GiB disk, five-hour timeout, 450M total ceiling, the derived 149,422,080-step flat gate, the 300,318,720-step rough request, no retry/extension/override, and a clean accelerator audit
-- [ ] 15.2 Train `G1ForwardFlatTerrain` uninterrupted from scratch to the asserted 149,422,080 effective-step boundary, evaluate only that final checkpoint on selection seeds, and require 10/10 1,000-step no-termination episodes with every episode at least 0.4 m/s before any rough transition; retain earlier 25M candidates only as progression
-- [ ] 15.3 Atomically persist and verify the exact selected flat transition record, then allocate `450M - measured_flat_training_steps` to `G1ForwardRoughTerrain` after rounding down to whole PPO epoch quanta; abort before rough PPO if path, step, digest, environment, or budget differs
-- [ ] 15.4 Train the complete declared rough remainder, retain 25M candidates and regressions, and never use final seeds, reward impressions, or rollout appearance to cancel or change the run
-- [ ] 15.5 Rank rough checkpoints on the declared selection set by full-horizon no-termination count, minimum velocity, mean length, mean velocity, reward, and earlier step; final-evaluate only the selected checkpoint on four episodes each for final seeds `[0,1,2,3,4]`
-- [ ] 15.6 Accept only 20/20 1,000-step no-termination episodes with every episode at least 0.4 m/s and mean at least 0.6 m/s; do not lower thresholds, reinterpret self-contact as success, launch another seed, mutate rewards, continue past 450M, or reselect with final results
-- [ ] 15.7 Verify the exact transition and both-phase provenance, selected/final checkpoint evidence and media, termination taxonomy, report, manifest, native checkpoint, policy bundle, measured runtime/cost, public fixture, and effective-step ceiling before curation
-- [ ] 15.8 Clean up and audit every chargeable resource, retain provider history/SaaS row/private durable evidence, and generate a final handoff containing the direct-full authorization, exact parent/selected digests, every final episode result, publication decision, and no secret selectors
+- [x] 15.2 Train `G1ForwardFlatTerrain` uninterrupted from scratch to the asserted 149,422,080 effective-step boundary, evaluate only that final checkpoint on selection seeds, and require 10/10 1,000-step no-termination episodes with every episode at least 0.4 m/s before any rough transition; retain earlier 25M candidates only as progression
+- [x] 15.3 Atomically persist and verify the exact selected flat transition record, then allocate `450M - measured_flat_training_steps` to `G1ForwardRoughTerrain` after rounding down to whole PPO epoch quanta; abort before rough PPO if path, step, digest, environment, or budget differs
+- [x] 15.4 Train the complete declared rough remainder, retain 25M candidates and regressions, and never use final seeds, reward impressions, or rollout appearance to cancel or change the run
+- [x] 15.5 Rank rough checkpoints on the declared selection set by full-horizon no-termination count, minimum velocity, mean length, mean velocity, reward, and earlier step; final-evaluate only the selected checkpoint on four episodes each for final seeds `[0,1,2,3,4]`
+- [x] 15.6 Accept only 20/20 1,000-step no-termination episodes with every episode at least 0.4 m/s and mean at least 0.6 m/s; do not lower thresholds, reinterpret self-contact as success, launch another seed, mutate rewards, continue past 450M, or reselect with final results
+- [x] 15.7 Verify the exact transition and both-phase provenance, selected/final checkpoint evidence and media, termination taxonomy, report, manifest, native checkpoint, policy bundle, measured runtime/cost, public fixture, and effective-step ceiling before curation
+- [x] 15.8 Clean up and audit every chargeable resource, retain provider history/SaaS row/private durable evidence, and generate a final handoff containing the direct-full authorization, exact parent/selected digests, every final episode result, publication decision, and no secret selectors
 
 ## 16. Promote and close the recovered G1 result
 
-- [ ] 16.1 Finalize `execution-runbook.md` and update `ARCHITECTURE.md`, operator documentation, and sanitized fixtures for the fixed-forward direct-full flow, exact transition recovery, and termination taxonomy
-- [ ] 16.2 If G1 is accepted, run complete runtime/backend/frontend suites, production builds, secret/large-file scans, and strict OpenSpec validation on the required Nebius/static locations; if rejected or needs-human, retain the placeholder and skip source pinning
-- [ ] 16.3 For an accepted result only, replace exactly the G1 showcase pin on `debug-portal`, inspect GitHub Actions with `gh`, verify GitOps/ArgoCD rollout, and anonymously test catalog/detail/progression playback/downloads on desktop and 375px light/dark layouts with no tenant/storage leak
-- [ ] 16.4 Repeat the final cloud audit, stop/delete every chargeable VM, update `IMPLEMENTATION_LOG.MD` with commands/results/blockers/safe next action, and archive the OpenSpec change only after every required production verification is complete
+- [x] 16.1 Finalize `execution-runbook.md` and update `ARCHITECTURE.md`, operator documentation, and sanitized fixtures for the fixed-forward direct-full flow, exact transition recovery, and termination taxonomy
+- [x] 16.2 If G1 is accepted, run complete runtime/backend/frontend suites, production builds, secret/large-file scans, and strict OpenSpec validation on the required Nebius/static locations; if rejected or needs-human, retain the placeholder and skip source pinning
+- [x] 16.3 For an accepted result only, replace exactly the G1 showcase pin on `debug-portal`, inspect GitHub Actions with `gh`, verify GitOps/ArgoCD rollout, and anonymously test catalog/detail/progression playback/downloads on desktop and 375px light/dark layouts with no tenant/storage leak
+- [x] 16.4 Repeat the final cloud audit, stop/delete every chargeable VM, update `IMPLEMENTATION_LOG.MD` with commands/results/blockers/safe next action, and archive the OpenSpec change only after every required production verification is complete
 
 ## 17. Execute the reviewed rough-0.8 G1 replacement
 
@@ -195,7 +195,7 @@ recovery work begins at section 13.
 - [x] 17.4 Repair failure-path final-seed isolation so a failed flat prerequisite atomically persists selection evidence with `final_seeds_touched: []` and returns without generic finalization or any final-seed evaluation
 - [x] 17.5 On the approved Nebius builder, run complete quality gates and focused command/budget/isolation tests, build and attest an immutable MJX image, prove both phase commands through reset and step 1,000 on H100, and pass exact campaign implementation/preflight gates
 - [x] 17.6 Submit exactly one fresh reviewed job, monitor only structured provider/durable evidence, train the full declared rough remainder after an exact flat pass, and never delete, restart, retry, extend, or override any Serverless AI job
-- [ ] 17.7 Verify transition/provenance, candidate ranking, final-seed isolation, 20/20 horizons, every velocity at least 0.4 m/s, mean at least 0.6 m/s, media/camera, artifacts, measured runtime/cost, and cleanup before publication
+- [x] 17.7 Verify transition/provenance, candidate ranking, final-seed isolation, 20/20 horizons, every velocity at least 0.4 m/s, mean at least 0.6 m/s, media/camera, artifacts, measured runtime/cost, and cleanup before publication
 - [x] 17.8 Publish only an accepted result; otherwise retain the diagnostic privately. Audit all resource scopes, stop chargeable VMs, preserve provider history, and record the final sanitized handoff
 
 ## 18. Publish the exact best-available verified G1 recording
