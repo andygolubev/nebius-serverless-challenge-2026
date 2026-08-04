@@ -381,7 +381,7 @@ SHOWCASE_RUNS: dict[str, str] = {
     "halfcheetah-sprint": "showcase-gallery-hc-20260801-11-halfcheetah-s7",
     "hopper-balance": "showcase-gallery-result-20260730-07-hopper-s7",
     "walker2d-stride": "showcase-gallery-w2d-20260801-13-walker2d-s42",
-    "g1-rough-terrain": f"{PENDING_RUN_PREFIX}g1-rough-terrain",
+    "g1-rough-terrain": "showcase-gallery-g1-20260801-16-g1-s0-rough",
     "reacher-target": "showcase-gallery-result-20260730-07-reacher-s42",
 }
 

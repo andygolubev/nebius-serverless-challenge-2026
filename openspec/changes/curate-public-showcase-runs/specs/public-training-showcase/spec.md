@@ -33,8 +33,9 @@ object key, credential, secret selector, or presigned URL.
 A showcase entry SHALL be published only when its pinned run's manifest is readable and valid,
 every required artifact exists in-prefix with safe identity and integrity metadata, its canonical
 runtime environment and resolved example identity match the server-owned declaration, its
-evaluation uses a recognized schema and records task success as true, and its measured provenance
-and progress record validate. An entry that fails any check SHALL be omitted from `GET /showcase`
+evaluation uses a recognized schema and records task success as true, except for the one exact
+operator-reviewed G1 verified-recording tuple, and its measured provenance and progress record
+validate. An entry that fails any check SHALL be omitted from `GET /showcase`
 and SHALL return 404 on direct request. Omission SHALL be a normal, non-error state for the service
 as a whole.
 
@@ -53,7 +54,17 @@ as a whole.
 #### Scenario: Curated run completed below threshold
 - **WHEN** artifacts are complete but normalized `success.met` is false or a locomotion episode
   violates its configured all-episode gate
-- **THEN** the entry remains unpublished and cannot be described as a verified example
+- **THEN** the entry remains unpublished unless it is the exact operator-reviewed G1
+  verified-recording tuple
+
+#### Scenario: Exact G1 verified recording is published below threshold
+- **WHEN** example `g1-rough-terrain` resolves to run
+  `showcase-gallery-g1-20260801-16-g1-s0-rough`, its canonical joystick rough-terrain identity,
+  immutable provenance, manifest, checksums, bundle, checkpoint, metrics, runtime/cost, and media all
+  validate, and its recorded task success is false
+- **THEN** the entry is published as a verified recorded run with `evaluation.success: false`, its
+  actual 0/20 horizon result, and a below-task-threshold badge; it is never represented as an
+  accepted locomotion result
 
 #### Scenario: Curated run does not exist yet
 - **WHEN** an example's pinned run has produced no manifest because curation has not completed
@@ -96,4 +107,4 @@ types, sizes, and public access URLs. Nested metric objects SHALL be returned as
 #### Scenario: Diagnostic run is hardcoded accidentally
 - **WHEN** a pinned run finished artifact production but did not meet its task threshold
 - **THEN** neither catalog nor detail publishes it, even though its infrastructure status is
-  completed
+  completed, unless it matches the exact reviewed G1 verified-recording tuple

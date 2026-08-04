@@ -232,6 +232,8 @@ describe("public showcase", () => {
     expect(await screen.findByText("Below task threshold")).toBeVisible();
     // Infrastructure completion is stated separately.
     expect(screen.getByText("Artifacts ready")).toBeVisible();
+    expect(screen.getByText("Verified example · Recorded run")).toBeVisible();
+    expect(screen.queryByText(/not verified/i)).not.toBeInTheDocument();
   });
 
   it("shows a safe message for an unpublished or unknown example", async () => {

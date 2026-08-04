@@ -289,3 +289,21 @@ surface. A failed example SHALL remain unpublished without blocking already acce
 #### Scenario: Candidate run identity is tenant-shaped
 - **WHEN** a proposed pin matches a tenant job identity or resolves through a tenant-owned path
 - **THEN** source update and public resolution are rejected regardless of evaluation quality
+
+### Requirement: Exact operator-reviewed verified recording
+The curator SHALL recognize exactly one below-threshold publication tuple: example
+`g1-rough-terrain`, run `showcase-gallery-g1-20260801-16-g1-s0-rough`, environment
+`G1JoystickRoughTerrain`, and backend `mjx`. It SHALL require the same immutable provenance,
+selected-checkpoint, progression, runtime/cost, seed-role, manifest, checksum, bundle, and artifact
+validation as an accepted run. It SHALL retain normalized task success and hard acceptance as false
+and SHALL NOT weaken ordinary promotion rules or authorize another tuple.
+
+#### Scenario: Exact verified recording validates
+- **WHEN** all evidence gates validate for the exact reviewed tuple and recorded task success is false
+- **THEN** curation succeeds with `success: false` and the public surface identifies the measured
+  result as below task threshold
+
+#### Scenario: A near-match attempts the exception
+- **WHEN** the example, run ID, environment, backend, or required evidence differs from the reviewed
+  tuple
+- **THEN** curation follows the ordinary accepted-only rule and fails closed for a below-threshold run

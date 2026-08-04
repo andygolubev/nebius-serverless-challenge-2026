@@ -74,6 +74,22 @@ CANONICAL_PHASE_ENVIRONMENTS: dict[str, frozenset[str]] = {
     "g1-rough-terrain": frozenset({"G1ForwardFlatTerrain", "G1ForwardRoughTerrain"}),
 }
 
+# One operator-reviewed best-available recording is publishable even though its
+# locomotion evaluation is below threshold. This is deliberately an exact tuple,
+# not a reusable override: every other pin still has to pass its task gate.
+VERIFIED_RECORDINGS: dict[tuple[str, str], dict[str, Any]] = {
+    (
+        "g1-rough-terrain",
+        "showcase-gallery-g1-20260801-16-g1-s0-rough",
+    ): {
+        "environment": "G1JoystickRoughTerrain",
+        "backend": "mjx",
+        "phase_environments": frozenset(
+            {"G1JoystickFlatTerrain", "G1JoystickRoughTerrain"}
+        ),
+    }
+}
+
 # A tenant job id is `uuid4().hex`. A curated run must never be mistakable for one.
 TENANT_JOB_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 PENDING_RUN_PREFIX = "pending-curated-run-"
@@ -231,10 +247,15 @@ def _progression(value: Any) -> tuple[ProgressionEntry, ...]:
     return tuple(entries)
 
 
-def _phases(value: Any, example_id: str) -> tuple[PhaseLineage, ...]:
+def _phases(
+    value: Any,
+    example_id: str,
+    *,
+    allowed_override: frozenset[str] | None = None,
+) -> tuple[PhaseLineage, ...]:
     if not isinstance(value, dict):
         return ()
-    allowed = CANONICAL_PHASE_ENVIRONMENTS.get(example_id)
+    allowed = allowed_override or CANONICAL_PHASE_ENVIRONMENTS.get(example_id)
     phases: list[PhaseLineage] = []
     for name in ("flat", "rough"):
         phase = value.get(name)
@@ -299,8 +320,14 @@ def curate(
     if promotion or run_id:
         validate_run_identity(run_id, known_pins=known_pins, example_id=example_id)
 
+    verified_recording = VERIFIED_RECORDINGS.get((example_id, run_id))
     environment = metrics.get("environment")
-    if environment != CANONICAL_ENVIRONMENTS[example_id]:
+    expected_environment = (
+        verified_recording["environment"]
+        if verified_recording is not None
+        else CANONICAL_ENVIRONMENTS[example_id]
+    )
+    if environment != expected_environment:
         raise CurationError("recorded environment is not the canonical identity for this example")
 
     backend = metrics.get("backend")
@@ -308,11 +335,13 @@ def curate(
         raise CurationError("recorded backend is not a known runtime")
     if backend != CANONICAL_BACKENDS[example_id]:
         raise CurationError("recorded backend disagrees with the declared example")
+    if verified_recording is not None and backend != verified_recording["backend"]:
+        raise CurationError("recorded backend disagrees with the reviewed recording")
 
     success = normalize_success(metrics)
     if success is None:
         raise CurationError("task success could not be normalized unambiguously")
-    if not success["met"]:
+    if not success["met"] and verified_recording is None:
         # Artifact completeness is not achievement: a finished run below its gate
         # stays diagnostic evidence.
         raise CurationError("curated run did not meet its task gate")
@@ -359,7 +388,7 @@ def curate(
         hard_passed=hard.get("passed") is True,
         preferred_passed=preferred.get("passed") is True,
     )
-    if not acceptance.hard_passed:
+    if not acceptance.hard_passed and verified_recording is None:
         raise CurationError("curated run failed its hard acceptance floor")
 
     progression = _progression(metrics.get("progression"))
@@ -406,7 +435,7 @@ def curate(
         # The native checkpoint *filename*, never an object key or storage path.
         checkpoint=str(metrics["checkpoint"]) if isinstance(metrics.get("checkpoint"), str) else None,
         selected_checkpoint=SelectedCheckpoint(effective_step=step, sha256=digest),
-        success=True,
+        success=bool(success["met"]),
         criterion=success["criterion"],
         primary_metric=float(primary) if isinstance(primary, (int, float)) and not isinstance(primary, bool) else None,
         aggregate=aggregate,
@@ -422,6 +451,12 @@ def curate(
         if isinstance(metrics.get("ranking_explanation"), dict)
         else {},
         progression=progression,
-        phases=_phases(metrics.get("phase_lineage"), example_id),
+        phases=_phases(
+            metrics.get("phase_lineage"),
+            example_id,
+            allowed_override=verified_recording.get("phase_environments")
+            if verified_recording is not None
+            else None,
+        ),
         runtime_versions=versions,
     )

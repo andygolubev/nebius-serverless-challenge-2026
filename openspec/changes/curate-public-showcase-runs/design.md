@@ -385,10 +385,27 @@ public IPs, temporary security rules, and the reusable builder. Chargeable VMs a
 Provider job records, SaaS rows, and S3 evidence are retained under the current policy. Promotion is
 blocked until the cleanup audit passes.
 
+### 9. Exact best-available G1 recording publication
+
+After the replacement campaign also failed before rough training, the operator explicitly chose to
+publish the strongest complete retained G1 recording today. The decision is limited to example
+`g1-rough-terrain` and run `showcase-gallery-g1-20260801-16-g1-s0-rough`. Its manifest, checksums,
+policy bundle, immutable image/config/matrix provenance, checkpoint, runtime/cost evidence, and six
+videos were independently validated from durable storage. The selected 46,202,880-step rough
+checkpoint walks at 0.8619 m/s mean and 0.7769 m/s minimum velocity, but completes 0/20 full-horizon
+episodes and therefore remains below the locomotion threshold.
+
+This is a verified recording exception, not an acceptance override. The public serializer retains
+`success: false`, the actual aggregate values, and a below-task-threshold badge. It MUST NOT emit
+`success: true`, change the acceptance evidence, lower a threshold, or make any other run eligible.
+The exception is an exact server-owned tuple of example ID, run ID, canonical runtime environment,
+and backend; any drift fails closed. All ordinary showcase pins remain accepted-only.
+
 ## Risks / Trade-offs
 
-- **G1 rough-0.8 campaign fails**: preserve all milestone evidence, clean up, leave G1 unpublished,
-  and do not launch another seed, reward vector, retry, or continuation.
+- **G1 rough-0.8 campaign fails**: preserve all milestone evidence, clean up, launch no other seed,
+  reward vector, retry, or continuation; the operator may publish only the exact separately reviewed
+  best-available recording with its below-threshold result visible.
 - **Fixed-forward specialization reduces general joystick capability**: the public example is
   explicitly Walk Forward and its measured resolved configuration exposes this specialization; the
   tenant G1 joystick training card remains unchanged.

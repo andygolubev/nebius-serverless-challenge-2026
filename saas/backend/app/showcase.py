@@ -328,8 +328,8 @@ class ShowcaseService:
         """Evaluation outcome, kept separate from infrastructure completion.
 
         A run that produced every artifact but missed its task threshold is a
-        completed run with an unmet evaluation, not a failed job — and it never
-        reaches here, because curation withholds it.
+        completed run with an unmet evaluation, not a failed job. It reaches here
+        only for the exact operator-reviewed verified-recording tuple.
         """
         return {
             "success": evidence.success,

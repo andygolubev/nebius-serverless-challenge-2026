@@ -144,6 +144,64 @@ def test_a_run_below_its_gate_is_diagnostic_evidence_not_a_published_example() -
         curate("hopper-balance", failed)
 
 
+def test_exact_reviewed_g1_recording_is_verified_without_inventing_success() -> None:
+    metrics = _metrics(
+        environment="G1JoystickRoughTerrain",
+        backend="mjx",
+        aggregate={
+            "episodes": 20,
+            "mean_velocity": 0.8619191737388316,
+            "min_velocity": 0.7769290657207595,
+            "mean_episode_length": 770.7,
+            "no_fall_count": 0,
+        },
+        success={"met": False, "criterion": "velocity >= 0.4 and not fallen"},
+        acceptance={
+            "hard": {"criteria": {"no_fall": False}, "passed": False},
+            "preferred": {"criteria": {"mean_velocity": True}, "passed": False},
+        },
+        phase_lineage={
+            "flat": {
+                "environment": "G1JoystickFlatTerrain",
+                "effective_steps": 100_000_000,
+                "outcome": "passed",
+            },
+            "rough": {
+                "environment": "G1JoystickRoughTerrain",
+                "effective_steps": 348_651_520,
+                "outcome": "trained",
+            },
+        },
+    )
+
+    evidence = curate(
+        "g1-rough-terrain",
+        metrics,
+        run_id="showcase-gallery-g1-20260801-16-g1-s0-rough",
+    )
+
+    assert evidence.success is False
+    assert evidence.acceptance.hard_passed is False
+    assert evidence.aggregate["no_fall_count"] == 0
+    assert evidence.environment == "G1JoystickRoughTerrain"
+
+
+def test_verified_recording_exception_fails_closed_for_a_near_match() -> None:
+    metrics = _metrics(
+        environment="G1JoystickRoughTerrain",
+        backend="mjx",
+        aggregate={"episodes": 20, "mean_velocity": 0.86, "no_fall_count": 0},
+        success={"met": False, "criterion": "velocity >= 0.4 and not fallen"},
+        acceptance={
+            "hard": {"criteria": {"no_fall": False}, "passed": False},
+            "preferred": {"criteria": {"mean_velocity": True}, "passed": False},
+        },
+    )
+
+    with pytest.raises(CurationError, match="canonical identity"):
+        curate("g1-rough-terrain", metrics, run_id="showcase-gallery-g1-near-match")
+
+
 def test_a_mutable_image_tag_is_refused() -> None:
     metrics = _metrics()
     metrics["resolved_config"]["runtime_image"] = "registry.example/sim2policy:sb3-runtime"

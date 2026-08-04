@@ -59,7 +59,10 @@ conditions—not prose that asks the operator to “monitor and decide.”
   hard publication gate.
 - Pin a run only after immutable provenance, selected-checkpoint evidence, required checksummed
   artifacts, policy bundle, measured runtime/cost, public-schema compatibility, and cleanup audit all
-  pass. Failed or merely artifact-complete runs stay private diagnostics.
+  pass. One operator-reviewed exception publishes the exact best retained G1 recording
+  `showcase-gallery-g1-20260801-16-g1-s0-rough`: its evidence and media are verified, while its real
+  below-threshold evaluation remains public as `success: false` and is never relabeled as a task
+  pass. No other failed or merely artifact-complete run becomes eligible through this exception.
 
 ## Capabilities
 
