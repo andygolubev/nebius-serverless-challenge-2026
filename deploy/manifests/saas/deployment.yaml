@@ -46,6 +46,17 @@ spec:
               value: "4"
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
               value: "16"
+            # Temporary runtime pin: the `saas-nebius` Secret still carries the
+            # Terraform default `saas_sb3_image_tag`, sb3-59117bd6…, whose
+            # custom_robot_contract.REWARD_VERSION is locomotion-rewards-v2. The
+            # SaaS image declares v3, so custom_robot_io._load() rejects every
+            # manifest before run_preparation and each preparation dies as an
+            # unexplained `remote-job-failed` with report_ready=false.
+            # This explicit entry shadows the Secret — remove it as soon as
+            # sim2policy/infra/nebius/saas_variables.tf is corrected and applied,
+            # otherwise later Secret updates will silently have no effect.
+            - name: CUSTOM_ROBOT_SB3_IMAGE
+              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-6b6b0d44ebbff364b4c2cf358b41fe995491d478
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
           # (explicit env would override envFrom): the whole nebius orchestration
           # contract — SAAS_ORCHESTRATION_BACKEND=nebius, NEBIUS_*, AWS_*,
