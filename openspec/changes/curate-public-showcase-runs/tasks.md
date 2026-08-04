@@ -203,5 +203,5 @@ recovery work begins at section 13.
 - [x] 18.1 Record the operator decision and exact reviewed tuple for `showcase-gallery-g1-20260801-16-g1-s0-rough`; require verified manifest/checksums/bundle/provenance/media while retaining its real 0/20 horizon result and `success: false`
 - [x] 18.2 Implement a fail-closed exact-tuple curation exception that publishes the reviewed G1 recording without changing its evaluation result, hard gate, thresholds, or the accepted-only rule for every other run
 - [x] 18.3 Replace only the G1 placeholder pin and add backend/frontend coverage proving the run appears as a verified recording with the existing `Below task threshold` badge and no `not verified` label
-- [ ] 18.4 Run complete backend/frontend production validation and secret/large-file scans on the approved Nebius builder, retain location evidence, and run static diff/OpenSpec validation on the shared host
+- [x] 18.4 Run complete backend/frontend production validation and secret/large-file scans on the approved Nebius builder, retain location evidence, and run static diff/OpenSpec validation on the shared host
 - [ ] 18.5 Commit/push only `debug-portal`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
