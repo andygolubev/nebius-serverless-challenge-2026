@@ -6,6 +6,7 @@ from sim2policy.checkpoint import (
     CheckpointError,
     checkpoint_path,
     latest_checkpoint,
+    nearest_checkpoint,
     progression_checkpoints,
     validate_checkpoint,
     write_checkpoint_metadata,
@@ -40,8 +41,26 @@ def test_checksum_mismatch_is_rejected(tmp_path: Path) -> None:
         validate_checkpoint(path, config)
 
 
+def test_resume_into_a_different_environment_is_rejected(tmp_path: Path) -> None:
+    """A checkpoint may only resume into the task it was trained on."""
+    other = load_config(ROOT / "configs/reacher_sb3.yaml")
+    path = make_checkpoint(tmp_path, "step", 128)
+    with pytest.raises(CheckpointError, match="not sb3/Reacher-v5"):
+        validate_checkpoint(path, other)
+
+
 def test_progression_uses_nearest_quarter(tmp_path: Path) -> None:
     initial = make_checkpoint(tmp_path, "initial", 0)
     near_quarter = make_checkpoint(tmp_path, "step", 30)
     final = make_checkpoint(tmp_path, "final", 100)
     assert progression_checkpoints(tmp_path, 100) == (initial, near_quarter, final)
+
+
+def test_nearest_checkpoint_picks_closest_step_and_breaks_ties_earlier(tmp_path: Path) -> None:
+    near_gate = make_checkpoint(tmp_path / "closest", "step", 98)
+    make_checkpoint(tmp_path / "closest", "step", 150)
+    assert nearest_checkpoint(tmp_path / "closest", 100) == near_gate
+
+    tie_low = make_checkpoint(tmp_path / "tie", "step", 90)
+    make_checkpoint(tmp_path / "tie", "step", 110)
+    assert nearest_checkpoint(tmp_path / "tie", 100) == tie_low

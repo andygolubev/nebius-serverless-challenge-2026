@@ -1,6 +1,6 @@
 {
   "backend": "sb3",
-  "fingerprint": "029df643fa0c9f7bf6abf8908704543d1051c558f3bece3310329582a8e8600e",
+  "fingerprint": "7910984c15895ded12541fce56860cce217a7419c99102aebef1d32f17ed7ef0",
   "kind": "custom-robot-policy-bundle",
   "members": [
     {"path": "README.md", "size_bytes": 100, "sha256": "1111111111111111111111111111111111111111111111111111111111111111", "content_type": "text/markdown"},
@@ -12,6 +12,6 @@
     {"path": "evaluation/metrics.json", "size_bytes": 100, "sha256": "7777777777777777777777777777777777777777777777777777777777777777", "content_type": "application/json"}
   ],
   "profile": "custom-ppo-quick",
-  "schema_version": 1,
+  "schema_version": 2,
   "simulator_only": true
 }

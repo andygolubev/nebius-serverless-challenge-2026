@@ -1,14 +1,33 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sim2policy/custom-robot/normalized-setup/v1",
+  "$id": "sim2policy/custom-robot/normalized-setup/v2",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "robot_type", "task_template_id", "scene_preset_id", "objects"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "robot_type": {"enum": ["biped", "quadruped"]},
-    "task_template_id": {"enum": ["stand-balance", "walk-forward"]},
-    "scene_preset_id": {"enum": ["flat-arena", "ramp-course"]},
-    "objects": {"type": "array", "maxItems": 0}
+    "task_template_id": {"enum": ["stand-balance", "walk-forward", "recover-from-fall"]},
+    "scene_preset_id": {"enum": ["flat-arena", "ramp-course", "hurdle-course", "step-course"]},
+    "objects": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["object_type", "x", "y", "z", "yaw_degrees", "width", "depth", "height", "source"],
+        "properties": {
+          "object_type": {"enum": ["box", "ramp", "hurdle", "step"]},
+          "x": {"type": "number", "minimum": -10, "maximum": 10},
+          "y": {"type": "number", "minimum": -10, "maximum": 10},
+          "z": {"type": "number", "minimum": 0, "maximum": 5},
+          "yaw_degrees": {"type": "number", "minimum": -180, "maximum": 180},
+          "width": {"type": "number", "exclusiveMinimum": 0, "maximum": 4},
+          "depth": {"type": "number", "exclusiveMinimum": 0, "maximum": 6},
+          "height": {"type": "number", "exclusiveMinimum": 0, "maximum": 2},
+          "source": {"enum": ["preset", "custom"]}
+        }
+      }
+    }
   }
 }

@@ -7,7 +7,7 @@ import json
 import re
 from typing import Any
 
-from .custom_training import canonical_json
+from .custom_training import SCHEMA_VERSION, canonical_json
 
 MAX_INPUT_BYTES = 1024 * 1024
 MAX_MANIFEST_BYTES = 64 * 1024
@@ -179,7 +179,7 @@ class CustomRobotStorage:
         if set(report) != required:
             raise CustomStorageError("preparation report fields are invalid")
         if (
-            report["schema_version"] != 1
+            report["schema_version"] != SCHEMA_VERSION
             or report["preparation_id"] != preparation_id
             or report["status"] not in {"accepted", "failed"}
             or not isinstance(report["phases"], list)

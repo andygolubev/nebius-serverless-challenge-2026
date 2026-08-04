@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import io
 import json
+import ast
+import pathlib
 
 import pytest
 
@@ -20,16 +22,16 @@ from app.models import (
     Job,
 )
 from app.nebius_client import shell_join_args
+from app.custom_training import TRAINING_PROFILE
 from app.orchestration import (
     MockBackend,
     NebiusBackend,
     REMOTE_SUBMISSION_ERROR,
     build_backend,
     map_nebius_state,
-    parse_duration_seconds,
     sanitize_error,
 )
-from app.settings import NebiusSettings, SettingsError
+from app.settings import CustomTrainingSettings, NebiusSettings, SettingsError
 from app.store import JobStore
 
 SETTINGS = NebiusSettings(
@@ -47,9 +49,44 @@ SETTINGS = NebiusSettings(
 )
 
 
+CUSTOM = CustomTrainingSettings(
+    enabled=True,
+    runtime_image="registry.example/sb3@sha256:" + "a" * 64,
+    max_active_preparations_per_tenant=1,
+    max_active_training_jobs_per_tenant=1,
+    max_daily_starts_per_tenant=8,
+    preparation_finalize_attempts=3,
+    feature_revision="custom-robot-v1",
+)
+
+
 def _job(**overrides) -> Job:
+    """A custom-robot job: the only submission source the backend still has."""
     defaults = dict(
         id="a" * 32,
+        tenant_id="user@example.com",
+        environment="uploaded-biped",
+        algorithm="ppo-sb3",
+        resolved_config={
+            "job_kind": "custom-robot",
+            "backend": "sb3",
+            "profile": "custom-ppo-quick",
+            "runtime": {"image_digest": CUSTOM.runtime_image},
+            "training": {"version": TRAINING_PROFILE.version},
+        },
+        status=STATUS_QUEUED,
+        created_at="2026-07-11T00:00:00+00:00",
+        updated_at="2026-07-11T00:00:00+00:00",
+        job_kind="custom-robot",
+    )
+    defaults.update(overrides)
+    return Job(**defaults)
+
+
+def _catalog_job(**overrides) -> Job:
+    """A pre-change public catalog job, retained to prove it can no longer submit."""
+    defaults = dict(
+        id="b" * 32,
         tenant_id="user@example.com",
         preset="go1-mjx-quick",
         environment="go1",
@@ -57,7 +94,7 @@ def _job(**overrides) -> Job:
         resolved_config={
             "environment": "go1",
             "algorithm": "ppo-mjx",
-            "params": {"total_timesteps": 5_000_000, "learning_rate": 3e-4, "seed": 7},
+            "params": {"total_timesteps": 5_000_000, "seed": 7},
         },
         status=STATUS_QUEUED,
         created_at="2026-07-11T00:00:00+00:00",
@@ -112,6 +149,7 @@ def _backend(client=None, reader=None) -> NebiusBackend:
         client or FakeJobsClient(),
         reader or FakeArtifactReader(),
         poll_interval=0,
+        custom_settings=CUSTOM,
     )
 
 
@@ -144,42 +182,89 @@ def test_settings_reports_all_missing_vars():
 # -- submission building --
 
 
-def test_submission_derives_from_catalog_only():
+def test_submission_derives_from_the_custom_specification_only():
     sub = _backend().build_submission(_job())
-    assert sub.name == f"sim2policy-{'a' * 32}"
-    assert sub.image == SETTINGS.mjx_job_image
+    assert sub.name == f"sim2policy-custom-{'a' * 32}"
+    assert sub.image == CUSTOM.runtime_image
     assert sub.command == "python"
-    assert sub.args[:2] == ["-m", "sim2policy.hosted_mjx"]
-    assert "configs/go1_mjx.yaml" in sub.args
-    joined = " ".join(sub.args)
-    assert "training.total_steps=5000000" in joined
-    # learning_rate is not an allowed override path; it must never reach the args
-    assert "learning_rate" not in joined
-    assert "seed=7" in joined
-    assert "storage.bucket=sim2policy-artifacts" in joined
-    assert sub.platform == "gpu-h100-sxm"
-    assert sub.preset == "1gpu-16vcpu-200gb"
-    assert sub.timeout_seconds == 4 * 3600
+    assert sub.args[:3] == ["-m", "sim2policy.custom_robot_job", "train"]
+    assert sub.platform == "cpu-d3"
     assert sub.parent_id == SETTINGS.project_id
 
 
-def test_mjx_submission_uses_mjx_image_and_h100():
-    job = _job(
-        preset="go1-mjx-demo",
-        environment="go1",
-        algorithm="ppo-mjx",
-        resolved_config={
-            "environment": "go1",
-            "algorithm": "ppo-mjx",
-            "params": {"total_timesteps": 500_000, "seed": 7},
-        },
-    )
-    sub = _backend().build_submission(job)
-    assert sub.image == SETTINGS.mjx_job_image
-    assert sub.args[:2] == ["-m", "sim2policy.hosted_mjx"]
-    assert "configs/go1_mjx.yaml" in sub.args
-    assert sub.platform == "gpu-h100-sxm"
-    assert sub.preset == "1gpu-16vcpu-200gb"
+def test_no_public_catalog_submission_path_remains():
+    """A pre-change catalog job cannot be turned into a remote submission."""
+    with pytest.raises(ValueError, match="only submits custom-robot"):
+        _backend().build_submission(_catalog_job())
+
+
+def _code_strings(module) -> set[str]:
+    """String literals in real code, excluding docstrings (and never comments)."""
+    tree = ast.parse(pathlib.Path(module.__file__).read_text())
+    docstrings = {
+        node.body[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef))
+        and node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+    }
+    return {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and node not in docstrings
+    }
+
+
+def _called_names(module) -> set[str]:
+    """Every function/method name this module calls."""
+    tree = ast.parse(pathlib.Path(module.__file__).read_text())
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            target = node.func
+            if isinstance(target, ast.Attribute):
+                names.add(target.attr)
+            elif isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def test_no_public_submission_validator_is_reachable():
+    """Only the custom validator exists; no MJX/public builder survives."""
+    from app import orchestration
+
+    builders = [
+        name
+        for name in dir(orchestration.NebiusBackend)
+        if "build" in name and "submission" in name
+    ]
+    assert sorted(builders) == [
+        "_build_custom_training_submission",
+        "build_preparation_submission",
+        "build_submission",
+    ]
+
+    # The public builder's distinguishing values are gone from executable code.
+    strings = _code_strings(orchestration)
+    for removed in ("sim2policy.hosted_mjx", "gpu-h100-sxm", "1gpu-16vcpu-200gb"):
+        assert removed not in strings, f"{removed} still reachable in orchestration"
+    # And it no longer reads the public catalog at all.
+    assert "job_spec" not in _called_names(orchestration)
+
+
+def test_showcase_never_reaches_a_launch_path():
+    """No showcase call path reaches a launch, submit, or job-writing function."""
+    from app import showcase
+
+    called = _called_names(showcase)
+    for forbidden in ("launch", "build_submission", "create_job", "put", "_run"):
+        assert forbidden not in called, f"showcase calls {forbidden}"
+    # Caching a validated manifest is the one write the showcase performs; it
+    # touches no job record and no remote resource.
+    assert "set_artifacts" in called
 
 
 def test_settings_require_mjx_job_image():
@@ -205,10 +290,13 @@ def test_submission_never_contains_plaintext_secret():
     sub = _backend().build_submission(_job())
     assert sub.env == {
         "AWS_ACCESS_KEY_ID": "AKIATEST",
-        "SIM2POLICY_RUNTIME_IMAGE": SETTINGS.mjx_job_image,
+        "SIM2POLICY_S3_BUCKET": SETTINGS.s3_bucket,
+        "AWS_ENDPOINT_URL_S3": SETTINGS.s3_endpoint_url,
+        "AWS_DEFAULT_REGION": SETTINGS.s3_region,
     }
     assert sub.env_secrets == {"AWS_SECRET_ACCESS_KEY": SETTINGS.s3_secret_selector}
     assert SETTINGS.aws_secret_access_key not in " ".join(sub.args)
+    assert SETTINGS.aws_secret_access_key not in " ".join(sub.env.values())
 
 
 def test_nebius_argument_join_preserves_structured_server_owned_value():
@@ -232,25 +320,15 @@ def test_unsafe_run_id_refused():
     assert store.get(job.tenant_id, job.id).status == STATUS_FAILED
 
 
-def test_combination_without_job_spec_fails():
-    backend, store = _backend(), JobStore()
-    job = _job(
-        environment="ant",
-        algorithm="ppo-mjx",
-        resolved_config={"environment": "ant", "algorithm": "ppo-mjx", "params": {}},
-    )
+def test_catalog_job_run_fails_without_creating_a_remote_resource():
+    client = FakeJobsClient()
+    backend, store = _backend(client), JobStore()
+    job = _catalog_job()
     store.put(job)
     backend._run(job, store)
     stored = store.get(job.tenant_id, job.id)
     assert stored.status == STATUS_FAILED
-    assert "not available" in stored.error
-
-
-def test_step_cap_enforced():
-    job = _job()
-    job.resolved_config["params"]["total_timesteps"] = 999_000_000
-    with pytest.raises(ValueError, match="cap"):
-        _backend().build_submission(job)
+    assert client.submissions == []
 
 
 # -- lifecycle --
@@ -288,6 +366,7 @@ def test_remote_success_waits_for_delayed_manifest():
         reader,
         poll_interval=0,
         finalize_attempts=4,
+        custom_settings=CUSTOM,
     )
     store, job = JobStore(), _job()
     store.put(job)
@@ -305,6 +384,7 @@ def test_finalization_timeout_is_terminal_and_sanitized():
         FakeArtifactReader(None),
         poll_interval=0,
         finalize_attempts=2,
+        custom_settings=CUSTOM,
     )
     store, job = JobStore(), _job()
     store.put(job)
@@ -371,18 +451,6 @@ def test_create_failure_is_sanitized():
 )
 def test_map_nebius_state(raw, expected):
     assert map_nebius_state(raw) == expected
-
-
-@pytest.mark.parametrize(
-    ("raw", "seconds"), [("1h", 3600), ("2h30m", 9000), ("45m", 2700), ("90s", 90)]
-)
-def test_parse_duration(raw, seconds):
-    assert parse_duration_seconds(raw) == seconds
-
-
-def test_parse_duration_rejects_garbage():
-    with pytest.raises(ValueError):
-        parse_duration_seconds("soon")
 
 
 def test_sanitize_error_truncates_and_redacts():

@@ -83,6 +83,48 @@ def render_sb3(
     return output
 
 
+# Playground scenes name their follow camera inconsistently; prefer the most
+# specific match before falling back to whichever tracking camera comes first.
+_CAMERA_NAME_PREFERENCE = ("track", "follow", "chase", "side")
+
+
+def tracking_camera(environment: Any) -> str | None:
+    """Return the model camera that follows the robot, if the scene defines one.
+
+    Playground renders from the free camera by default, which holds the pose the
+    scene starts in. A locomotion policy walks straight out of that frame within a
+    couple of seconds, so the rollout video ends on an empty floor. Locomotion
+    scenes ship a body-tracking camera for exactly this reason; use it when present.
+    """
+    model = getattr(environment, "mj_model", None)
+    if model is None:
+        return None
+    try:
+        mujoco = importlib.import_module("mujoco")
+    except ImportError:
+        return None
+    tracking_modes = {
+        int(mujoco.mjtCamLight.mjCAMLIGHT_TRACK),
+        int(mujoco.mjtCamLight.mjCAMLIGHT_TRACKCOM),
+        int(mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODY),
+        int(mujoco.mjtCamLight.mjCAMLIGHT_TARGETBODYCOM),
+    }
+    names: list[str] = []
+    for index in range(int(model.ncam)):
+        if int(model.cam_mode[index]) not in tracking_modes:
+            continue
+        name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_CAMERA, index)
+        if name:
+            names.append(str(name))
+    if not names:
+        return None
+    for preferred in _CAMERA_NAME_PREFERENCE:
+        for name in names:
+            if preferred in name.lower():
+                return name
+    return names[0]
+
+
 def render_mjx(
     checkpoint: Path | None, config: RunConfig, output: Path, random_policy: bool = False
 ) -> Path:
@@ -128,11 +170,14 @@ def render_mjx(
                     target_velocity=config.success.target_velocity,
                     horizon=config.rendering.frames,
                 )
-        frames = environment.render(
-            trajectory,
-            height=config.rendering.height,
-            width=config.rendering.width,
-        )
+        render_kwargs: dict[str, Any] = {
+            "height": config.rendering.height,
+            "width": config.rendering.width,
+        }
+        camera = config.rendering.camera or tracking_camera(environment)
+        if camera is not None:
+            render_kwargs["camera"] = camera
+        frames = environment.render(trajectory, **render_kwargs)
     output.parent.mkdir(parents=True, exist_ok=True)
     imageio.mimsave(output, frames, fps=config.rendering.fps)
     if not output.is_file() or output.stat().st_size == 0:
@@ -145,6 +190,10 @@ def render_with_fallback(args: list[str]) -> str:
     for backend in ("egl", "osmesa"):
         env = os.environ.copy()
         env["MUJOCO_GL"] = backend
+        # The worker is a render command, whatever spawned it. Without this it
+        # inherits the parent's class (`finalization`) and its own location guard
+        # rejects it, which reads as a rendering failure rather than a mislabel.
+        env["SIM2POLICY_COMMAND_CLASS"] = "render"
         process = subprocess.run(
             [sys.executable, "-m", "sim2policy.render", "--worker", *args],
             env=env,
@@ -157,18 +206,28 @@ def render_with_fallback(args: list[str]) -> str:
     raise RuntimeError("headless rendering failed: " + "; ".join(errors))
 
 
-def montage_command(videos: list[Path], output: Path) -> list[str]:
+def montage_command(
+    videos: list[Path], output: Path, labels: list[str] | None = None
+) -> list[str]:
+    if len(videos) < 2:
+        raise ValueError("a progression montage requires at least two videos")
+    labels = labels or ["initial", "25pct", "final"]
+    if len(labels) != len(videos):
+        raise ValueError("each progression video needs one provenance label")
     inputs = [part for video in videos for part in ("-i", str(video))]
-    labels = ["initial", "25pct", "final"]
     filters = ";".join(
         f"[{i}:v]drawtext=text='{label}':x=20:y=20:fontsize=28:fontcolor=white[v{i}]"
         for i, label in enumerate(labels)
     )
-    filters += ";[v0][v1][v2]hstack=inputs=3[out]"
+    stacked = "".join(f"[v{i}]" for i in range(len(videos)))
+    filters += f";{stacked}hstack=inputs={len(videos)}[out]"
     return ["ffmpeg", "-y", *inputs, "-filter_complex", filters, "-map", "[out]", str(output)]
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("render")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", type=Path)

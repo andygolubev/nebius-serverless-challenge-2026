@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-67e0823f-6217-4be6-a098-1256d73d0ee1/styles.css">
+<script src="_ds/modernist-67e0823f-6217-4be6-a098-1256d73d0ee1/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap">
+<style>
+  body { margin: 0; background: #ffffff; color: #14232b; font-family: var(--font-body); }
+  a { color: #0d8f83; text-decoration: none; }
+  a:hover { color: #1f8ff5; text-decoration: underline; }
+  .v2-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font-family: var(--font-body); font-size: 14px; font-weight: 700; border: 0; cursor: pointer; color: #ffffff; background: linear-gradient(100deg, #1f8ff5 0%, #17b9a8 55%, #35c95f 100%); }
+  .v2-btn:hover { filter: saturate(1.15) brightness(1.04); }
+  .v2-btn:active { filter: brightness(0.94); }
+  .v2-btn-quiet { background: #ffffff; color: #0d6f78; border: 2px solid rgba(16,74,82,0.22); }
+  .v2-btn-quiet:hover { background: #f2fbf9; filter: none; }
+  .v2-btn-invert { background: #ffffff; color: #0a6f66; }
+  .v2-tag { white-space: nowrap; display: inline-flex; align-items: center; padding: 4px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #0a6f66; background: linear-gradient(100deg, #e6f4ff 0%, #e4fbef 100%); border: 1px solid rgba(16,74,82,0.14); }
+  .v2-detail { border-top: 2px solid rgba(16,74,82,0.16); }
+  .v2-detail summary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 18px 0; cursor: pointer; list-style: none; }
+  .v2-detail summary::-webkit-details-marker { display: none; }
+  .v2-detail summary strong { font-family: var(--font-heading); font-weight: 800; font-size: 18px; letter-spacing: -0.01em; }
+  .v2-detail summary span { font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6b868d; }
+  .v2-detail summary::after { content: "+"; font-weight: 800; color: #0d8f83; }
+  .v2-detail[open] summary::after { content: "–"; }
+  .v2-kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 40px; margin: 0 0 24px; }
+  .v2-kv > div { display: flex; justify-content: space-between; gap: 16px; padding: 9px 0; border-bottom: 1px solid rgba(16,74,82,0.12); }
+  .v2-kv dt { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6b868d; }
+  .v2-kv dd { margin: 0; font-size: 13px; font-weight: 700; text-align: right; overflow-wrap: anywhere; }
+  :focus-visible { outline: 2px solid #17b9a8; outline-offset: 2px; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #ffffff; color: #14232b; font-family: var(--font-body); font-size: 16px; line-height: 1.5;">
+
+  <header data-screen-label="Top bar" style="display: flex; align-items: center; gap: 32px; padding: 18px 40px; border-bottom: 2px solid rgba(16,74,82,0.16); background: #ffffff; position: sticky; top: 0; z-index: 10;">
+    <div style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-weight: 800; font-size: 19px; letter-spacing: -0.02em;">
+      <span style="width: 12px; height: 12px; background: linear-gradient(135deg, #1f8ff5 0%, #35c95f 100%); display: block;"></span>
+      Sim2Policy
+    </div>
+    <nav aria-label="Main" style="display: flex; gap: 4px; align-items: stretch;">
+      <a href="#run" style="padding: 8px 12px; font-size: 13px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: #14232b; border-bottom: 3px solid #17b9a8; text-decoration: none;">Verified runs</a>
+    </nav>
+    <span style="flex: 1;"></span>
+    <button type="button" class="v2-btn" style="font-size: 13px;">Sign in</button>
+  </header>
+
+  <section data-screen-label="Run header" style="background: linear-gradient(103deg, #e9f4ff 0%, #eefaf5 46%, #f4fdf7 68%, #ffffff 100%);">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 28px 40px 48px;">
+      <a href="#run" style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0d8f83;">← Back to verified runs</a>
+      <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 32px; margin-top: 28px;">
+        <div style="display: flex; align-items: flex-start; gap: 20px; min-width: 0;">
+          <img src="assets/avatars/g1-rough-terrain.svg" alt="" style="width: 80px; height: 80px; filter: grayscale(1) contrast(1.05) sepia(0.35) hue-rotate(120deg) saturate(2.2) brightness(1.02);">
+          <div style="min-width: 0;">
+            <p style="margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0d8f83;">Verified example · Recorded run</p>
+            <h1 id="run" style="margin: 0 0 12px; font-family: var(--font-heading); font-weight: 800; font-size: 52px; line-height: 1.0; letter-spacing: -0.03em;">G1 Rough Terrain</h1>
+            <p style="margin: 0; font-size: 19px; color: #46626b; max-width: 52ch; text-wrap: pretty;">Traverse rough ground — train a complex humanoid locomotion policy on uneven terrain.</p>
+          </div>
+        </div>
+        <span class="v2-tag">Met task threshold</span>
+      </div>
+      <dl style="display: flex; flex-wrap: wrap; gap: 0; margin: 36px 0 0; border-top: 2px solid rgba(16,74,82,0.16);">
+        <div style="flex: 1 1 200px; padding: 16px 24px 0 0;">
+          <dt style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Backend</dt>
+          <dd style="margin: 4px 0 0; font-family: var(--font-heading); font-weight: 800; font-size: 17px;">MJX / JAX PPO</dd>
+        </div>
+        <div style="flex: 1 1 200px; padding: 16px 24px 0;">
+          <dt style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Hardware</dt>
+          <dd style="margin: 4px 0 0; font-family: var(--font-heading); font-weight: 800; font-size: 17px;">NVIDIA L40S</dd>
+        </div>
+        <div style="flex: 1 1 200px; padding: 16px 24px 0;">
+          <dt style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Timesteps</dt>
+          <dd style="margin: 4px 0 0; font-family: var(--font-heading); font-weight: 800; font-size: 17px;">25,000,000</dd>
+        </div>
+        <div style="flex: 1 1 200px; padding: 16px 24px 0;">
+          <dt style="font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Revision</dt>
+          <dd style="margin: 4px 0 0; font-family: var(--font-heading); font-weight: 800; font-size: 17px;">gallery-v1-2026-07-14</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+
+  <div style="max-width: 1440px; margin: 0 auto; padding: 0 40px 96px;">
+
+    <div role="note" style="display: flex; gap: 14px; align-items: baseline; padding: 16px 20px; margin: 32px 0 0; background: linear-gradient(100deg, #e6f4ff 0%, #e4fbef 100%); border: 1px solid rgba(16,74,82,0.14); font-size: 14px; color: #14232b;">
+      <strong style="font-weight: 800;">Simulator-only policy.</strong>
+      <span style="color: #46626b;">This bundle matches the recorded simulator and runtime. It is not directly deployable to physical hardware.</span>
+    </div>
+
+    <section data-screen-label="Result" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 48px; margin-top: 40px; align-items: start;">
+
+      <div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 2px solid rgba(16,74,82,0.16);">
+          <div>
+            <p style="margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0d8f83;">Recorded run</p>
+            <h2 style="margin: 0; font-family: var(--font-heading); font-weight: 800; font-size: 26px; letter-spacing: -0.02em;">Training result</h2>
+          </div>
+          <span class="v2-tag">Artifacts ready</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 1px solid rgba(16,74,82,0.12); margin-top: 24px;">
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12); background: linear-gradient(160deg, #f3fbff 0%, #f1fbf4 100%); grid-column: span 2;">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Mean reward</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 40px; line-height: 1; letter-spacing: -0.03em; color: #0a6f66;">1,842.6</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Success</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px;">100%</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Runtime</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px;">28m 41s</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Estimated cost</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px;">$1.02</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">GPU utilization</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px;">91%</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Environment</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px;">g1</strong>
+          </div>
+          <div style="padding: 18px 20px; border-right: 1px solid rgba(16,74,82,0.12); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Final checkpoint</span>
+            <strong style="display: block; margin-top: 6px; font-family: var(--font-heading); font-weight: 800; font-size: 16px; overflow-wrap: anywhere;">g1_mjx_25M_final.zip</strong>
+          </div>
+        </div>
+
+        <dl class="v2-kv" style="margin-top: 28px; grid-template-columns: minmax(0, 1fr);">
+          <div><dt>Success criterion</dt><dd>velocity ≥ 0.4 m/s without falling</dd></div>
+          <div><dt>Primary metric</dt><dd>Forward velocity · 0.63 m/s</dd></div>
+          <div><dt>Observed duration</dt><dd>28 min 41 s</dd></div>
+          <div><dt>Observed cost</dt><dd>$1.02</dd></div>
+        </dl>
+
+        <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 22px 24px; background: linear-gradient(140deg, #1f8ff5 0%, #17b9a8 52%, #35c95f 100%); color: #ffffff;">
+          <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0;">
+            <strong style="font-family: var(--font-heading); font-weight: 800; font-size: 20px; letter-spacing: -0.02em;">Policy bundle ready</strong>
+            <span style="font-size: 14px;">Checkpoint, resolved configuration, evaluation, versions and checksums. 48.2 MiB.</span>
+          </div>
+          <button type="button" class="v2-btn v2-btn-invert">Download policy bundle</button>
+        </div>
+      </div>
+
+      <div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 16px; border-bottom: 2px solid rgba(16,74,82,0.16);">
+          <div>
+            <p style="margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0d8f83;">Policy rollout</p>
+            <h2 style="margin: 0; font-family: var(--font-heading); font-weight: 800; font-size: 26px; letter-spacing: -0.02em;">final_rollout.mp4</h2>
+          </div>
+          <span style="font-size: 12px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: #6b868d;">12.4 MiB</span>
+        </div>
+
+        <div style="position: relative; margin-top: 24px; aspect-ratio: 16 / 9; background: linear-gradient(150deg, #14232b 0%, #0d3b45 55%, #0a5a52 100%); display: flex; align-items: center; justify-content: center;">
+          <span style="display: flex; align-items: center; justify-content: center; width: 68px; height: 68px; background: rgba(255,255,255,0.92); color: #0a6f66; font-size: 22px; padding-left: 4px;">▶</span>
+          <span style="position: absolute; left: 16px; bottom: 14px; font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.72);">The &lt;video&gt; element renders here</span>
+        </div>
+
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px;">
+          <button type="button" class="v2-btn v2-btn-quiet">Play</button>
+          <button type="button" class="v2-btn v2-btn-quiet">Open media</button>
+          <button type="button" class="v2-btn v2-btn-quiet">Download</button>
+        </div>
+
+        <div role="radiogroup" aria-label="Select rollout media" style="display: flex; flex-wrap: wrap; gap: 0; margin-top: 20px; border: 1px solid rgba(16,74,82,0.16);">
+          <button type="button" role="radio" aria-checked="true" style="flex: 1 1 200px; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-right: 1px solid rgba(16,74,82,0.16); background: linear-gradient(100deg, #e6f4ff 0%, #e4fbef 100%); color: #0a6f66; font-family: var(--font-body); font-size: 13px; font-weight: 700; cursor: pointer;">▶ final_rollout.mp4</button>
+          <button type="button" role="radio" aria-checked="false" style="flex: 1 1 200px; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; border-right: 1px solid rgba(16,74,82,0.16); background: #ffffff; color: #557179; font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer;" style-hover="background: #f2fbf9;">▶ midtraining_rollout.mp4</button>
+          <button type="button" role="radio" aria-checked="false" style="flex: 1 1 200px; display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 0; background: #ffffff; color: #557179; font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer;" style-hover="background: #f2fbf9;">▶ first_steps.mp4</button>
+        </div>
+      </div>
+    </section>
+
+    <section data-screen-label="Details" style="margin-top: 64px;">
+      <details class="v2-detail" open>
+        <summary><strong>Evaluation</strong><span>9 measurements</span></summary>
+        <dl class="v2-kv">
+          <div><dt>Mean reward</dt><dd>1,842.6</dd></div>
+          <div><dt>Std reward</dt><dd>118.4</dd></div>
+          <div><dt>Mean episode length</dt><dd>998</dd></div>
+          <div><dt>Success rate</dt><dd>100%</dd></div>
+          <div><dt>Mean velocity</dt><dd>0.63</dd></div>
+          <div><dt>Falls</dt><dd>0</dd></div>
+          <div><dt>Episodes evaluated</dt><dd>5</dd></div>
+          <div><dt>Command tracking error</dt><dd>0.08</dd></div>
+          <div><dt>Evaluation runtime</dt><dd>41.2s</dd></div>
+        </dl>
+      </details>
+
+      <details class="v2-detail">
+        <summary><strong>Episodes</strong><span>5 evaluated</span></summary>
+        <div style="border: 1px solid rgba(16,74,82,0.16); border-bottom: 0;">
+          <div aria-hidden="true" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); background: linear-gradient(100deg, #f3fbff 0%, #f1fbf4 100%); border-bottom: 1px solid rgba(16,74,82,0.16);">
+            <span style="padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Episode</span>
+            <span style="padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Reward</span>
+            <span style="padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Length</span>
+            <span style="padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Outcome</span>
+            <span style="padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #6b868d;">Mean velocity</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,904.2</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,000</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0a6f66;">Completed</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0.66</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,781.5</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,000</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0a6f66;">Completed</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0.61</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">2</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,866.0</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,000</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0a6f66;">Completed</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0.64</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">3</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,712.8</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">992</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0a6f66;">Completed</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0.60</span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">4</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,948.5</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">1,000</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700; color: #0a6f66;">Completed</span><span style="padding: 12px 16px; font-size: 13px; font-weight: 700;">0.67</span>
+          </div>
+        </div>
+      </details>
+
+      <details class="v2-detail">
+        <summary><strong>Compute</strong><span>11 properties</span></summary>
+        <dl class="v2-kv">
+          <div><dt>Backend</dt><dd>mjx</dd></div>
+          <div><dt>GPU available</dt><dd>Yes</dd></div>
+          <div><dt>GPU name</dt><dd>NVIDIA L40S</dd></div>
+          <div><dt>GPU utilization</dt><dd>91%</dd></div>
+          <div><dt>Requested device</dt><dd>gpu</dd></div>
+          <div><dt>Platform</dt><dd>gpu-l40s-a</dd></div>
+          <div><dt>Benchmark · hourly rate</dt><dd>$1.55</dd></div>
+          <div><dt>Benchmark · estimated cost</dt><dd>$1.02</dd></div>
+          <div><dt>Benchmark · currency</dt><dd>USD</dd></div>
+          <div><dt>Device · preset</dt><dd>1gpu-8vcpu-32gb</dd></div>
+          <div><dt>Device · disk</dt><dd>100 GiB</dd></div>
+        </dl>
+      </details>
+
+      <details class="v2-detail">
+        <summary><strong>Run</strong><span>4 identifiers</span></summary>
+        <dl class="v2-kv">
+          <div><dt>Environment</dt><dd>g1</dd></div>
+          <div><dt>Final checkpoint</dt><dd>g1_mjx_25M_final.zip</dd></div>
+          <div><dt>Run ID</dt><dd>showcase-gallery-g1-20260802-19-g1-s0</dd></div>
+          <div><dt>Runtime</dt><dd>28m 41s</dd></div>
+        </dl>
+      </details>
+
+      <details class="v2-detail">
+        <summary><strong>Result files</strong><span>4 downloadable</span></summary>
+        <ul style="list-style: none; margin: 0 0 24px; padding: 0; border-top: 1px solid rgba(16,74,82,0.12);">
+          <li style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: flex; flex-direction: column; gap: 2px;"><strong style="font-size: 14px; font-weight: 700;">metrics.json</strong><small style="font-size: 12px; color: #6b868d;">18.4 KiB</small></span>
+            <span style="display: flex; gap: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;"><a href="#run">Open</a><a href="#run">Download</a></span>
+          </li>
+          <li style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: flex; flex-direction: column; gap: 2px;"><strong style="font-size: 14px; font-weight: 700;">resolved_config.yaml</strong><small style="font-size: 12px; color: #6b868d;">3.1 KiB</small></span>
+            <span style="display: flex; gap: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;"><a href="#run">Open</a><a href="#run">Download</a></span>
+          </li>
+          <li style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: flex; flex-direction: column; gap: 2px;"><strong style="font-size: 14px; font-weight: 700;">versions.json</strong><small style="font-size: 12px; color: #6b868d;">1.2 KiB</small></span>
+            <span style="display: flex; gap: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;"><a href="#run">Open</a><a href="#run">Download</a></span>
+          </li>
+          <li style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid rgba(16,74,82,0.12);">
+            <span style="display: flex; flex-direction: column; gap: 2px;"><strong style="font-size: 14px; font-weight: 700;">checksums.txt</strong><small style="font-size: 12px; color: #6b868d;">0.6 KiB</small></span>
+            <span style="display: flex; gap: 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;"><a href="#run">Open</a><a href="#run">Download</a></span>
+          </li>
+        </ul>
+      </details>
+
+      <details class="v2-detail">
+        <summary><strong>Configuration</strong><span>gpu-l40s-a</span></summary>
+        <dl class="v2-kv">
+          <div><dt>Environment</dt><dd>G1</dd></div>
+          <div><dt>Algorithm</dt><dd>PPO (MJX / JAX)</dd></div>
+          <div><dt>Timesteps</dt><dd>25,000,000</dd></div>
+          <div><dt>Platform</dt><dd>gpu-l40s-a</dd></div>
+          <div><dt>Compute preset</dt><dd>1gpu-8vcpu-32gb</dd></div>
+          <div><dt>Seed</dt><dd>0</dd></div>
+        </dl>
+      </details>
+
+      <details class="v2-detail" style="border-bottom: 2px solid rgba(16,74,82,0.16);">
+        <summary><strong>Raw diagnostics</strong><span>Structured JSON for debugging</span></summary>
+        <pre style="margin: 0 0 24px; padding: 20px; background: #f6fbfa; border: 1px solid rgba(16,74,82,0.12); font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; line-height: 1.6; color: #46626b; overflow-x: auto;">{
+  "environment": "g1",
+  "backend": "mjx",
+  "aggregate": {
+    "mean_reward": 1842.6,
+    "success_rate": 1.0,
+    "mean_velocity": 0.63
+  },
+  "runtime_seconds": 1721.4,
+  "benchmark": { "estimated_cost": 1.0215, "currency": "USD" }
+}</pre>
+      </details>
+    </section>
+
+    <aside style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; margin-top: 56px; padding: 32px; background: linear-gradient(140deg, #1f8ff5 0%, #17b9a8 52%, #35c95f 100%); color: #ffffff;">
+      <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+        <strong style="font-family: var(--font-heading); font-weight: 800; font-size: 26px; letter-spacing: -0.02em;">Want a policy for your own robot?</strong>
+        <span style="font-size: 15px;">Free of charge — no credit card. Just your email, and you get a personal space to train in.</span>
+      </div>
+      <button type="button" class="v2-btn v2-btn-invert">Sign in to train your own →</button>
+    </aside>
+  </div>
+
+  <footer style="border-top: 2px solid rgba(16,74,82,0.16); background: #ffffff;">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 24px 40px 40px; display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: baseline;">
+      <span style="font-family: var(--font-heading); font-weight: 800; font-size: 15px;">Sim2Policy</span>
+      <nav aria-label="Footer" style="display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline;">
+        <a href="#about" style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0d8f83;">About me</a>
+        <a href="#terms" style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0d8f83;">Terms of use</a>
+      </nav>
+      <span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #557179;">Nebius Serverless Challenge 2026</span>
+    </div>
+  </footer>
+
+</div>
+
+</x-dc>
+</body>
+</html>

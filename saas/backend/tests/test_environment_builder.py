@@ -236,18 +236,14 @@ def test_custom_robots_and_setups_never_enter_training_catalog_or_jobs(client, l
         headers=headers,
     ).json()
     options = client.get("/training-options").json()
-    assert {environment["id"] for environment in options["environments"]} == {"go1"}
+    # The showcase publishes evidence only; it names no custom asset and no
+    # submittable environment.
+    assert "environments" not in options
     assert robot["id"] not in str(options)
     assert setup["id"] not in str(options)
-    assert (
-        client.post(
-            "/jobs", json={"robot_id": robot["id"]}, headers=headers
-        ).status_code
-        == 422
-    )
-    assert (
-        client.post(
-            "/jobs", json={"setup_id": setup["id"]}, headers=headers
-        ).status_code
-        == 422
-    )
+    # And `POST /jobs` refuses every payload, custom identifiers included: 410 from
+    # the handler, or 422 when the schema rejects an undeclared field even earlier.
+    before = len(client.get("/jobs", headers=headers).json())
+    for payload in ({"robot_id": robot["id"]}, {"setup_id": setup["id"]}):
+        assert client.post("/jobs", json=payload, headers=headers).status_code in {410, 422}
+    assert len(client.get("/jobs", headers=headers).json()) == before

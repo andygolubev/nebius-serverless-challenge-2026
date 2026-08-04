@@ -13,6 +13,7 @@ from app.custom_training import (
     ADAPTER_VERSION,
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
+    SCHEMA_VERSION,
     TRAINING_PROFILE_VERSION,
     canonical_json,
 )
@@ -156,7 +157,7 @@ def test_custom_submissions_are_fixed_typed_cpu_jobs() -> None:
     assert training.image == preparation.image == CUSTOM.runtime_image
     assert (training.platform, training.preset, training.disk_gib) == (
         "cpu-d3",
-        "8vcpu-32gb",
+        "16vcpu-64gb",
         100,
     )
     assert (preparation.platform, preparation.preset, preparation.disk_gib) == (
@@ -223,7 +224,7 @@ def test_preparation_report_requires_content_hash() -> None:
     client = S3()
     storage = CustomRobotStorage(client, "artifacts")
     report = {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "preparation_id": "prepare-one",
         "fingerprint": "f" * 64,
         "status": "accepted",

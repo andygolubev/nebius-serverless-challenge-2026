@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">Walker2D biped</title>
+  <rect width="96" height="96" rx="22" fill="#dbeafe"></rect>
+  <rect x="31" y="18" width="34" height="28" rx="9" fill="#2563eb"></rect>
+  <circle cx="42" cy="31" r="3" fill="#fff"></circle><circle cx="54" cy="31" r="3" fill="#fff"></circle>
+  <path d="M48 46v17M46 60L28 77M50 61l20 15" fill="none" stroke="#1e3a8a" stroke-width="8" stroke-linecap="round"></path>
+  <path d="M18 78h20M61 78h21M34 49L20 62M62 49l14 10" stroke="#2563eb" stroke-width="6" stroke-linecap="round"></path>
+</svg>

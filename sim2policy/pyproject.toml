@@ -60,6 +60,7 @@ sim2policy-render = "sim2policy.render:main"
 sim2policy-report = "sim2policy.report_cli:main"
 sim2policy-custom-robot = "sim2policy.custom_robot_job:main"
 sim2policy-api = "sim2policy.api.app:main"
+sim2policy-showcase-campaign = "sim2policy.showcase_campaign:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sim2policy"]
@@ -89,3 +90,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 python_version = "3.12"
 strict = true
 packages = ["sim2policy"]
+
+# MuJoCo Playground ships ``learning`` only with the optional mjx extra, so the
+# module is untyped when that extra is installed and absent when it is not.
+[[tool.mypy.overrides]]
+module = ["learning.*", "learning"]
+ignore_missing_imports = true

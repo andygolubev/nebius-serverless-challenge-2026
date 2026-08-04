@@ -15,6 +15,7 @@ from gymnasium import spaces
 
 from sim2policy.custom_robot_contract import (
     ADAPTER_VERSION,
+    MAX_OBJECTS,
     OBSERVATION_BASE_FIELDS,
     REWARD_VERSION,
     SCENE_CONTRACTS,
@@ -145,8 +146,9 @@ def compose_server_mjcf(robot_xml: str, setup: dict[str, Any]) -> str:
     scene_id = str(setup.get("scene_preset_id", ""))
     if scene_id not in SCENE_CONTRACTS:
         raise CustomRobotCompatibilityError("scene-unsupported")
-    if setup.get("objects") != []:
-        raise CustomRobotCompatibilityError("optional-objects-not-supported")
+    objects = setup.get("objects")
+    if not isinstance(objects, list) or len(objects) > MAX_OBJECTS:
+        raise CustomRobotCompatibilityError("scene-objects-invalid")
 
     worldbody = _find_single(uploaded, "worldbody")
     actuator = _find_single(uploaded, "actuator")
@@ -215,20 +217,33 @@ def compose_server_mjcf(robot_xml: str, setup: dict[str, Any]) -> str:
             "rgba": "0.82 0.84 0.88 1",
         },
     )
-    if scene_id == "ramp-course":
-        ramp = SCENE_CONTRACTS[scene_id]["ramp"]
-        assert isinstance(ramp, dict)
-        pos = " ".join(str(number) for number in ramp["position"])
-        size = " ".join(str(number) for number in ramp["half_size"])
+    for index, item in enumerate(objects):
+        if not isinstance(item, dict):
+            raise CustomRobotCompatibilityError("scene-object-invalid")
+        object_type = str(item.get("object_type", ""))
+        try:
+            x, y, z = (float(item[name]) for name in ("x", "y", "z"))
+            yaw = math.radians(float(item["yaw_degrees"]))
+            width, depth, height = (
+                float(item[name]) for name in ("width", "depth", "height")
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise CustomRobotCompatibilityError("scene-object-invalid") from exc
+        pitch = -math.atan2(height, depth) if object_type == "ramp" else 0.0
+        half_x = math.hypot(depth, height) / 2.0 if object_type == "ramp" else depth / 2.0
+        half_z = 0.05 if object_type == "ramp" else height / 2.0
+        cy, sy = math.cos(yaw / 2.0), math.sin(yaw / 2.0)
+        cp, sp = math.cos(pitch / 2.0), math.sin(pitch / 2.0)
+        quaternion = (cy * cp, -sy * sp, cy * sp, sy * cp)
         ET.SubElement(
             server_world,
             "geom",
             {
-                "name": "server_ramp",
+                "name": f"server_object_{index}_{object_type}",
                 "type": "box",
-                "pos": pos,
-                "size": size,
-                "euler": f"0 {ramp['pitch_degrees']} 0",
+                "pos": f"{x} {y} {z + height / 2.0}",
+                "size": f"{half_x} {width / 2.0} {half_z}",
+                "quat": " ".join(str(value) for value in quaternion),
                 "friction": "1.0 0.1 0.05",
                 "rgba": "0.35 0.38 0.46 1",
             },
@@ -257,7 +272,7 @@ def compile_model(robot_xml: str, setup: dict[str, Any]) -> tuple[mujoco.MjModel
         or model.nu < 1
         or model.nbody - 1 > MAX_BODIES
         or model.njnt > MAX_JOINTS
-        or model.ngeom > MAX_GEOMS + 2
+        or model.ngeom > MAX_GEOMS + 1 + MAX_OBJECTS
     ):
         raise CustomRobotCompatibilityError("compiled-dimensions-out-of-bounds")
     arrays = (
@@ -365,6 +380,9 @@ class CustomRobotEnv(
         self.initial_height = float(self.initial_qpos[self.root_qpos_adr + 2])
         if not 0.1 <= self.initial_height <= 5.0:
             raise CustomRobotCompatibilityError("initial-root-height-out-of-bounds")
+        # Replaced with the settled height on every reset (see ``reset``); the spawn
+        # height is only the fallback for tasks that reset into a non-standing pose.
+        self.reference_height = self.initial_height
         self.previous_action = np.zeros(self.model.nu, dtype=np.float32)
         self.steps = 0
         self.initial_x = float(self.initial_qpos[self.root_qpos_adr])
@@ -421,10 +439,14 @@ class CustomRobotEnv(
         positions = self.data.qpos[self.joint_qpos_adrs]
         normalized_positions = np.clip(2.0 * (positions - low) / (high - low) - 1.0, -1.0, 1.0)
         normalized_velocities = np.clip(self.data.qvel[self.joint_dof_adrs], -10.0, 10.0) / 10.0
-        target = 0.0 if self.task_id == "stand-balance" else float(self.contract["target_velocity"])
+        target = (
+            float(self.contract["target_velocity"])
+            if self.task_id == "walk-forward"
+            else 0.0
+        )
         observation = np.concatenate(
             [
-                np.asarray([height / self.initial_height], dtype=float),
+                np.asarray([height / self.reference_height], dtype=float),
                 gravity,
                 np.clip(velocities, -5.0, 5.0) / 5.0,
                 normalized_positions,
@@ -463,11 +485,39 @@ class CustomRobotEnv(
         self.data.qvel[self.joint_dof_adrs] = self.np_random.uniform(
             -0.02, 0.02, size=len(self.joint_dof_adrs)
         )
+        if self.task_id == "recover-from-fall":
+            low, high = self.contract["reset_roll_radians"]
+            roll = float(self.np_random.uniform(float(low), float(high)))
+            if float(self.np_random.uniform()) < 0.5:
+                roll = -roll
+            self.data.qpos[self.root_qpos_adr + 2] = max(
+                0.12,
+                self.initial_height * float(self.contract["reset_height_scale"]),
+            )
+            self.data.qpos[self.root_qpos_adr + 3 : self.root_qpos_adr + 7] = (
+                math.cos(roll / 2.0), math.sin(roll / 2.0), 0.0, 0.0
+            )
         self.previous_action[:] = 0
         self.steps = 0
+        mujoco.mj_forward(self.model, self.data)
+        # Let the model settle onto the floor under zero control before the episode
+        # starts.  ``initial_height`` is the height the author wrote into the MJCF, not
+        # the height the robot actually rests at; deriving the fall threshold from the
+        # spawn height terminated episodes during the drop, before the policy acted.
+        # ``recover-from-fall`` sets settle_steps to 0: it resets into a deliberately
+        # fallen pose, so its height references must stay the upright spawn height.
+        settle_steps = int(self.contract.get("settle_steps", 0))
+        if settle_steps > 0:
+            self.data.ctrl[:] = 0
+            for _ in range(settle_steps * FRAME_SKIP):
+                mujoco.mj_step(self.model, self.data)
+            self.data.qvel[:] = 0
+            mujoco.mj_forward(self.model, self.data)
+            self.reference_height = float(self.data.qpos[self.root_qpos_adr + 2])
+        else:
+            self.reference_height = self.initial_height
         self.initial_x = float(self.data.qpos[self.root_qpos_adr])
         self.initial_y = float(self.data.qpos[self.root_qpos_adr + 1])
-        mujoco.mj_forward(self.model, self.data)
         return self._observation(), {"reset_seed": seed}
 
     def step(
@@ -475,6 +525,10 @@ class CustomRobotEnv(
     ) -> tuple[np.ndarray[Any, np.dtype[np.float32]], float, bool, bool, dict[str, Any]]:
         controls = self._map_action(action)
         self.data.ctrl[:] = controls
+        # Sampled before the substeps as well: contact with the floor can absorb an
+        # exploding velocity within the frame skip and hide the divergence that the
+        # runaway guard exists to catch.
+        entry_qvel = float(np.max(np.abs(self.data.qvel)))
         for _ in range(FRAME_SKIP):
             mujoco.mj_step(self.model, self.data)
         self.steps += 1
@@ -486,25 +540,31 @@ class CustomRobotEnv(
             for value in (self.data.qpos, self.data.qvel, self.data.ctrl)
         )
         runaway = bool(
-            np.max(np.abs(self.data.qvel)) > MAX_ABS_QVEL
+            max(entry_qvel, float(np.max(np.abs(self.data.qvel)))) > MAX_ABS_QVEL
             or abs(float(self.data.qpos[self.root_qpos_adr]) - self.initial_x) > MAX_ROOT_DISTANCE
             or abs(float(self.data.qpos[self.root_qpos_adr + 1]) - self.initial_y)
             > MAX_ROOT_DISTANCE
         )
-        fall_height = self.initial_height * float(self.contract["fall_height_scale"])
+        fall_height = self.reference_height * float(self.contract["fall_height_scale"])
         fallen = height < fall_height or upright < float(self.contract["minimum_upright"])
-        terminated = (not finite) or runaway or fallen
+        fall_terminates = fallen and self.task_id != "recover-from-fall"
+        terminated = (not finite) or runaway or fall_terminates
         truncated = self.steps >= int(self.contract["episode_steps"])
-        target_height = self.initial_height * float(self.contract["target_height_scale"])
+        target_height = self.reference_height * float(self.contract["target_height_scale"])
         height_score = math.exp(
             -(((height - target_height) / max(target_height * 0.25, 0.05)) ** 2)
         )
         action_cost = float(np.mean(np.square(np.asarray(action, dtype=float))))
         energy = float(np.mean(np.abs(controls * self.data.qvel[self.joint_dof_adrs])))
         terms: dict[str, float]
-        if self.task_id == "stand-balance":
+        # Paid for every step the robot has not terminated.  Without it the only signal
+        # against falling is the -1.0 terminal penalty, which a step of forward motion
+        # already outweighs, so early failure costs the policy almost nothing.
+        alive = 0.0 if terminated else 1.0
+        if self.task_id in {"stand-balance", "recover-from-fall"}:
             root_motion = float(np.linalg.norm(linear) + 0.25 * np.linalg.norm(angular))
             terms = {
+                "alive": alive,
                 "upright": max(upright, -1.0),
                 "height": height_score,
                 "root_motion": root_motion,
@@ -512,8 +572,17 @@ class CustomRobotEnv(
                 "energy": energy,
             }
         else:
+            # Score velocity against the commanded target instead of rewarding raw
+            # magnitude: unbounded velocity paid more for diving forward than for
+            # walking, so policies learned to fall in the commanded direction.
+            target_velocity = float(self.contract["target_velocity"])
+            tolerance = max(float(self.contract["velocity_tolerance"]), 1e-6)
+            velocity_score = math.exp(
+                -(((float(linear[0]) - target_velocity) / tolerance) ** 2)
+            )
             terms = {
-                "forward_velocity": float(linear[0]),
+                "alive": alive,
+                "forward_velocity": velocity_score,
                 "upright": max(upright, -1.0),
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
@@ -557,7 +626,7 @@ class CustomRobotEnv(
                 else "runaway"
                 if runaway
                 else "fall"
-                if fallen
+                if fall_terminates
                 else "horizon"
                 if truncated
                 else None
@@ -576,15 +645,25 @@ class CustomRobotEnv(
     ) -> bool:
         if fallen:
             return False
-        if self.task_id == "stand-balance":
-            target = self.initial_height * float(self.contract["target_height_scale"])
+        if self.task_id in {"stand-balance", "recover-from-fall"}:
+            target = self.reference_height * float(self.contract["target_height_scale"])
             root_speed = float(
                 np.linalg.norm(self.data.qvel[self.root_dof_adr : self.root_dof_adr + 3])
             )
+            height_requirement = (
+                self.reference_height * float(self.contract["success_height_scale"])
+                if self.task_id == "recover-from-fall"
+                else target * (1.0 - float(self.contract["success_height_tolerance"]))
+            )
+            height_ok = (
+                height >= height_requirement
+                if self.task_id == "recover-from-fall"
+                else abs(height - target)
+                <= target * float(self.contract["success_height_tolerance"])
+            )
             return bool(
                 upright >= float(self.contract["success_upright"])
-                and abs(height - target)
-                <= target * float(self.contract["success_height_tolerance"])
+                and height_ok
                 and root_speed <= float(self.contract["success_max_root_speed"])
             )
         return bool(
@@ -649,10 +728,14 @@ def make_seeded_env_factory(
 ) -> Any:
     """Return the picklable-style factory expected by SB3 vector environments."""
 
-    def factory() -> CustomRobotEnv:
+    def factory() -> Any:
+        from stable_baselines3.common.monitor import Monitor
+
         env = CustomRobotEnv(robot_xml, setup, render_mode=render_mode)
         env.reset(seed=seed + rank)
-        return env
+        # Monitor is what populates ``info["episode"]``; without it SB3 reports no
+        # episode statistics at all and the published reward curve stays empty.
+        return Monitor(env)
 
     return factory
 
@@ -664,10 +747,24 @@ def make_vectorized_env(
     seed: int,
     n_envs: int,
 ) -> Any:
+    """Build the training vector environment.
+
+    Uses subprocess workers whenever more than one environment is requested: the
+    training preset provisions many vCPUs, and a serial ``DummyVecEnv`` would leave all
+    but one of them idle.
+    """
     if not 1 <= n_envs <= 16:
         raise ValueError("custom robot vector environment count must be 1 to 16")
-    from stable_baselines3.common.vec_env import DummyVecEnv
+    from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
-    return DummyVecEnv(
-        [make_seeded_env_factory(robot_xml, setup, seed=seed, rank=rank) for rank in range(n_envs)]
-    )
+    factories = [
+        make_seeded_env_factory(robot_xml, setup, seed=seed, rank=rank)
+        for rank in range(n_envs)
+    ]
+    if n_envs == 1:
+        return DummyVecEnv(factories)
+    # Default start method: forkserver where available, otherwise spawn.  Both re-import
+    # the entry module in the worker, which is safe because ``custom_robot_job`` guards
+    # its CLI behind ``__main__``; plain fork is avoided because the parent has already
+    # initialised torch.
+    return SubprocVecEnv(factories)

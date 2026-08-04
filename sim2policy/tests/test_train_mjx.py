@@ -11,15 +11,20 @@ from typing import Any
 
 import pytest
 
+from sim2policy import train_mjx as train_mjx_module
+from sim2policy.checkpoint import checkpoint_path, write_checkpoint_metadata
 from sim2policy.config import load_config
 from sim2policy.evaluate import evaluate
 from sim2policy.run import create_run_paths
 from sim2policy.train_mjx import (
     _apply_initial_hyperparameters,
+    _build_cli_g1_transition,
     _environment_overrides,
     _parse_initial_worker_flags,
     _repair_brax_checkpoint_config,
+    _reviewed_resume_source_environment,
     build_playground_command,
+    classify_g1_termination,
     evaluate_mjx,
     fixed_forward_command_state,
     local_forward_velocity,
@@ -65,7 +70,7 @@ def test_build_playground_command_rejects_unknown_hyperparameters(tmp_path: Path
 
 
 def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
-    config = load_config(ROOT / "configs/g1_mjx.yaml")
+    config = load_config(ROOT / "configs/g1_forward_rough_mjx.yaml")
     command = build_playground_command(config, create_run_paths("g1-no-push", tmp_path))
 
     assert _environment_overrides(config) == {
@@ -83,6 +88,71 @@ def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
     assert not any(
         part.startswith("--playground_config_overrides=") for part in command
     )
+    assert command[:3] == [
+        train_mjx_module.sys.executable,
+        "-m",
+        "sim2policy.playground_train",
+    ]
+    assert "--env_name=G1ForwardRoughTerrain" in command
+
+
+def test_cli_g1_transition_is_persisted_and_binds_fresh_learner_state(
+    tmp_path: Path,
+) -> None:
+    flat_path = ROOT / "configs/g1_forward_flat_mjx.yaml"
+    rough_path = ROOT / "configs/g1_forward_rough_mjx.yaml"
+    flat = load_config(flat_path, {"training.total_steps": 163_840})
+    rough = load_config(rough_path, {"training.total_steps": 163_840})
+    checkpoint = checkpoint_path(tmp_path / "source", "final", 163_840)
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    write_checkpoint_metadata(checkpoint, flat, 163_840)
+
+    record = _build_cli_g1_transition(
+        resume=checkpoint,
+        config=rough,
+        config_path=rough_path,
+        source_config_path=flat_path,
+        source_run_id="flat-run",
+        run_id="rough-run",
+        runs_root=tmp_path / "runs",
+        matrix_digest="matrix-digest",
+        image_digest="sha256:image",
+        remaining_budget=163_840,
+    )
+
+    assert record["source_environment"] == "G1ForwardFlatTerrain"
+    assert record["target_environment"] == "G1ForwardRoughTerrain"
+    assert record["restore"]["reinitialized_components"] == [
+        "optimizer_state",
+        "learner_step",
+        "rollout_state",
+        "prng_state",
+    ]
+    assert (tmp_path / "runs/rough-run/report/g1-transition.json").is_file()
+
+
+def test_reviewed_resume_source_uses_explicit_transition_config() -> None:
+    rough = load_config(ROOT / "configs/g1_forward_rough_mjx.yaml")
+
+    assert _reviewed_resume_source_environment(
+        rough,
+        ROOT / "configs/g1_forward_flat_mjx.yaml",
+        {},
+    ) == "G1ForwardFlatTerrain"
+    assert _reviewed_resume_source_environment(
+        rough,
+        ROOT / "configs/g1_flat_mjx.yaml",
+        {},
+    ) == "G1JoystickFlatTerrain"
+    with pytest.raises(RuntimeError, match="ambiguous cross-environment resume"):
+        _reviewed_resume_source_environment(rough, None, {})
+    with pytest.raises(RuntimeError, match="not a reviewed transition"):
+        _reviewed_resume_source_environment(
+            rough,
+            ROOT / "configs/go1_mjx.yaml",
+            {},
+        )
 
 
 def test_initial_worker_parses_playground_impl_before_config_access() -> None:
@@ -236,7 +306,10 @@ def test_train_mjx_extracts_zipped_resume_checkpoint(
     load_flag = next(part for part in seen_command if part.startswith("--load_checkpoint_path="))
     resume_path = Path(load_flag.removeprefix("--load_checkpoint_path="))
     assert resume_path.is_dir()
-    assert (resume_path / "manifest.ocdbt").is_file()
+    # The upstream Playground loader enumerates this directory and parses
+    # each child as a checkpoint step.  Orbax internals must be one level
+    # below the numeric step rather than siblings of it.
+    assert (resume_path / "000000000128" / "manifest.ocdbt").is_file()
 
 
 def test_locomotion_success_reporting_for_mjx(
@@ -420,6 +493,59 @@ def test_g1_command_cadence_contact_observation_and_pelvis_velocity() -> None:
     assert local_forward_velocity(environment, state) == 0.6
 
 
+def test_g1_termination_classifier_retains_simultaneous_causes_in_reviewed_order() -> None:
+    class Model:
+        sensor_adr = [0, 1, 2]
+
+    class Environment:
+        _mj_model = Model()
+        _right_foot_left_foot_found_sensor = 0
+        _left_foot_right_shin_found_sensor = 1
+        _right_foot_left_shin_found_sensor = 2
+
+        @staticmethod
+        def get_gravity(data: Any, body: str) -> list[float]:
+            del data
+            assert body == "torso"
+            return [0.0, 0.0, -1.0]
+
+    state = SimpleNamespace(
+        data=SimpleNamespace(
+            qpos=[float("nan")],
+            qvel=[0.0],
+            sensordata=[1.0, 1.0, 0.0],
+        )
+    )
+    primary, causes = classify_g1_termination(Environment(), state, terminated=True)
+    assert primary == "nan_state"
+    assert causes == (
+        "nan_state",
+        "torso_inversion",
+        "foot_foot_contact",
+        "foot_shin_contact",
+    )
+
+
+def test_g1_termination_classifier_uses_unknown_only_when_done_has_no_known_cause() -> None:
+    class Environment:
+        @staticmethod
+        def get_gravity(data: Any, body: str) -> list[float]:
+            del data, body
+            return [0.0, 0.0, 1.0]
+
+    state = SimpleNamespace(
+        data=SimpleNamespace(qpos=[0.0], qvel=[0.0], sensordata=[])
+    )
+    assert classify_g1_termination(Environment(), state, terminated=False) == (
+        "horizon",
+        ("horizon",),
+    )
+    assert classify_g1_termination(Environment(), state, terminated=True) == (
+        "unknown_environment_done",
+        ("unknown_environment_done",),
+    )
+
+
 def test_mjx_backend_stays_optional_in_base_environment() -> None:
     if importlib.util.find_spec("jax") is not None:  # pragma: no cover - optional env
         pytest.skip("MJX optional dependencies are installed in this environment")
@@ -457,3 +583,21 @@ def fake_initial_checkpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         "sim2policy.train_mjx.jax_device_info",
         lambda: ("gpu", [{"id": 0, "platform": "gpu", "kind": "Fake H100"}]),
     )
+
+
+def test_require_accelerator_rejects_a_cpu_fallback(monkeypatch) -> None:
+    """A GPU-priced job that silently ran on CPU is the failure this prevents."""
+    monkeypatch.delenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, raising=False)
+    with pytest.raises(RuntimeError, match="no GPU device"):
+        train_mjx_module.require_accelerator("cpu", [{"platform": "cpu", "kind": "CpuDevice"}])
+
+
+def test_require_accelerator_accepts_a_gpu_backend_or_device(monkeypatch) -> None:
+    monkeypatch.delenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, raising=False)
+    train_mjx_module.require_accelerator("gpu", [])
+    train_mjx_module.require_accelerator("cpu", [{"platform": "gpu", "kind": "H100"}])
+
+
+def test_cpu_training_needs_an_explicit_opt_in(monkeypatch) -> None:
+    monkeypatch.setenv(train_mjx_module.ALLOW_CPU_ENVIRONMENT_VARIABLE, "1")
+    train_mjx_module.require_accelerator("cpu", [{"platform": "cpu", "kind": "CpuDevice"}])

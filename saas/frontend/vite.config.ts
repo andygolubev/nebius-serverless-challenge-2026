@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       "/jobs": "http://127.0.0.1:8000",
       "/health": "http://127.0.0.1:8000",
+      "/showcase": "http://127.0.0.1:8000",
       "/training-options": "http://127.0.0.1:8000",
       "/robots": "http://127.0.0.1:8000",
       "/robot-samples": "http://127.0.0.1:8000",

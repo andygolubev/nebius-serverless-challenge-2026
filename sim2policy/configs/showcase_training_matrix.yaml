@@ -1,0 +1,145 @@
+schema_version: 2
+campaign:
+  execution_location: nebius
+  max_active_jobs: 1
+  selection:
+    seeds: [101, 151, 211, 271, 331]
+    episodes_per_seed: 2
+  final:
+    seeds: [0, 1, 2, 3, 4]
+    episodes_per_seed: 4
+examples:
+  reacher:
+    gallery_example_id: reacher-target
+    backend: sb3
+    config: configs/reacher_sb3.yaml
+    image: {runtime: sb3, tag_template: "sb3-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 1000000
+    extension_steps: 1500000
+    checkpoint_every_steps: 100000
+    hardware: {platform: cpu-d3, preset: 8vcpu-32gb, disk_gib: 100, timeout_minutes: 60, preemptible: false}
+    acceptance: {hard: {mean_reward: -10}, preferred: {mean_reward: -7}}
+    ranking: {kind: mean_reward, stability: mean_episode_length, tie_breaker: earlier_checkpoint}
+  halfcheetah:
+    gallery_example_id: halfcheetah-sprint
+    backend: sb3
+    config: configs/halfcheetah_gallery_sb3.yaml
+    image: {runtime: sb3, tag_template: "sb3-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 3000000
+    extension_steps: 5000000
+    checkpoint_every_steps: 250000
+    hardware: {platform: cpu-d3, preset: 8vcpu-32gb, disk_gib: 100, timeout_minutes: 120, preemptible: false}
+    acceptance: {hard: {mean_reward: 1500}, preferred: {mean_reward: 2000}}
+    ranking: {kind: mean_reward, stability: mean_episode_length, tie_breaker: earlier_checkpoint}
+  ant:
+    gallery_example_id: ant-explorer
+    backend: sb3
+    config: configs/ant_gallery_sb3.yaml
+    image: {runtime: sb3, tag_template: "sb3-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 3000000
+    extension_steps: 5000000
+    checkpoint_every_steps: 250000
+    hardware: {platform: cpu-d3, preset: 8vcpu-32gb, disk_gib: 100, timeout_minutes: 180, preemptible: false}
+    acceptance: {hard: {mean_reward: 1000}, preferred: {mean_reward: 2500, mean_episode_length: 850}}
+    ranking: {kind: mean_reward, stability: mean_episode_length, tie_breaker: earlier_checkpoint}
+  hopper:
+    gallery_example_id: hopper-balance
+    backend: sb3
+    config: configs/hopper_sb3.yaml
+    image: {runtime: sb3, tag_template: "sb3-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 5000000
+    extension_steps: 8000000
+    checkpoint_every_steps: 250000
+    hardware: {platform: cpu-d3, preset: 8vcpu-32gb, disk_gib: 100, timeout_minutes: 180, preemptible: false}
+    acceptance: {hard: {mean_reward: 1000}, preferred: {mean_reward: 1800, mean_episode_length: 500}}
+    ranking: {kind: mean_reward, stability: mean_episode_length, tie_breaker: earlier_checkpoint}
+  walker2d:
+    gallery_example_id: walker2d-stride
+    backend: sb3
+    config: configs/walker2d_sb3.yaml
+    image: {runtime: sb3, tag_template: "sb3-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 5000000
+    extension_steps: 8000000
+    checkpoint_every_steps: 250000
+    hardware: {platform: cpu-d3, preset: 8vcpu-32gb, disk_gib: 100, timeout_minutes: 180, preemptible: false}
+    acceptance: {hard: {mean_reward: 1800}, preferred: {mean_reward: 3500, mean_episode_length: 1000}}
+    ranking: {kind: mean_reward, stability: mean_episode_length, tie_breaker: earlier_checkpoint}
+  go1:
+    gallery_example_id: go1-walker
+    backend: mjx
+    config: configs/go1_mjx.yaml
+    image: {runtime: mjx, tag_template: "mjx-{git_sha}"}
+    seeds: [0, 7, 42]
+    base_steps: 200000000
+    extension_steps: 300000000
+    checkpoint_every_steps: 10000000
+    hardware: {platform: gpu-h100-sxm, preset: 1gpu-16vcpu-200gb, disk_gib: 100, timeout_minutes: 120, preemptible: false}
+    acceptance: {hard: {episodes: 20, no_fall: true, min_velocity: 0.5}, preferred: {episodes: 20, no_fall: true, min_velocity: 0.75, mean_velocity: 0.9}}
+    ranking: {kind: locomotion, fields: [no_fall_count, min_velocity, mean_episode_length, mean_velocity, mean_reward, earlier_checkpoint]}
+  g1:
+    gallery_example_id: g1-rough-terrain
+    backend: mjx
+    config: configs/g1_forward_rough_mjx.yaml
+    image: {runtime: mjx, tag_template: "mjx-{git_sha}"}
+    seeds: [0]
+    base_steps: 450000000
+    extension_steps: null
+    checkpoint_every_steps: 25000000
+    hardware: {platform: gpu-h100-sxm, preset: 1gpu-16vcpu-200gb, disk_gib: 100, timeout_minutes: 300, preemptible: false}
+    curriculum:
+      flat_config: configs/g1_forward_flat_mjx.yaml
+      rough_config: configs/g1_forward_rough_mjx.yaml
+      flat_environment: G1ForwardFlatTerrain
+      rough_environment: G1ForwardRoughTerrain
+      flat_command: [1.0, 0.0, 0.0]
+      rough_command: [0.8, 0.0, 0.0]
+      flat_nominal_steps: 200000000
+      flat_effective_steps: 199229440
+      candidate_every_steps: 25000000
+      pushes_enabled: false
+      authorization:
+        mode: user_reviewed_rough_08_full_v2
+        campaign_id: gallery-g1-rough08-full-20260803-01
+        allowed_jobs: 1
+        retries_allowed: 0
+        extensions_allowed: false
+        runtime_overrides_allowed: false
+        superseded_sweep_run_id: sweep-g1-c1a522b-20260802-01
+        superseded_sweep_job_id: aijob-e00c8fwyh15gy7qggk
+        superseded_result_campaign_id: gallery-g1-direct-full-20260803-01
+        superseded_result_job_id: aijob-e00pc60w55v89z6t5v
+        pilot_required: false
+      diagnostic:
+        source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat
+        source_environment: G1JoystickFlatTerrain
+        environments: [G1ForwardFlatTerrain, G1ForwardRoughTerrain]
+        episodes_per_seed: 4
+        flat_required_horizons: 20
+        min_velocity: 0.4
+        ranking: [rough_horizon_count, rough_mean_episode_length, rough_min_velocity, rough_mean_velocity, rough_mean_reward, earlier_checkpoint]
+      pilot:
+        step_ceiling: 50000000
+        effective_steps: 46202880
+        timeout_minutes: 90
+        seed: 0
+        required_horizons: 5
+        episodes: 10
+        mean_episode_length: 900
+        min_velocity: 0.4
+        max_nan_terminations: 0
+      full:
+        total_step_ceiling: 450000000
+        rough_effective_steps: 250511360
+        timeout_minutes: 300
+        seed: 0
+        flat_gate_episodes: 10
+        flat_required_horizons: 10
+        flat_min_velocity: 0.4
+        extension_steps: null
+    acceptance: {hard: {episodes: 20, no_fall: true, min_velocity: 0.4}, preferred: {episodes: 20, no_fall: true, min_velocity: 0.4, mean_velocity: 0.6}}
+    ranking: {kind: locomotion, fields: [no_fall_count, min_velocity, mean_episode_length, mean_velocity, mean_reward, earlier_checkpoint]}

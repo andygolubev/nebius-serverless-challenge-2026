@@ -6,38 +6,49 @@ hyperparameters — validated server-side against a single catalog that also dri
 keeping presets as named shortcuts and never accepting arbitrary code.
 ## Requirements
 ### Requirement: Training options catalog
-The system SHALL expose `GET /training-options` as the production-executable source of truth for the frontend composer. Every returned environment/algorithm combination and preset MUST resolve to a production `JOB_SPEC`; entries without an immutable runtime selection, training config, GPU platform/preset, timeout, and bounded parameter mapping SHALL NOT be returned or accepted by `POST /jobs`. The public catalog SHALL contain only GPU-accelerated MJX/JAX PPO workloads and SHALL exclude SB3 workloads even when their compute shape includes a GPU.
+The system SHALL expose `GET /training-options` as unauthenticated display metadata for the public
+showcase, not as a submission catalog. It SHALL publish the showcase entries that pass their evidence
+gate, describing for each the configuration its pinned curated run executed, its backend and hardware
+labels, and its measured guidance. The response SHALL NOT advertise a submittable environment,
+algorithm, preset, profile, or parameter contract, because no field of it is accepted by any
+job-creating endpoint. Entries whose pinned run is missing or invalid SHALL NOT be returned.
 
-#### Scenario: Catalog contains only executable GPU workloads
-- **WHEN** a client requests `/training-options`
-- **THEN** every returned option resolves to an MJX/JAX PPO production job spec on an allowlisted GPU platform and can be submitted without a missing-spec failure
+#### Scenario: Catalog contains only published showcase evidence
+- **WHEN** any client requests `/training-options`
+- **THEN** every returned entry corresponds to a validated curated run and carries display metadata
+  only
 
-#### Scenario: Unsupported combination is hidden and rejected
-- **WHEN** an environment/algorithm combination has no production job spec
-- **THEN** it is absent from `/training-options` and a direct `POST /jobs` request for it is rejected with 422 before a job record or remote resource is created
+#### Scenario: Catalog advertises no submission contract
+- **WHEN** the response is inspected for submittable fields
+- **THEN** it declares no environment/algorithm submission combination, preset ID, profile ID, or
+  overridable parameter contract
 
-#### Scenario: SB3 is not publicly offered
-- **WHEN** a client requests `/training-options`
-- **THEN** no SB3 algorithm, environment-only SB3 option, or SB3 preset is returned
-
-#### Scenario: Catalog lists environments and policies
-- **WHEN** a client requests `/training-options`
-- **THEN** the response enumerates the executable Go1 MJX/JAX PPO environment-policy combination, its three workload profiles, and bounded parameter constraints
+#### Scenario: Entry without evidence is hidden
+- **WHEN** an example's pinned curated run has no valid manifest
+- **THEN** it is absent from `/training-options` and no route accepts its example ID for training
 
 ### Requirement: Custom job submission
-The system SHALL accept job submissions at `POST /jobs` containing an environment id, a policy configuration (algorithm plus optional hyperparameter overrides such as learning rate, total timesteps, seed), and optional run settings. The system SHALL validate every field against the catalog's allowlists and bounds server-side; unknown fields, unknown environments/algorithms, or out-of-range values SHALL be rejected with 422 and a field-level error message. Arbitrary code, images, or shell commands SHALL NOT be accepted.
+The system SHALL create training jobs only from an owner starting their own accepted custom robot
+setup via `POST /robot-setups/{setup_id}/training-jobs`, which accepts the setup identity plus
+idempotency metadata and nothing else. `POST /jobs` SHALL NOT accept a gallery example ID, gallery
+profile ID, preset, environment, algorithm, or parameter override. The system SHALL validate every
+field against server-owned allowlists; unknown fields, identities, or out-of-range values SHALL be
+rejected with 422 and a field-level error. Arbitrary code, images, commands, environment variables,
+secret selectors, and compute choices SHALL NOT be accepted on any route.
 
 #### Scenario: Valid custom job accepted
-- **WHEN** an authenticated user submits an allowlisted environment with an allowlisted policy and in-range overrides
-- **THEN** the system responds 201 with a queued job that records the full resolved configuration
+- **WHEN** an owner starts a setup whose latest preparation fingerprint is current and accepted
+- **THEN** the system responds 201 with a queued job recording the setup identity and full resolved
+  server-owned configuration
 
-#### Scenario: Out-of-range parameter rejected
-- **WHEN** a submission sets a hyperparameter outside the catalog's declared bounds (e.g. total timesteps above the maximum)
-- **THEN** the system responds 422 naming the offending field and the allowed range
+#### Scenario: Gallery submission is refused
+- **WHEN** a client posts a gallery example ID, gallery profile ID, or Go1 preset ID to `/jobs`
+- **THEN** the system rejects the request and creates neither a SaaS job record nor a Nebius resource
 
-#### Scenario: Unknown environment or policy rejected
-- **WHEN** a submission references an environment or algorithm not in the catalog
-- **THEN** the system responds 422 and no job is created
+#### Scenario: Unknown field rejected
+- **WHEN** a custom start submission supplies a backend, algorithm, hardware, image, command, PPO,
+  task, scene, or object override
+- **THEN** the system responds 422 naming the offending field and no job is created
 
 ### Requirement: Resolved configuration on the job record
 The system SHALL persist and return the fully resolved configuration (user overrides merged over defaults) on the job record so the user can see exactly what ran. Defaults applied by the server SHALL be visible in `GET /jobs/{id}`.
@@ -46,31 +57,3 @@ The system SHALL persist and return the fully resolved configuration (user overr
 - **WHEN** a user fetches a job they submitted with only a learning-rate override
 - **THEN** the response includes the environment, policy, the overridden learning rate, and the defaulted values for all other parameters
 
-### Requirement: Backward-compatible presets
-The system SHALL expose three named Go1 MJX/JAX PPO workload profiles using the verified H100 platform and immutable MJX runtime: `go1-mjx-quick`, `go1-mjx-standard`, and `go1-mjx-quality`. The profiles SHALL define increasing bounded workload sizes and complete server-owned execution settings, including total timesteps, checkpoint cadence, evaluation scope, rendered progression scope, and timeout. Exactly one profile SHALL be marked as the default. Existing Go1 preset aliases MAY be accepted during migration, but removed SB3 presets SHALL NOT remain publicly listed or create new production jobs.
-
-The quality profile SHALL retain the verified 100,000,000-timestep workload. Quick and Standard values SHALL be chosen through bounded H100 acceptance runs so that their displayed duration/cost labels reflect observed end-to-end execution rather than timestep ratios alone.
-
-#### Scenario: Three GPU workload sizes are listed
-- **WHEN** a client requests `/training-options`
-- **THEN** the response contains Quick, Standard, and Quality Go1 MJX PPO profiles with increasing workload sizes and user-facing duration/cost guidance
-
-#### Scenario: Quality profile preserves the flagship run
-- **WHEN** `go1-mjx-quality` is resolved
-- **THEN** it selects Go1 MJX/JAX PPO on `gpu-h100-sxm` / `1gpu-16vcpu-200gb` with 100,000,000 total timesteps and the verified production runtime
-
-#### Scenario: Removed SB3 preset is rejected
-- **WHEN** a tenant submits a removed HalfCheetah or Ant SB3 preset
-- **THEN** the system responds 422 and creates neither a SaaS job record nor a Nebius job
-
-#### Scenario: Preset submission still works
-- **WHEN** an authenticated tenant submits Quick, Standard, or Quality by preset ID
-- **THEN** the system responds 201 and records the selected profile's fully expanded Go1 MJX configuration
-
-#### Scenario: Catalog marks the flagship default preset
-- **WHEN** a client requests `/training-options`
-- **THEN** exactly one of the three GPU workload profiles is explicitly marked as the default
-
-#### Scenario: Composer opens on the flagship preset
-- **WHEN** an authenticated tenant opens the job composer
-- **THEN** the default GPU workload profile is pre-selected and the tenant can select either of the other executable GPU profiles

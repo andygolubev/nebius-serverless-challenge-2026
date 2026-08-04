@@ -279,6 +279,31 @@ NEBIUS_JOB_ID="$(printf '%s' "$job" | jq -er '.nebius_job_id')"
 nebius ai job get --id "$NEBIUS_JOB_ID" --format json | jq '.status'
 ```
 
+### Provider audit required by paid form smoke
+
+The paid My Robots smoke writes `provider-audit-request-preparation.json` or
+`provider-audit-request-training.json` under the gitignored `.form-validation-runs/` directory as
+soon as it has the exact SaaS resource IDs. A separate authorized operator must use those IDs and
+the run ID to correlate the provider jobs, then inspect all five resource scopes: AI jobs,
+instances, disks, public IPs, and temporary security rules. Stop or delete anything created by the
+run that is not already terminal. Do not stop unrelated project work.
+
+Write only a sanitized summary to the absolute path configured by
+`SAAS_SMOKE_PROVIDER_AUDIT_FILE`. That input path must be outside `.form-validation-runs/`; the
+runner copies only validated counts/scopes/status into publishable evidence. Never copy a raw
+provider response into the evidence directory.
+The schema is documented in `saas/README.md`. The runner requires every enumerated provider resource
+to be terminal, stopped, or deleted, all five scopes to be present, and
+`remaining_active_resources` to be empty. It correlates the audit to the exact preparation/job IDs
+and current run ID, so a stale audit cannot release a new paid run. Until that document validates,
+the result remains `provider-audit-pending` and the test fails rather than claiming cleanup.
+
+For a preparation-only canary, retain the SaaS setup for the requested inspection window but audit
+the provider preparation job and compute. For a training canary, retain the terminal SaaS Job row
+and artifact manifest as acceptance evidence while stopping/deleting provider compute. A retained
+database row or artifact is not active cloud compute; it must still be listed as retained evidence,
+not misreported as deleted.
+
 ## Results and artifacts
 
 Request the tenant artifact manifest:

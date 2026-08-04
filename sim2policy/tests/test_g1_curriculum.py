@@ -1,0 +1,123 @@
+from __future__ import annotations
+
+import pytest
+
+from sim2policy.g1_curriculum import (
+    FLAT_EFFECTIVE_STEPS,
+    PILOT_EFFECTIVE_STEPS,
+    TOTAL_STEPS,
+    CurriculumError,
+    assert_reviewed_step_contract,
+    bounded_mjx_phase_steps,
+    diagnostic_parent_eligible,
+    diagnostic_rough_rank_key,
+    flat_gate_result,
+    pilot_gate_result,
+    provenance_chain,
+    rough_budget,
+)
+
+
+def _episode(
+    *,
+    velocity: float = 0.5,
+    length: int = 1000,
+    reason: str = "horizon",
+) -> dict[str, object]:
+    return {
+        "mean_velocity": velocity,
+        "length": length,
+        "reward": 1.0,
+        "fell": reason != "horizon",
+        "terminated": reason != "horizon",
+        "termination_reason": reason,
+        "termination_causes": [reason],
+    }
+
+
+def test_reviewed_quantum_contract_is_exact_and_below_ceiling() -> None:
+    steps = assert_reviewed_step_contract()
+    assert steps == {
+        "flat": 199_229_440,
+        "rough": 250_511_360,
+        "pilot": 46_202_880,
+    }
+    assert steps["flat"] + steps["rough"] < TOTAL_STEPS
+    assert PILOT_EFFECTIVE_STEPS < 50_000_000
+
+
+def test_flat_gate_accepts_only_exact_final_checkpoint_and_no_termination() -> None:
+    passing = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS, [_episode() for _ in range(10)]
+    )
+    failing = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [_episode(reason="foot_foot_contact"), *[_episode() for _ in range(9)]],
+    )
+    assert passing.passed
+    assert not failing.passed
+    with pytest.raises(CurriculumError, match="reviewed gate"):
+        flat_gate_result(100_000_000, [_episode() for _ in range(10)])
+
+
+def test_all_measured_flat_work_is_charged_before_rough_quantization() -> None:
+    remaining = rough_budget(
+        FLAT_EFFECTIVE_STEPS,
+        checkpoint_effective_step=FLAT_EFFECTIVE_STEPS,
+        flat_trained_steps=FLAT_EFFECTIVE_STEPS,
+    )
+    assert remaining == TOTAL_STEPS - FLAT_EFFECTIVE_STEPS
+    rough = bounded_mjx_phase_steps(
+        remaining,
+        checkpoint_every_steps=25_000_000,
+        n_envs=8_192,
+        unroll_length=20,
+    )
+    assert rough == 250_511_360
+
+
+def test_diagnostic_parent_gate_and_zero_shot_rank() -> None:
+    flat = [_episode() for _ in range(20)]
+    assert diagnostic_parent_eligible(flat, restore_verified=True)
+    assert not diagnostic_parent_eligible(flat, restore_verified=False)
+    assert not diagnostic_parent_eligible(
+        [*_episode_list(19), _episode(velocity=0.39)], restore_verified=True
+    )
+    stronger = diagnostic_rough_rank_key(_episode_list(20), effective_step=100)
+    weaker = diagnostic_rough_rank_key(
+        [_episode(reason="torso_inversion"), *_episode_list(19)], effective_step=50
+    )
+    assert stronger > weaker
+
+
+def _episode_list(count: int) -> list[dict[str, object]]:
+    return [_episode() for _ in range(count)]
+
+
+def test_pilot_gate_requires_all_structured_criteria() -> None:
+    passing = [
+        *_episode_list(5),
+        *[_episode(length=800, reason="torso_inversion") for _ in range(5)],
+    ]
+    result = pilot_gate_result(passing)
+    assert result["passed"]
+    nan = [*passing[:-1], _episode(length=800, reason="nan_state")]
+    assert not pilot_gate_result(nan)["passed"]
+    with pytest.raises(CurriculumError, match="exactly 10"):
+        pilot_gate_result(_episode_list(9))
+
+
+def test_provenance_uses_fixed_forward_identities() -> None:
+    evidence = provenance_chain(
+        matrix_digest="a" * 64,
+        image_digest="sha256:" + "b" * 64,
+        flat_config_digest="c" * 64,
+        rough_config_digest="d" * 64,
+        flat_checkpoint_digest="e" * 64,
+        rough_checkpoint_digest="f" * 64,
+        selected_flat_step=FLAT_EFFECTIVE_STEPS,
+        rough_effective_steps=25_000_000,
+        phase_outcomes={"flat": "passed", "rough": "trained"},
+    )
+    assert evidence["flat"]["environment"] == "G1ForwardFlatTerrain"
+    assert evidence["rough"]["environment"] == "G1ForwardRoughTerrain"

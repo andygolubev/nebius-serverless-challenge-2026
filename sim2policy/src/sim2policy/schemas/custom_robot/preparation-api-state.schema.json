@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "sim2policy/custom-robot/preparation-api-state/v1",
+  "$id": "sim2policy/custom-robot/preparation-api-state/v2",
   "type": "object",
   "additionalProperties": false,
   "required": [

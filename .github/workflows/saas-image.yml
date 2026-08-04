@@ -9,7 +9,7 @@ name: saas-image
 
 on:
   push:
-    branches: [main]
+    branches: [main, debug-portal]
     tags: ["v*"]
     paths:
       - "saas/**"
@@ -24,7 +24,171 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  form-backend-matrix:
+    name: Form backend matrix (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: saas/backend/requirements-dev.txt
+      - name: Install backend test dependencies
+        working-directory: saas/backend
+        run: python -m pip install -r requirements-dev.txt
+      - name: Run deterministic backend shard
+        working-directory: saas/backend
+        env:
+          FORM_MATRIX_SHARD_TOTAL: "4"
+          FORM_MATRIX_SHARD_INDEX: ${{ matrix.shard }}
+        run: |
+          mkdir -p ../../.form-validation-runs
+          if [ "$FORM_MATRIX_SHARD_INDEX" = "0" ]; then
+            python -m pytest tests/test_my_robots_matrix.py -q \
+              --junitxml="../../.form-validation-runs/backend-${FORM_MATRIX_SHARD_INDEX}.xml"
+          else
+            python -m pytest tests/test_my_robots_matrix.py -q \
+              -k 'every_positive_setup_combination or every_object_parameter_boundary or non_finite_object_parameter or every_scene_capacity_transition' \
+              --junitxml="../../.form-validation-runs/backend-${FORM_MATRIX_SHARD_INDEX}.xml"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: form-backend-${{ matrix.shard }}
+          path: .form-validation-runs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  form-component-matrix:
+    name: Form component matrix (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/2", "2/2"]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: saas/frontend/package-lock.json
+      - name: Run component shard
+        working-directory: saas/frontend
+        run: |
+          npm ci
+          mkdir -p ../../.form-validation-runs
+          safe_shard="${{ matrix.shard }}"
+          npm test -- --shard="${safe_shard}" --reporter=junit \
+            --outputFile="../../.form-validation-runs/component-${safe_shard//\//-}.xml"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: form-component-${{ strategy.job-index }}
+          path: .form-validation-runs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  form-local-browser:
+    name: Form local browser (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["1/2", "2/2"]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: saas/backend/requirements-dev.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: saas/frontend/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-1.62.1
+      - name: Install local browser test dependencies
+        run: |
+          python -m pip install -r saas/backend/requirements-dev.txt
+          cd saas/frontend
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run isolated local browser workers
+        working-directory: saas/frontend
+        env:
+          FORM_BROWSER_SHARD_LABEL: ${{ strategy.job-index }}
+        run: npm run test:e2e -- --shard=${{ matrix.shard }} --workers=1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: form-local-browser-${{ strategy.job-index }}
+          path: .form-validation-runs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  form-validation-report:
+    needs: [form-backend-matrix, form-component-matrix, form-local-browser]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: saas/backend/requirements-dev.txt
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: form-*
+          path: .form-validation-runs
+          merge-multiple: true
+      - name: Merge and scan sanitized validation evidence
+        working-directory: saas/backend
+        run: |
+          python -m pip install -r requirements-dev.txt
+          junit_args=()
+          while IFS= read -r result; do junit_args+=(--junit "$result"); done \
+            < <(find ../../.form-validation-runs -name '*.xml' -type f -print | sort)
+          test "${#junit_args[@]}" -gt 0
+          python -m validation_suite.matrix \
+            --output ../../.form-validation-runs/expected.json
+          python -m validation_suite.report merge "${junit_args[@]}" \
+            --expected ../../.form-validation-runs/expected.json \
+            --run-id "gha-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output ../../.form-validation-runs/report.json \
+            --markdown ../../.form-validation-runs/report.md
+          python -m validation_suite.report scan ../../.form-validation-runs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: form-validation-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .form-validation-runs/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
   build-push:
+    needs: form-validation-report
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -96,22 +260,22 @@ jobs:
           echo "Pushed $NEBIUS_REGISTRY/sim2policy-saas:$sha_tag"
 
       - name: Set up Kustomize
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/debug-portal'
         uses: imranismail/setup-kustomize@v2
         with:
           kustomize-version: "5.7.1"
 
       - name: Bump GitOps image tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/debug-portal'
         env:
           NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
         run: |
-          git fetch origin main
-          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
-            echo "main advanced after this build started; the newer run owns the deployment bump"
+          git fetch origin debug-portal
+          if [ "$(git rev-parse origin/debug-portal)" != "$GITHUB_SHA" ]; then
+            echo "debug-portal advanced after this build started; the newer run owns the deployment bump"
             exit 0
           fi
-          git checkout main
+          git checkout debug-portal
           cd deploy/manifests/saas
           kustomize edit set image \
             "sim2policy-saas=${NEBIUS_REGISTRY}/sim2policy-saas:${GITHUB_SHA::12}"
@@ -124,4 +288,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Deploy SaaS image ${GITHUB_SHA::12} [skip ci]"
-          git push origin HEAD:main
+          git push origin HEAD:debug-portal

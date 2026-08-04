@@ -10,9 +10,6 @@ from app.custom_training import (
     PREPARATION_PROFILE,
     REASON_FEATURE_DISABLED,
     REASON_NOT_PREPARED,
-    REASON_OPTIONAL_OBJECTS,
-    REASON_UNSUPPORTED_SCENE,
-    REASON_UNSUPPORTED_TASK,
     REWARD_VERSION,
     TRAINING_PROFILE,
     build_input_documents,
@@ -60,17 +57,14 @@ def _setup(**updates: object) -> RobotSetup:
     return RobotSetup.model_validate(data)
 
 
-def test_v1_eligibility_reasons_are_stable() -> None:
+def test_every_catalog_valid_setup_is_eligible() -> None:
     assert eligibility(_setup()).reason == REASON_NOT_PREPARED
     assert eligibility(_setup(), enabled=False).reason == REASON_FEATURE_DISABLED
-    assert (
-        eligibility(_setup(task_template_id="recover-from-fall")).reason
-        == REASON_UNSUPPORTED_TASK
-    )
-    assert (
-        eligibility(_setup(scene_preset_id="step-course")).reason
-        == REASON_UNSUPPORTED_SCENE
-    )
+    assert eligibility(_setup(task_template_id="recover-from-fall")).eligible is True
+    assert eligibility(
+        _setup(robot_type="biped", task_template_id="recover-from-fall")
+    ).eligible is False
+    assert eligibility(_setup(scene_preset_id="step-course")).eligible is True
     custom = CatalogObject(
         object_type="box",
         x=1,
@@ -82,7 +76,7 @@ def test_v1_eligibility_reasons_are_stable() -> None:
         height=1,
         source="custom",
     )
-    assert eligibility(_setup(objects=[custom])).reason == REASON_OPTIONAL_OBJECTS
+    assert eligibility(_setup(objects=[custom])).reason == REASON_NOT_PREPARED
 
 
 def test_ramp_preset_object_is_not_tenant_optional() -> None:
@@ -116,7 +110,7 @@ def test_input_documents_are_canonical_and_fingerprinted() -> None:
     assert setup_bytes.endswith(b"}") and not setup_bytes.endswith(b"\n")
     assert (
         manifest["fingerprint"]
-        == "029df643fa0c9f7bf6abf8908704543d1051c558f3bece3310329582a8e8600e"
+        == "7910984c15895ded12541fce56860cce217a7419c99102aebef1d32f17ed7ef0"
     )
     assert manifest["adapter_version"] == ADAPTER_VERSION
     assert manifest["reward_version"] == REWARD_VERSION
@@ -147,7 +141,7 @@ def test_control_plane_matches_runtime_golden_contracts() -> None:
     assert resolved_profile_payload()["training"] == golden_training
     assert (TRAINING_PROFILE.platform, TRAINING_PROFILE.preset) == (
         "cpu-d3",
-        "8vcpu-32gb",
+        "16vcpu-64gb",
     )
 
 

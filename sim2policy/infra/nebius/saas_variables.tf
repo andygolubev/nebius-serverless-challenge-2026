@@ -51,7 +51,7 @@ variable "saas_argocd_repo_path" {
 variable "saas_argocd_repo_revision" {
   description = "Git revision ArgoCD tracks."
   type        = string
-  default     = "main"
+  default     = "debug-portal"
 }
 
 variable "saas_use_registry_pull_secret" {
@@ -91,7 +91,7 @@ variable "saas_mjx_image_tag" {
 variable "saas_sb3_image_tag" {
   description = "Immutable SB3 runtime tag accepted for production gallery and custom-robot jobs."
   type        = string
-  default     = "sb3-64af839496821ec7024fac257cbbb81c00d4d49b"
+  default     = "sb3-59117bd64d6da6b631374590d849648f4f83d5a3"
 
   validation {
     condition     = can(regex("^sb3-[0-9a-f]{40}$", var.saas_sb3_image_tag))

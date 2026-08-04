@@ -65,6 +65,8 @@ ARTIFACT_KEYS: dict[str, str] = {
     "video_untrained": "videos/untrained.mp4",
     "video_mid": "videos/mid.mp4",
     "video_final": "videos/final.mp4",
+    "video_selected": "videos/selected.mp4",
+    "video_final_step": "videos/final-step.mp4",
     "progression_montage": "videos/progression_montage.mp4",
     "demo_recording": "videos/demo-recording.mp4",
     "resolved_config": "report/resolved-config.json",
@@ -218,7 +220,9 @@ class RunStateStore:
         return state
 
     # -- artifacts ---------------------------------------------------------
-    def write_manifest(self, artifacts: dict[str, str]) -> None:
+    def write_manifest(
+        self, artifacts: dict[str, str], *, evidence: Mapping[str, Any] | None = None
+    ) -> None:
         checksums = {
             name: {
                 "sha256": sha256_file(self._local_path(relative)),
@@ -226,7 +230,14 @@ class RunStateStore:
             }
             for name, relative in artifacts.items()
         }
-        self.write_json(MANIFEST_KEY, {"artifacts": artifacts, "checksums": checksums})
+        payload: dict[str, Any] = {"artifacts": artifacts, "checksums": checksums}
+        if evidence:
+            # Curation evidence (matrix digest, phase lineage, selected checkpoint,
+            # ranking explanation, seed roles, hard/preferred outcomes, measured
+            # runtime/cost) mirrored here so the checksummed manifest stays a
+            # complete, self-contained curation record on its own.
+            payload["curation_evidence"] = dict(evidence)
+        self.write_json(MANIFEST_KEY, payload)
 
     def read_manifest(self) -> dict[str, str]:
         data = self.read_json(MANIFEST_KEY)

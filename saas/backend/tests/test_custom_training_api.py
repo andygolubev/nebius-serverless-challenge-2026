@@ -105,28 +105,33 @@ def test_prepare_ready_start_and_normal_job_flow(client, login, monkeypatch) -> 
     )
     assert repeated.json()["id"] == job["id"]
     assert client.get(f"/jobs/{job['id']}", headers=headers).status_code == 200
+    projected = client.get(f"/robot-setups/{setup['id']}", headers=headers).json()
+    assert projected["latest_training_job"]["id"] == job["id"]
+    assert projected["latest_training_job"]["status"] in {
+        "queued", "starting", "training", "finalizing", "rendering",
+        "evaluating", "completed",
+    }
     assert robot["id"] not in str(client.get("/training-options").json())
 
 
-def test_ineligible_unknown_fields_and_cross_tenant_are_bounded(
+def test_optional_objects_are_eligible_and_unknown_fields_cross_tenant_are_bounded(
     client, login, monkeypatch
 ) -> None:
     _enabled(monkeypatch)
     owner = login(_email())
     stranger = login(_email())
     _, eligible = _setup(client, owner)
-    _, ineligible = _setup(
+    _, with_object = _setup(
         client,
         owner,
         objects=[{"object_type": "box", "x": 2.0}],
     )
-    assert ineligible["training_readiness"] == "ineligible"
-    assert ineligible["reason"] == "optional-objects-not-supported"
+    assert with_object["training_readiness"] == "not_prepared"
+    assert with_object["reason"] == "not-prepared"
     response = client.post(
-        f"/robot-setups/{ineligible['id']}/preparations", json={}, headers=owner
+        f"/robot-setups/{with_object['id']}/preparations", json={}, headers=owner
     )
-    assert response.status_code == 409
-    assert response.json()["detail"]["reason"] == "optional-objects-not-supported"
+    assert response.status_code == 201
     assert (
         client.post(
             f"/robot-setups/{eligible['id']}/preparations",

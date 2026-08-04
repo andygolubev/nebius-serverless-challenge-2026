@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiError, Artifact, ArtifactManifest, Job, TERMINAL } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { api, ApiError, ArtifactManifest, Job, TERMINAL } from "../api";
 import { LifecycleTimeline, relativeTime, StatusBadge } from "./shared";
-import { buildResultView, MetricEntry } from "./resultView";
+import { buildResultView } from "./resultView";
+import {
+  ArtifactFiles,
+  BundleCallout,
+  EpisodeDetails,
+  KeyValue,
+  MediaPanel,
+  MetricDetails,
+  preferredVideoId,
+  SimulatorDisclosure,
+} from "./ResultPanels";
 
 export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void }) {
   const [job, setJob] = useState<Job | null>(null);
@@ -26,10 +36,7 @@ export function JobDetail({ jobId, onBack }: { jobId: string; onBack: () => void
             setArtifacts(manifest);
             setArtifactError(false);
             const videos = manifest.artifacts.filter((artifact) => artifact.kind === "video");
-            const final = videos.find((artifact) => artifact.id.toLowerCase().includes("final")) ?? videos[0];
-            setSelectedVideo((current) =>
-              current && videos.some((artifact) => artifact.id === current) ? current : final?.id ?? null,
-            );
+            setSelectedVideo((current) => preferredVideoId(videos, current));
           } catch (cause) {
             if (alive && (!(cause instanceof ApiError) || cause.status !== 409)) setArtifactError(true);
           }
@@ -166,11 +173,6 @@ function CompletedResults({
     () => buildResultView(artifacts?.metrics ?? {}, job.environment),
     [artifacts, job.environment],
   );
-  const [mediaError, setMediaError] = useState(false);
-  const [mediaRetry, setMediaRetry] = useState(0);
-  const [mediaPlaying, setMediaPlaying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => setMediaPlaying(false), [selectedVideo, mediaRetry]);
   if (artifactError) {
     return (
       <div className="alert alert-error result-loading-error" role="alert">
@@ -182,7 +184,6 @@ function CompletedResults({
   if (!artifacts) return <div className="skeleton result-skeleton" aria-label="Loading results" />;
 
   const videos = artifacts.artifacts.filter((artifact) => artifact.kind === "video");
-  const selected = videos.find((artifact) => artifact.id === selectedVideo) ?? videos[0];
   const bundle = artifacts.artifacts.find((artifact) => artifact.id === "policy_bundle");
   const otherFiles = artifacts.artifacts.filter((artifact) => artifact.kind !== "video" && artifact.id !== "policy_bundle");
   const kpis =
@@ -193,27 +194,9 @@ function CompletedResults({
     | { task_threshold_achieved?: boolean }
     | undefined;
 
-  async function togglePlayback() {
-    const player = videoRef.current;
-    if (!player) return;
-    if (mediaPlaying) {
-      player.pause();
-      return;
-    }
-    try {
-      await player.play();
-    } catch {
-      setMediaError(true);
-    }
-  }
-
   return (
     <section className="results-shell" aria-labelledby="results-heading">
-      {(job.job_kind === "custom-robot" || job.gallery_example_id) && (
-        <div className="alert alert-info simulator-disclosure" role="note">
-          <strong>Simulator-only policy.</strong> This bundle matches the recorded simulator and runtime. It is not directly deployable to physical hardware.
-        </div>
-      )}
+      {(job.job_kind === "custom-robot" || job.gallery_example_id) && <SimulatorDisclosure />}
       <div className="result-primary-grid">
           <div className="result-summary-panel">
           <div className="result-section-heading">
@@ -233,84 +216,10 @@ function CompletedResults({
               </div>
             ))}
           </div>
-          {bundle && (
-            <div className="bundle-callout">
-              <div><strong>Policy bundle ready</strong><span>Checkpoint, resolved configuration, evaluation, versions, and checksums.</span></div>
-              <a
-                className="btn"
-                href={bundle.download_url}
-                onClick={(event) => {
-                  if (!window.confirm("This policy bundle is simulator-only and is not directly deployable to a physical robot. Continue?")) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                Download policy bundle
-              </a>
-            </div>
-          )}
+          {bundle && <BundleCallout bundle={bundle} />}
         </div>
 
-        <div className="media-panel">
-          <div className="result-section-heading">
-            <div><p className="eyebrow">Policy rollout</p><h2>{selected?.name ?? "Final media"}</h2></div>
-            {selected && <span className="metadata-line">{formatBytes(selected.size_bytes)}</span>}
-          </div>
-          {selected ? (
-            <>
-              <video
-                key={`${selected.id}-${mediaRetry}`}
-                ref={videoRef}
-                controls
-                preload="metadata"
-                src={selected.url}
-                onPlay={() => setMediaPlaying(true)}
-                onPause={() => setMediaPlaying(false)}
-                onEnded={() => setMediaPlaying(false)}
-                onError={() => setMediaError(true)}
-              >
-                Your browser does not support HTML5 video.
-              </video>
-              {mediaError && (
-                <div className="alert alert-error media-error" role="alert">
-                  Playback failed to load.
-                  <button className="btn btn-ghost" onClick={() => { setMediaError(false); setMediaRetry((value) => value + 1); }}>Retry playback</button>
-                </div>
-              )}
-              <div className="media-actions">
-                <button
-                  className="btn btn-ghost"
-                  type="button"
-                  aria-label={mediaPlaying ? "Pause rollout" : "Play rollout"}
-                  onClick={togglePlayback}
-                >
-                  {mediaPlaying ? "Pause" : "Play"}
-                </button>
-                <a className="btn btn-ghost" href={selected.url} target="_blank" rel="noreferrer">Open media</a>
-                <a className="btn btn-ghost" href={selected.download_url}>Download</a>
-              </div>
-              {videos.length > 1 && (
-                <div className="media-selector" role="radiogroup" aria-label="Select rollout media">
-                  {videos.map((video) => (
-                    <button
-                      key={video.id}
-                      type="button"
-                      role="radio"
-                      aria-checked={video.id === selected.id}
-                      className={video.id === selected.id ? "selected" : ""}
-                      onClick={() => { setMediaError(false); onSelectVideo(video.id); }}
-                      title={video.name}
-                    >
-                      <span aria-hidden>▶</span>{video.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="no-media">This completed run has metrics but no playable rollout media.</div>
-          )}
-        </div>
+        <MediaPanel videos={videos} selectedVideo={selectedVideo} onSelectVideo={onSelectVideo} />
       </div>
 
       <div className="semantic-details">
@@ -330,86 +239,4 @@ function CompletedResults({
       </details>
     </section>
   );
-}
-
-function MetricDetails({ title, subtitle, entries, defaultOpen = false }: { title: string; subtitle: string; entries: MetricEntry[]; defaultOpen?: boolean }) {
-  return (
-    <details className="result-detail" open={defaultOpen}>
-      <summary><strong>{title}</strong><span>{subtitle}</span></summary>
-      {entries.length ? (
-        <dl className="metric-list">
-          {entries.map((entry) => <KeyValue key={entry.rawKey} label={entry.label} value={entry.value} />)}
-        </dl>
-      ) : <p className="detail-empty">No {title.toLowerCase()} metrics were published.</p>}
-    </details>
-  );
-}
-
-function EpisodeDetails({ episodes }: { episodes: ReturnType<typeof buildResultView>["episodes"] }) {
-  return (
-    <details className="result-detail">
-      <summary><strong>Episodes</strong><span>{episodes.length ? `${episodes.length} evaluated` : "No episode list"}</span></summary>
-      {episodes.length ? (
-        <div className="episode-table">
-          <div className="episode-header" aria-hidden><span>Episode</span><span>Reward</span><span>Length</span><span>Outcome</span><span>Mean velocity</span></div>
-          {episodes.map((episode, index) => (
-            <div className="episode-row" key={`${episode.index}-${index}`}>
-              <EpisodeCell label="Episode" value={episode.index} />
-              <EpisodeCell label="Reward" value={episode.reward} />
-              <EpisodeCell label="Length" value={episode.length} />
-              <EpisodeCell label="Outcome" value={episode.outcome} />
-              <EpisodeCell label="Mean velocity" value={episode.velocity} />
-            </div>
-          ))}
-        </div>
-      ) : <p className="detail-empty">This run did not publish per-episode rows.</p>}
-    </details>
-  );
-}
-
-function EpisodeCell({ label, value }: { label: string; value: string }) {
-  return <span><small>{label}</small><strong>{value}</strong></span>;
-}
-
-function ArtifactFiles({ artifacts, simulatorOnly }: { artifacts: Artifact[]; simulatorOnly: boolean }) {
-  return (
-    <details className="result-detail artifact-files">
-      <summary><strong>Result files</strong><span>{artifacts.length} downloadable</span></summary>
-      <ul>
-        {artifacts.map((artifact) => (
-          <li key={artifact.id}>
-            <span><strong>{artifact.name}</strong><small>{formatBytes(artifact.size_bytes)}</small></span>
-            <span>
-              <a href={artifact.url} target="_blank" rel="noreferrer">Open</a>
-              <a
-                href={artifact.download_url}
-                onClick={(event) => {
-                  if (
-                    simulatorOnly &&
-                    artifact.id === "policy_bundle" &&
-                    !window.confirm("This policy bundle is simulator-only and is not directly deployable to a physical robot. Continue?")
-                  ) {
-                    event.preventDefault();
-                  }
-                }}
-              >
-                Download
-              </a>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-function KeyValue({ label, value }: { label: string; value: string }) {
-  return <div><dt>{label}</dt><dd title={value}>{value}</dd></div>;
-}
-
-function formatBytes(value: number | null): string {
-  if (value === null) return "Size unavailable";
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KiB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MiB`;
 }

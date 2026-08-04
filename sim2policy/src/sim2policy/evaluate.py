@@ -46,7 +46,9 @@ def _jsonable(value: Any) -> Any:
     return str(value)
 
 
-def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
+def evaluate_sb3(
+    checkpoint: Path, config: RunConfig, *, seeds: list[int] | None = None
+) -> tuple[list[dict[str, Any]], float]:
     try:
         gym = importlib.import_module("gymnasium")
         PPO = importlib.import_module("stable_baselines3").PPO
@@ -56,9 +58,12 @@ def evaluate_sb3(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
     model = PPO.load(checkpoint, device=config.training.device)
     episodes: list[dict[str, Any]] = []
     started = time.monotonic()
-    for index, seed in enumerate(
-        seed_schedule(config.evaluation.episodes, config.evaluation.seeds)
-    ):
+    schedule = (
+        seeds
+        if seeds is not None
+        else seed_schedule(config.evaluation.episodes, config.evaluation.seeds)
+    )
+    for index, seed in enumerate(schedule):
         env = gym.make(config.environment)
         observation, _ = env.reset(seed=seed)
         reward_sum = 0.0
@@ -136,6 +141,9 @@ def evaluate(checkpoint: Path, config: RunConfig, run_id: str, run_root: Path) -
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("evaluation")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
     parser.add_argument("--checkpoint", required=True, type=Path)

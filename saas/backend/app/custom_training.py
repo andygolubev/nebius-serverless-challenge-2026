@@ -15,16 +15,23 @@ from typing import Any
 
 from .models import PreparationAttempt, PreparationSummary, RobotAsset, RobotSetup
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v1"
-SCENE_VERSION = "custom-locomotion-scenes-v1"
+REWARD_VERSION = "locomotion-rewards-v3"
+SCENE_VERSION = "custom-locomotion-scenes-v2"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
-TRAINING_PROFILE_VERSION = "custom-ppo-quick-v1"
+TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
 
-SUPPORTED_TASKS = frozenset({"stand-balance", "walk-forward"})
-SUPPORTED_SCENES = frozenset({"flat-arena", "ramp-course"})
+SUPPORTED_TASKS = frozenset({"stand-balance", "walk-forward", "recover-from-fall"})
+SUPPORTED_SCENES = frozenset(
+    {"flat-arena", "ramp-course", "hurdle-course", "step-course"}
+)
 SUPPORTED_ROBOT_TYPES = frozenset({"biped", "quadruped"})
+TASK_ROBOT_TYPES = {
+    "stand-balance": SUPPORTED_ROBOT_TYPES,
+    "walk-forward": SUPPORTED_ROBOT_TYPES,
+    "recover-from-fall": frozenset({"quadruped"}),
+}
 
 REASON_FEATURE_DISABLED = "custom-training-not-enabled"
 REASON_UNSUPPORTED_ROBOT_TYPE = "unsupported-robot-type"
@@ -74,31 +81,46 @@ class PreparationProfile:
 
 @dataclass(frozen=True)
 class TrainingProfile:
+    """Locomotion training budget sized to converge rather than to smoke-test.
+
+    v1 ran 100k timesteps on a serial ``DummyVecEnv``, which is roughly twelve PPO
+    updates: not enough to learn to stand, and measured runs regressed after 25k steps.
+    v2 keeps the same fixed, server-owned shape but spends real compute: subprocess
+    vector environments across sixteen vCPUs, running observation/reward normalisation,
+    and a budget in the range MuJoCo locomotion baselines actually need.
+    """
+
     version: str = TRAINING_PROFILE_VERSION
     platform: str = "cpu-d3"
-    preset: str = "8vcpu-32gb"
+    preset: str = "16vcpu-64gb"
     disk_gib: int = 100
-    timeout_seconds: int = 3600
-    cpu_count: int = 8
-    memory_gib: int = 32
+    timeout_seconds: int = 10_800
+    cpu_count: int = 16
+    memory_gib: int = 64
     max_input_bytes: int = 1024 * 1024
     max_artifact_bytes: int = 512 * 1024 * 1024
-    total_timesteps: int = 100_000
-    n_envs: int = 8
-    checkpoint_every_steps: int = 25_000
-    evaluation_every_steps: int = 25_000
-    progress_evaluation_episodes: int = 2
-    progress_evaluation_seeds: tuple[int, ...] = (101, 151)
+    total_timesteps: int = 3_000_000
+    n_envs: int = 16
+    checkpoint_every_steps: int = 250_000
+    evaluation_every_steps: int = 250_000
+    progress_evaluation_episodes: int = 4
+    progress_evaluation_seeds: tuple[int, ...] = (101, 151, 199, 251)
     evaluation_episodes: int = 20
     evaluation_seeds: tuple[int, ...] = (11, 23, 37, 53, 71)
     ppo_learning_rate: float = 3e-4
-    ppo_n_steps: int = 1024
-    ppo_batch_size: int = 256
+    ppo_n_steps: int = 512
+    ppo_batch_size: int = 512
     ppo_n_epochs: int = 10
     ppo_gamma: float = 0.99
     ppo_gae_lambda: float = 0.95
     ppo_clip_range: float = 0.2
-    hourly_rate: float = 0.1984
+    ppo_ent_coef: float = 0.0
+    policy_net_arch: tuple[int, ...] = (256, 256)
+    normalize_observations: bool = True
+    normalize_reward: bool = True
+    normalize_clip_obs: float = 10.0
+    publish_best_checkpoint: bool = True
+    hourly_rate: float = 0.3968
     currency: str = "USD"
     rate_date: str = "2026-07-14"
 
@@ -114,21 +136,21 @@ def eligibility(setup: RobotSetup, *, enabled: bool = True) -> Eligibility:
         return Eligibility(False, REASON_UNSUPPORTED_ROBOT_TYPE)
     if setup.task_template_id not in SUPPORTED_TASKS:
         return Eligibility(False, REASON_UNSUPPORTED_TASK)
+    if setup.robot_type not in TASK_ROBOT_TYPES[setup.task_template_id]:
+        return Eligibility(False, REASON_UNSUPPORTED_TASK)
     if setup.scene_preset_id not in SUPPORTED_SCENES:
         return Eligibility(False, REASON_UNSUPPORTED_SCENE)
-    if any(item.source == "custom" for item in setup.objects):
-        return Eligibility(False, REASON_OPTIONAL_OBJECTS)
     return Eligibility(True, REASON_NOT_PREPARED)
 
 
 def canonical_normalized_setup(setup: RobotSetup) -> dict[str, Any]:
-    """Training input excludes preset scene objects; the scene version owns them."""
+    """Serialize only the closed, server-normalized world contract."""
     return {
         "schema_version": SCHEMA_VERSION,
         "robot_type": setup.robot_type,
         "task_template_id": setup.task_template_id,
         "scene_preset_id": setup.scene_preset_id,
-        "objects": [],
+        "objects": [item.model_dump(mode="json") for item in setup.objects],
     }
 
 
@@ -269,6 +291,7 @@ def resolved_profile_payload() -> dict[str, Any]:
     training["progress_evaluation_seeds"] = list(
         training["progress_evaluation_seeds"]
     )
+    training["policy_net_arch"] = list(training["policy_net_arch"])
     return {"preparation": preparation, "training": training}
 
 

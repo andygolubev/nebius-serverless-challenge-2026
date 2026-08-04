@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -10,14 +11,18 @@ from typing import Any, Literal, cast
 
 from sim2policy.custom_robot_contract import (
     ADAPTER_VERSION,
+    MAX_OBJECTS,
+    OBJECT_CONTRACTS,
     PREPARATION_PROFILE,
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
+    SCENE_CONTRACTS,
     SCHEMA_VERSION,
     SHA256_RE,
     SUPPORTED_ROBOT_TYPES,
     SUPPORTED_SCENES,
     SUPPORTED_TASKS,
+    TASK_ROBOT_TYPES,
     canonical_json,
     preparation_fingerprint,
     sha256_bytes,
@@ -157,10 +162,44 @@ def validate_documents(
         raise CustomInputError("normalized setup robot type is unsupported")
     if setup["task_template_id"] not in SUPPORTED_TASKS:
         raise CustomInputError("normalized setup task is unsupported")
+    if setup["robot_type"] not in TASK_ROBOT_TYPES[setup["task_template_id"]]:
+        raise CustomInputError("normalized setup task is incompatible with the robot type")
     if setup["scene_preset_id"] not in SUPPORTED_SCENES:
         raise CustomInputError("normalized setup scene is unsupported")
-    if setup["objects"] != []:
-        raise CustomInputError("normalized setup optional objects are unsupported")
+    objects = setup["objects"]
+    if not isinstance(objects, list) or len(objects) > MAX_OBJECTS:
+        raise CustomInputError("normalized setup objects are invalid")
+    object_fields = {
+        "object_type", "x", "y", "z", "yaw_degrees", "width", "depth",
+        "height", "source",
+    }
+    preset_objects: list[dict[str, Any]] = []
+    custom_seen = False
+    for item in objects:
+        if not isinstance(item, dict) or set(item) != object_fields:
+            raise CustomInputError("normalized setup object fields are invalid")
+        object_type = item["object_type"]
+        bounds = OBJECT_CONTRACTS.get(object_type)
+        if bounds is None or item["source"] not in {"preset", "custom"}:
+            raise CustomInputError("normalized setup object identity is invalid")
+        if item["source"] == "custom":
+            custom_seen = True
+        elif custom_seen:
+            raise CustomInputError("normalized setup preset object order is invalid")
+        else:
+            preset_objects.append(item)
+        for field, (minimum, maximum) in bounds.items():
+            value = item[field]
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(float(value))
+                or not minimum <= float(value) <= maximum
+            ):
+                raise CustomInputError("normalized setup object bounds are invalid")
+    expected_presets = list(SCENE_CONTRACTS[setup["scene_preset_id"]]["preset_objects"])
+    if preset_objects != expected_presets:
+        raise CustomInputError("normalized setup preset objects do not match the scene")
 
     expected_fingerprint = preparation_fingerprint(
         robot_digest=str(robot["source_digest"]),

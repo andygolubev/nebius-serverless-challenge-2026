@@ -8,7 +8,12 @@ from typing import Any
 
 import pytest
 
-from sim2policy.checkpoint import CheckpointError, checkpoint_path, write_checkpoint_metadata
+from sim2policy.checkpoint import (
+    CheckpointError,
+    checkpoint_path,
+    sha256_file,
+    write_checkpoint_metadata,
+)
 from sim2policy.config import StorageConfig, load_config
 from sim2policy.storage import ArtifactStore, StorageError
 
@@ -40,16 +45,31 @@ class FakeS3:
         self.objects[(bucket, key)] = Path(filename).read_bytes()
         self.metadata[(bucket, key)] = dict((ExtraArgs or {}).get("Metadata", {}))
 
-    def put_object(self, *, Bucket: str, Key: str, Body: bytes, **_: Any) -> None:
+    def put_object(
+        self,
+        *,
+        Bucket: str,
+        Key: str,
+        Body: bytes,
+        Metadata: dict[str, str] | None = None,
+        **_: Any,
+    ) -> None:
         self._fail()
         self.events.append(("put", Key))
         self.objects[(Bucket, Key)] = Body
+        self.metadata[(Bucket, Key)] = dict(Metadata or {})
 
     def get_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
         return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
 
     def download_file(self, bucket: str, key: str, filename: str) -> None:
         Path(filename).write_bytes(self.objects[(bucket, key)])
+
+    def head_object(self, *, Bucket: str, Key: str) -> dict[str, Any]:
+        return {
+            "ContentLength": len(self.objects[(Bucket, Key)]),
+            "Metadata": self.metadata.get((Bucket, Key), {}),
+        }
 
     def list_objects_v2(self, *, Bucket: str, Prefix: str, **_: Any) -> dict[str, Any]:
         keys = sorted(
@@ -153,6 +173,31 @@ def test_publish_and_resume_round_trip(tmp_path: Path) -> None:
     incompatible = replace(config, environment="Other-v1")
     with pytest.raises(CheckpointError, match="incompatible"):
         store.resume_latest(tmp_path / "wrong", incompatible)
+    transitioned = store.resume_latest(
+        tmp_path / "transitioned",
+        incompatible,
+        allowed_source_environment=config.environment,
+    )
+    assert transitioned.read_bytes() == original.read_bytes()
+
+
+def test_resume_named_checkpoint_requires_the_recorded_digest(tmp_path: Path) -> None:
+    config = load_config(ROOT / "configs/smoke_sb3.yaml")
+    client = FakeS3()
+    parent = ArtifactStore(s3_config(), "parent", client=client)
+    source = make_checkpoint(tmp_path / "source")
+    parent.publish_checkpoint(source, tmp_path / "source")
+    restored = parent.resume_named_checkpoint(
+        tmp_path / "restored",
+        config,
+        checkpoint_name=source.name,
+        expected_sha256=sha256_file(source),
+    )
+    assert restored.read_bytes() == source.read_bytes()
+    with pytest.raises(CheckpointError, match="checksum"):
+        parent.resume_named_checkpoint(
+            tmp_path / "wrong", config, checkpoint_name=source.name, expected_sha256="0" * 64
+        )
 
 
 def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> None:
@@ -171,3 +216,29 @@ def test_interrupted_checkpoint_upload_keeps_old_manifest(tmp_path: Path) -> Non
     with pytest.raises(StorageError):
         store.publish_checkpoint(second, second_root)
     assert json.loads(client.objects[("test", latest_key)]) == old_manifest
+
+
+def test_head_object_optional_reports_size_and_absence(tmp_path: Path) -> None:
+    """Campaign verification proves objects exist without downloading them."""
+    client = FakeS3()
+    store = ArtifactStore(s3_config(), "run-1", client=client, sleep=lambda _: None)
+    store.put_json("report/metrics.json", {"a": 1})
+
+    head = store.head_object_optional("report/metrics.json")
+    assert head is not None
+    assert head["size_bytes"] == len(client.objects[("test", store.key_for("report/metrics.json"))])
+    assert head["sha256"] is None
+
+    artifact = tmp_path / "artifact.bin"
+    artifact.write_bytes(b"checksummed artifact")
+    store.upload_file(artifact, "artifacts/artifact.bin")
+    artifact_head = store.head_object_optional("artifacts/artifact.bin")
+    assert artifact_head is not None
+    assert artifact_head["sha256"] == sha256_file(artifact)
+
+    artifact_key = store.key_for("artifacts/artifact.bin")
+    client.metadata[("test", artifact_key)] = {"Sha256": sha256_file(artifact)}
+    titlecase_head = store.head_object_optional("artifacts/artifact.bin")
+    assert titlecase_head is not None
+    assert titlecase_head["sha256"] == sha256_file(artifact)
+    assert store.head_object_optional("report/absent.json") is None

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-67e0823f-6217-4be6-a098-1256d73d0ee1/styles.css">
+<script src="_ds/modernist-67e0823f-6217-4be6-a098-1256d73d0ee1/_ds_bundle.js"></script>
+<script src="./image-slot.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap">
+<style>
+  body { margin: 0; background: #ffffff; color: #14232b; font-family: var(--font-body); }
+  a { color: #0d8f83; text-decoration: none; }
+  a:hover { color: #1f8ff5; text-decoration: underline; }
+  .v2-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; font-family: var(--font-body); font-size: 14px; font-weight: 700; border: 0; cursor: pointer; color: #ffffff; background: linear-gradient(100deg, #1f8ff5 0%, #17b9a8 55%, #35c95f 100%); }
+  .v2-btn:hover { filter: saturate(1.15) brightness(1.04); }
+  .v2-btn:active { filter: brightness(0.94); }
+  .v2-btn-quiet { background: #ffffff; color: #0d6f78; border: 2px solid rgba(16,74,82,0.22); }
+  .v2-btn-quiet:hover { background: #f2fbf9; filter: none; }
+  :focus-visible { outline: 2px solid #17b9a8; outline-offset: 2px; }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; background: #ffffff; color: #14232b; font-family: var(--font-body); font-size: 16px; line-height: 1.5;">
+
+  <header data-screen-label="Top bar" style="display: flex; align-items: center; gap: 32px; padding: 18px 40px; border-bottom: 2px solid rgba(16,74,82,0.16); background: #ffffff; position: sticky; top: 0; z-index: 10;">
+    <div style="display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-weight: 800; font-size: 19px; letter-spacing: -0.02em;">
+      <span style="width: 12px; height: 12px; background: linear-gradient(135deg, #1f8ff5 0%, #35c95f 100%); display: block;"></span>
+      Sim2Policy
+    </div>
+    <nav aria-label="Main" style="display: flex; gap: 4px; align-items: stretch;">
+      <a href="#about" style="padding: 8px 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; color: #557179; border-bottom: 3px solid transparent; text-decoration: none;" style-hover="color: #14232b;">Verified runs</a>
+    </nav>
+    <span style="flex: 1;"></span>
+    <button type="button" class="v2-btn" style="font-size: 13px;">Sign in</button>
+  </header>
+
+  <section data-screen-label="About hero" style="background: linear-gradient(103deg, #e9f4ff 0%, #eefaf5 46%, #f4fdf7 68%, #ffffff 100%);">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 72px 40px 56px;">
+      <div>
+        <p style="margin: 0 0 20px; font-size: 12px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0d8f83;">About me</p>
+        <h1 id="about" style="margin: 0 0 24px; font-family: var(--font-heading); font-weight: 800; font-size: 76px; line-height: 0.94; letter-spacing: -0.035em;">Andy Golubev</h1>
+        <p style="margin: 0; max-width: 40ch; font-size: 19px; line-height: 1.45; color: #46626b; text-wrap: pretty;">I built Sim2Policy on my own for the Nebius Serverless Challenge 2026 — simulation, training, storage, the API, the deployment and this website.</p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 32px;">
+          <a href="https://andygolubev.com/" class="v2-btn" style="text-decoration: none;">andygolubev.com →</a>
+          <a href="https://www.linkedin.com/in/andy-golubev/" class="v2-btn v2-btn-quiet" style="text-decoration: none;">LinkedIn</a>
+          <a href="https://github.com/andygolubev/nebius-serverless-challenge-2026" class="v2-btn v2-btn-quiet" style="text-decoration: none;">GitHub repository</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="max-width: 1440px; margin: 0 auto; padding: 0 40px;">
+    <div style="border-top: 2px solid rgba(16,74,82,0.16);"></div>
+  </div>
+
+  <section data-screen-label="What this is" style="max-width: 1440px; margin: 0 auto; padding: 48px 40px 72px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 64px; align-items: start;">
+    <p style="margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #557179;">Why this project exists</p>
+    <div style="display: grid; gap: 24px;">
+      <p style="margin: 0; font-size: 21px; line-height: 1.45; color: #14232b; text-wrap: pretty;">Training robot locomotion policies normally needs hardware, patience and a lab. It should need neither a robot nor a budget to start — a simulator, a serverless GPU and durable storage are enough.</p>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #46626b; text-wrap: pretty;">So Sim2Policy trains policies in MuJoCo with PPO, runs the training as a serverless AI job, and keeps every result — checkpoint, metrics and a rollout video — in object storage that outlives the machine. Seven verified runs are published so you can judge the thing before you sign in, and the whole source tree is on GitHub.</p>
+      <p style="margin: 0; font-size: 17px; line-height: 1.55; color: #46626b; text-wrap: pretty;">It is free for you to use. I am not selling anything here and I do not want your credit card — only an email address, so your trained robots have somewhere to live.</p>
+    </div>
+  </section>
+
+  <section data-screen-label="Contact" style="border-top: 2px solid rgba(16,74,82,0.16); background: linear-gradient(170deg, #f3fbff 0%, #f1fbf4 100%);">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 56px 40px 64px;">
+      <p style="margin: 0 0 32px; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #557179;">Find me</p>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px;">
+        <a href="https://andygolubev.com/" style="display: block; border-top: 2px solid rgba(16,74,82,0.16); padding-top: 16px; text-decoration: none;">
+          <h3 style="margin: 0 0 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: #14232b;">Personal site</h3>
+          <p style="margin: 0; font-size: 15px; color: #0d8f83; overflow-wrap: anywhere;">andygolubev.com</p>
+        </a>
+        <a href="https://www.linkedin.com/in/andy-golubev/" style="display: block; border-top: 2px solid rgba(16,74,82,0.16); padding-top: 16px; text-decoration: none;">
+          <h3 style="margin: 0 0 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: #14232b;">LinkedIn</h3>
+          <p style="margin: 0; font-size: 15px; color: #0d8f83; overflow-wrap: anywhere;">linkedin.com/in/andy-golubev</p>
+        </a>
+        <a href="https://github.com/andygolubev/nebius-serverless-challenge-2026" style="display: block; border-top: 2px solid rgba(16,74,82,0.16); padding-top: 16px; text-decoration: none;">
+          <h3 style="margin: 0 0 6px; font-family: var(--font-heading); font-weight: 800; font-size: 22px; letter-spacing: -0.02em; color: #14232b;">Source code</h3>
+          <p style="margin: 0; font-size: 15px; color: #0d8f83; overflow-wrap: anywhere;">github.com/andygolubev/nebius-serverless-challenge-2026</p>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <section data-screen-label="Credit" style="border-top: 2px solid rgba(16,74,82,0.16); background: linear-gradient(100deg, #ffffff 0%, #f1fbf5 60%, #e9f4ff 100%);">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 56px 40px 64px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 64px; align-items: start;">
+      <p style="margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #0d8f83;">Built with passion and love</p>
+      <p style="margin: 0; font-family: var(--font-heading); font-weight: 800; font-size: 34px; line-height: 1.12; letter-spacing: -0.025em; text-wrap: pretty;">Simulation, training, storage, deployment and this page — built in weeks by one person with an LLM. That is the time we live in, and I loved every hour of it.</p>
+    </div>
+  </section>
+
+  <footer style="border-top: 2px solid rgba(16,74,82,0.16); background: #ffffff;">
+    <div style="max-width: 1440px; margin: 0 auto; padding: 24px 40px 40px; display: flex; flex-wrap: wrap; gap: 24px; justify-content: space-between; align-items: baseline;">
+      <span style="font-family: var(--font-heading); font-weight: 800; font-size: 15px;">Sim2Policy</span>
+      <nav aria-label="Footer" style="display: flex; flex-wrap: wrap; gap: 24px; align-items: baseline;">
+        <a href="#about" style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0d8f83;">About me</a>
+        <a href="#terms" style="font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #0d8f83;">Terms of use</a>
+      </nav>
+      <span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #557179;">Nebius Serverless Challenge 2026</span>
+    </div>
+  </footer>
+
+</div>
+
+</x-dc>
+</body>
+</html>

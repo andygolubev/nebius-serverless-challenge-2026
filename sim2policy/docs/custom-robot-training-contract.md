@@ -1,4 +1,4 @@
-# Custom robot training V1 contract
+# Custom robot training V2 contract
 
 Custom robot training is a three-stage product contract: an upload is structurally **validated**,
 an exact robot/task/scene/runtime fingerprint is **prepared**, and only an accepted preparation can
@@ -7,13 +7,17 @@ only final multi-seed evaluation reports whether the learned policy reached the 
 
 ## Supported matrix and stable reasons
 
-V1 admits declared `biped` and `quadruped` robots, `stand-balance` and `walk-forward` tasks, and
-`flat-arena` and `ramp-course` scenes. The user-selected optional object list must be empty. Ramp
-Course's ramp belongs to the versioned server scene and is not an uploaded or optional object.
+V2 admits declared `biped` and `quadruped` robots, every task compatible with the declared family,
+all four server scenes, and up to six total normalized preset/custom primitives. Quadrupeds support
+`stand-balance`, `walk-forward`, and `recover-from-fall`; bipeds support the first two. Flat, Ramp,
+Hurdle, and Step scenes plus bounded Box, Ramp, Hurdle, and Step objects all use the same fixed
+runtime. Preset objects are included in the six-object total and are carried in the exact normalized
+setup input.
 
-Saved beta setups outside that matrix remain valid drafts. They use stable reasons:
-`custom-training-not-enabled`, `unsupported-robot-type`, `unsupported-task`, `unsupported-scene`,
-`optional-objects-not-supported`, `not-prepared`, `preparing`, `preparation-failed`, and `ready`.
+Every catalog-valid saved setup uses lifecycle reasons `custom-training-not-enabled`,
+`not-prepared`, `preparing`, `preparation-failed`, and `ready`. Unsupported task/scene/object reasons
+remain bounded defensive categories for corrupt or historical data; the builder cannot persist such
+a payload.
 
 ## Training-only MJCF allowlist
 
@@ -30,8 +34,9 @@ Preparation reparses the same XML and applies a narrower executable allowlist:
   plugin, mesh, texture, height field, external reference, path, URL, or executable content.
 
 The runtime deterministically attaches the robot subtree to a server-owned scene with gravity,
-timestep, floor/ramp, contact defaults, camera/light, reset distribution, reward, termination, and
-episode horizon. Unsupported content fails preparation with a bounded phase/reason and is never
+timestep, floor and normalized primitive geometry, contact defaults, camera/light, reset
+distribution, reward, termination, and episode horizon. Unsupported content fails preparation with
+a bounded phase/reason and is never
 executed in the SaaS API process.
 
 ## Observation, action, reward, and termination
@@ -42,11 +47,14 @@ target. Each action is one value in `[-1, 1]`, clipped and mapped to the corresp
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v1` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v2` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
-velocity and penalizes lateral/yaw motion. Both stop on fall, non-finite state, configured runaway
-position/velocity, or the fixed horizon. Seeded resets, thresholds, coefficients, and evaluation
-rules are recorded in resolved configuration; users cannot edit them.
+velocity and penalizes lateral/yaw motion. Recover From Fall starts a quadruped from a bounded
+side-fallen free-root pose and rewards upright/height recovery while bounding motion, action, and
+energy. Falling terminates balance/walk episodes but not recovery episodes; non-finite state,
+configured runaway position/velocity, and the fixed horizon remain universal bounds. Seeded resets,
+thresholds, coefficients, and evaluation rules are recorded in resolved configuration; users cannot
+edit them.
 
 ## Profiles and fingerprint
 
@@ -55,11 +63,14 @@ Preparation profile `custom-prepare-v1` starts at `cpu-d3/4vcpu-16gb`, a 50 GiB 
 seeded reset and zero/random rollouts, headless rendering, the Gymnasium/SB3 checker, and a 2,048
 step PPO save/reload/inference cycle.
 
-Training profile `custom-ppo-quick-v1` starts at `cpu-d3/8vcpu-32gb`, a 100 GiB disk, a one-hour
-timeout, eight vector environments, and 100,000 PPO timesteps with fixed hyperparameters,
-checkpoints, and a 20-episode/five-seed final evaluation. These are provisional server-owned values;
-production enablement must benchmark all eight canonical combinations and freeze the smallest
-dependable shapes without adding user controls.
+Training profile `custom-ppo-quick-v2` starts at `cpu-d3/16vcpu-64gb`, a 100 GiB disk, a
+three-hour timeout, sixteen subprocess vector environments, and 3,000,000 PPO timesteps with
+fixed hyperparameters, running observation/reward normalisation, periodic checkpoints, and a
+20-episode/five-seed final evaluation. The policy published as final is the best-scoring
+checkpoint across those evaluations, not simply the last one. These are provisional server-owned values;
+production validation expands from the eight historical V1 anchors to representative coverage of
+every new task, terrain, and object family before freezing dependable shapes without adding user
+controls.
 
 The accepted preparation fingerprint is canonical JSON over schema version, robot digest, setup
 digest, immutable runtime image, adapter version, reward version, and preparation-profile version.

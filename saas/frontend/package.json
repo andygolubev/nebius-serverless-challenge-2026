@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:deployed": "SAAS_SMOKE_BASE_URL=${SAAS_SMOKE_BASE_URL:?set SAAS_SMOKE_BASE_URL} playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +16,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.12",

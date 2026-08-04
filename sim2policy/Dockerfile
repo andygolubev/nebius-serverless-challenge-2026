@@ -30,6 +30,16 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 COPY src/ src/
 RUN uv sync --frozen --no-dev --extra mjx
+# MuJoCo Playground lazily clones this pinned asset repository when a locomotion
+# environment is first loaded.  Bake the exact revision it requests into the
+# immutable image so an H100 job never depends on outbound GitHub access.
+RUN git clone --depth 1 https://github.com/deepmind/mujoco_menagerie.git \
+    /opt/venv/lib/python3.12/site-packages/mujoco_playground/external_deps/mujoco_menagerie \
+    && git -C /opt/venv/lib/python3.12/site-packages/mujoco_playground/external_deps/mujoco_menagerie \
+      fetch --depth 1 origin 1b86ece576591213e2b666ebf59508454200ca97 \
+    && git -C /opt/venv/lib/python3.12/site-packages/mujoco_playground/external_deps/mujoco_menagerie \
+      checkout --detach 1b86ece576591213e2b666ebf59508454200ca97 \
+    && rm -rf /opt/venv/lib/python3.12/site-packages/mujoco_playground/external_deps/mujoco_menagerie/.git
 COPY configs/ configs/
 COPY scripts/ scripts/
 

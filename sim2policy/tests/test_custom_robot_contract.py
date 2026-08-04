@@ -31,24 +31,24 @@ def _fixture(name: str) -> dict[str, object]:
 @pytest.mark.parametrize(
     "name,expected_id",
     [
-        ("normalized-setup.schema.json", "sim2policy/custom-robot/normalized-setup/v1"),
+        ("normalized-setup.schema.json", "sim2policy/custom-robot/normalized-setup/v2"),
         (
             "preparation-input-manifest.schema.json",
-            "sim2policy/custom-robot/preparation-input-manifest/v1",
+            "sim2policy/custom-robot/preparation-input-manifest/v2",
         ),
-        ("preparation-report.schema.json", "sim2policy/custom-robot/preparation-report/v1"),
-        ("resolved-custom-job.schema.json", "sim2policy/custom-robot/resolved-job/v1"),
+        ("preparation-report.schema.json", "sim2policy/custom-robot/preparation-report/v2"),
+        ("resolved-custom-job.schema.json", "sim2policy/custom-robot/resolved-job/v2"),
         (
             "policy-bundle-manifest.schema.json",
-            "sim2policy/custom-robot/policy-bundle-manifest/v1",
+            "sim2policy/custom-robot/policy-bundle-manifest/v2",
         ),
         (
             "preparation-api-state.schema.json",
-            "sim2policy/custom-robot/preparation-api-state/v1",
+            "sim2policy/custom-robot/preparation-api-state/v2",
         ),
         (
             "custom-artifact-manifest.schema.json",
-            "sim2policy/custom-robot/artifact-manifest/v1",
+            "sim2policy/custom-robot/artifact-manifest/v2",
         ),
     ],
 )
@@ -126,18 +126,30 @@ def test_profiles_are_fixed_and_bounded() -> None:
     )
     assert (TRAINING_PROFILE.platform, TRAINING_PROFILE.preset) == (
         "cpu-d3",
-        "8vcpu-32gb",
+        "16vcpu-64gb",
     )
     assert PREPARATION_PROFILE.timeout_seconds <= 600
-    assert TRAINING_PROFILE.total_timesteps == 100_000
-    assert TRAINING_PROFILE.n_envs == 8
+    assert TRAINING_PROFILE.total_timesteps == 3_000_000
+    assert TRAINING_PROFILE.n_envs == 16
+    # One vector environment per provisioned vCPU, and a budget the timeout can hold at
+    # the throughput measured for the v1 profile (~1.4k steps/s on half the cores).
+    assert TRAINING_PROFILE.n_envs <= TRAINING_PROFILE.cpu_count
+    assert TRAINING_PROFILE.timeout_seconds <= 10_800
+    assert TRAINING_PROFILE.normalize_observations is True
+    assert TRAINING_PROFILE.publish_best_checkpoint is True
 
 
-def test_contract_summary_contains_only_v1_matrix() -> None:
+def test_contract_summary_contains_complete_builder_matrix() -> None:
     summary = contract_summary()
     assert summary["supported_robot_types"] == ["biped", "quadruped"]
-    assert summary["supported_tasks"] == ["stand-balance", "walk-forward"]
-    assert summary["supported_scenes"] == ["flat-arena", "ramp-course"]
+    assert summary["supported_tasks"] == [
+        "stand-balance", "walk-forward", "recover-from-fall"
+    ]
+    assert summary["supported_scenes"] == [
+        "flat-arena", "ramp-course", "hurdle-course", "step-course"
+    ]
+    assert set(summary["object_contracts"]) == {"box", "ramp", "hurdle", "step"}
+    assert summary["max_objects"] == 6
 
 
 def test_unsafe_identity_is_rejected() -> None:

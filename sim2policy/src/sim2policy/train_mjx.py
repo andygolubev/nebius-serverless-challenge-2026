@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import contextlib
 import functools
+import hashlib
 import importlib
 import inspect
 import json
 import math
+import os
 import shutil
 import subprocess
 import sys
@@ -17,13 +19,29 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from sim2policy.checkpoint import (
+    CheckpointError,
     checkpoint_path,
     latest_checkpoint,
-    validate_checkpoint,
+    load_checkpoint_metadata,
     write_checkpoint_metadata,
 )
 from sim2policy.config import RunConfig, load_config, parse_override
+from sim2policy.g1_forward_env import (
+    G1_FORWARD_FLAT_ENVIRONMENT,
+    G1_FORWARD_ROUGH_ENVIRONMENT,
+    is_g1_forward_environment,
+    register_g1_forward_environments,
+    upstream_environment,
+)
+from sim2policy.g1_transition import (
+    TRANSITION_RELATIVE_PATH,
+    build_transition_record,
+    verify_transition_record,
+    write_immutable_local,
+)
 from sim2policy.run import RunPaths, create_run_paths, write_metadata
 from sim2policy.runstate import STATUS_FAILED, STATUS_TRAINING, RunStateStore
 from sim2policy.storage import ArtifactStore
@@ -63,6 +81,23 @@ _PLAYGROUND_FLAG_MAP = {
     "policy_hidden_layer_sizes",
     "value_hidden_layer_sizes",
 }
+REVIEWED_RESUME_TRANSITIONS = frozenset(
+    {
+        ("G1JoystickFlatTerrain", "G1JoystickRoughTerrain"),
+        (G1_FORWARD_FLAT_ENVIRONMENT, G1_FORWARD_ROUGH_ENVIRONMENT),
+        # Retained rejected-campaign checkpoints are allowed only as the
+        # explicitly named input to the bounded diagnostic pilot.
+        ("G1JoystickFlatTerrain", G1_FORWARD_ROUGH_ENVIRONMENT),
+    }
+)
+
+G1_TERMINATION_ORDER = (
+    "nan_state",
+    "torso_inversion",
+    "foot_foot_contact",
+    "foot_shin_contact",
+    "unknown_environment_done",
+)
 
 
 def _environment_overrides(config: RunConfig) -> dict[str, Any]:
@@ -97,6 +132,8 @@ def require_mjx() -> None:
 
 def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
     require_mjx()
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     registry = importlib.import_module("mujoco_playground").registry
     env_overrides = _environment_overrides(config)
     try:
@@ -112,6 +149,32 @@ def validate_mjx_environment(config: RunConfig) -> dict[str, Any]:
         "observation_size": getattr(env, "observation_size", None),
         "action_size": getattr(env, "action_size", None),
     }
+
+
+#: Set to "1" to permit MJX training on CPU. Intended only for CPU-only test hosts;
+#: never for a GPU-priced job.
+ALLOW_CPU_ENVIRONMENT_VARIABLE = "SIM2POLICY_ALLOW_CPU_MJX"
+
+
+def require_accelerator(backend: str, devices: list[dict[str, Any]]) -> None:
+    """Refuse to train MJX on CPU unless a CPU host was explicitly declared.
+
+    JAX silently falls back to CPU when it cannot load the CUDA libraries, and MJX
+    training still "works" — just orders of magnitude slower. On an H100 job that
+    is invisible in the logs and shows up only as a GPU bill for CPU work, so the
+    fallback is turned into an immediate, loud failure.
+    """
+    if backend.lower() == "gpu" or any(
+        str(device.get("platform", "")).lower() == "gpu" for device in devices
+    ):
+        return
+    if os.environ.get(ALLOW_CPU_ENVIRONMENT_VARIABLE) == "1":
+        return
+    raise RuntimeError(
+        "MJX training found no GPU device (JAX backend "
+        f"{backend!r}); refusing to run accelerator-priced training on CPU. "
+        f"Set {ALLOW_CPU_ENVIRONMENT_VARIABLE}=1 only on a CPU-only host."
+    )
 
 
 def jax_device_info() -> tuple[str, list[dict[str, Any]]]:
@@ -140,8 +203,13 @@ def build_playground_command(
     hyperparameters["num_evals"] = max(
         2, math.ceil(config.training.total_steps / config.checkpoint.every_steps) + 1
     )
+    executable = (
+        [sys.executable, "-m", "sim2policy.playground_train"]
+        if is_g1_forward_environment(config.environment)
+        else ["train-jax-ppo"]
+    )
     command = [
-        "train-jax-ppo",
+        *executable,
         f"--env_name={config.environment}",
         f"--impl={impl}",
         f"--seed={config.seed}",
@@ -215,10 +283,24 @@ def _repair_brax_checkpoint_config(checkpoint: Path) -> None:
         config_path.write_text(json.dumps(raw, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPaths) -> Path:
+def _prepare_resume_checkpoint(
+    checkpoint: Path,
+    config: RunConfig,
+    paths: RunPaths,
+    *,
+    allowed_source_environment: str | None = None,
+) -> Path:
     if checkpoint.is_dir():
         return checkpoint
-    validate_checkpoint(checkpoint, config)
+    metadata = load_checkpoint_metadata(checkpoint)
+    if metadata.backend != config.backend or (
+        metadata.environment != config.environment
+        and metadata.environment != allowed_source_environment
+    ):
+        raise CheckpointError(
+            f"checkpoint is for {metadata.backend}/{metadata.environment}, "
+            f"not {config.backend}/{config.environment}"
+        )
     if checkpoint.suffix != ".zip":
         raise RuntimeError(
             "MJX resume requires a raw Playground checkpoint directory or a zipped Orbax checkpoint"
@@ -226,16 +308,106 @@ def _prepare_resume_checkpoint(checkpoint: Path, config: RunConfig, paths: RunPa
     destination = paths.root / "resume" / checkpoint.stem
     if destination.exists():
         shutil.rmtree(destination)
+    # Playground's resume flag names a directory *containing* numeric
+    # checkpoint directories.  An Orbax checkpoint archive contains the
+    # contents of one numeric directory, including internal directories such
+    # as ``ocdbt.process_0``.  Extracting it directly into ``destination``
+    # therefore makes the upstream scanner try to parse those internal names
+    # as checkpoint steps.  Restore the archive beneath its attested step so
+    # the scanner sees exactly one numeric checkpoint entry.
     destination.mkdir(parents=True)
-    _safe_extract_checkpoint(checkpoint, destination)
+    _safe_extract_checkpoint(checkpoint, destination / f"{metadata.step:012d}")
     return destination
 
 
+def _verify_brax_supported_tuple(checkpoint_root: Path, output: Path) -> dict[str, Any]:
+    """Restore the pinned three-item Brax tuple in an isolated process."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "sim2policy.train_mjx",
+            "--verify-brax-resume-worker",
+            "--checkpoint-root",
+            str(checkpoint_root),
+            "--verification-output",
+            str(output),
+        ],
+        check=True,
+        text=True,
+    )
+    result: dict[str, Any] = json.loads(output.read_text(encoding="utf-8"))
+    if result.get("restored_components") != [
+        "observation_normalizer",
+        "policy_parameters",
+        "value_parameters",
+    ]:
+        raise RuntimeError("Brax checkpoint did not restore the supported PPO tuple")
+    return result
+
+
+def _verify_brax_supported_tuple_worker(checkpoint_root: Path, output: Path) -> None:
+    children = sorted(
+        (path for path in checkpoint_root.iterdir() if path.is_dir() and path.name.isdigit()),
+        key=lambda path: int(path.name),
+    )
+    if not children:
+        raise RuntimeError("resume root contains no numeric Brax checkpoint")
+    checkpoint = children[-1]
+    _repair_brax_checkpoint_config(checkpoint)
+    ppo_checkpoint = importlib.import_module("brax.training.agents.ppo.checkpoint")
+    restored = ppo_checkpoint.load(checkpoint)
+    if not isinstance(restored, (tuple, list)) or len(restored) != 3:
+        raise RuntimeError("pinned Brax PPO checkpoint is not a three-item supported tuple")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "brax_version": "0.14.2",
+                "checkpoint_path": str(checkpoint),
+                "restored_components": [
+                    "observation_normalizer",
+                    "policy_parameters",
+                    "value_parameters",
+                ],
+                "reinitialized_components": [
+                    "optimizer_state",
+                    "learner_step",
+                    "rollout_state",
+                    "prng_state",
+                ],
+                "fresh_initialization_seed": 0,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 @contextlib.contextmanager
-def mjx_policy_session(checkpoint: Path, config: RunConfig) -> Any:
+def mjx_policy_session(
+    checkpoint: Path,
+    config: RunConfig,
+    *,
+    allowed_source_environment: str | None = None,
+) -> Any:
     """Load a zipped Brax PPO policy and its matching Playground environment."""
     require_mjx()
-    validate_checkpoint(checkpoint, config)
+    metadata = load_checkpoint_metadata(checkpoint)
+    if metadata.backend != config.backend or (
+        metadata.environment != config.environment
+        and metadata.environment != allowed_source_environment
+    ):
+        raise CheckpointError(
+            f"checkpoint is for {metadata.backend}/{metadata.environment}, "
+            f"not {config.backend}/{config.environment}"
+        )
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     with tempfile.TemporaryDirectory(prefix="sim2policy-mjx-") as temporary:
         raw_checkpoint = Path(temporary) / checkpoint.stem
         raw_checkpoint.mkdir()
@@ -274,6 +446,14 @@ def fixed_forward_command_state(
     info = dict(state.info)
     if "command" not in info:
         raise RuntimeError("MJX locomotion environment has no joystick command contract")
+    if bool(getattr(environment, "sim2policy_fixed_forward", False)):
+        command = np.asarray(info["command"], dtype=float)
+        expected = np.asarray(
+            getattr(environment, "sim2policy_forward_command", ()), dtype=float
+        )
+        if expected.shape != (3,) or command.shape != (3,) or not np.allclose(command, expected):
+            raise RuntimeError("G1Forward environment violated its invariant command")
+        return state
     command = jax.numpy.asarray(
         [target_velocity, 0.0, 0.0], dtype=info["command"].dtype
     )
@@ -328,9 +508,55 @@ def local_forward_velocity(environment: Any, state: Any) -> float:
     return float(local_velocity[0])
 
 
+def classify_g1_termination(
+    environment: Any, state: Any, *, terminated: bool
+) -> tuple[str, tuple[str, ...]]:
+    """Classify the exact pinned G1 done predicate without collapsing causes.
+
+    The order is the reviewed primary-reason precedence.  Simultaneous sensor,
+    orientation, and NaN causes remain in the returned tuple for diagnosis.
+    """
+    if not terminated:
+        return "horizon", ("horizon",)
+
+    causes: list[str] = []
+    data = state.data
+    if bool(np.isnan(np.asarray(data.qpos)).any()) or bool(
+        np.isnan(np.asarray(data.qvel)).any()
+    ):
+        causes.append("nan_state")
+
+    gravity = getattr(environment, "get_gravity", None)
+    if callable(gravity) and float(np.asarray(gravity(data, "torso"))[-1]) < 0.0:
+        causes.append("torso_inversion")
+
+    model = getattr(environment, "_mj_model", None)
+    sensor_data = np.asarray(data.sensordata)
+
+    def active(attribute: str) -> bool:
+        if model is None or not hasattr(environment, attribute):
+            return False
+        sensor_id = int(getattr(environment, attribute))
+        return bool(sensor_data[int(model.sensor_adr[sensor_id])] > 0)
+
+    if active("_right_foot_left_foot_found_sensor"):
+        causes.append("foot_foot_contact")
+    if active("_left_foot_right_shin_found_sensor") or active(
+        "_right_foot_left_shin_found_sensor"
+    ):
+        causes.append("foot_shin_contact")
+    if not causes:
+        causes.append("unknown_environment_done")
+
+    ordered = tuple(name for name in G1_TERMINATION_ORDER if name in causes)
+    return ordered[0], ordered
+
+
 def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     """Create the step-zero Brax policy checkpoint used for progression media."""
     require_mjx()
+    if is_g1_forward_environment(config.environment):
+        register_g1_forward_environments()
     jax = importlib.import_module("jax")
     registry = importlib.import_module("mujoco_playground").registry
     wrapper = importlib.import_module("mujoco_playground").wrapper
@@ -346,7 +572,7 @@ def _create_initial_checkpoint(config: RunConfig, output_root: Path) -> Path:
     _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
 
     environment = registry.load(config.environment, config_overrides=_environment_overrides(config))
-    ppo_params = playground_train.get_rl_config(config.environment)
+    ppo_params = playground_train.get_rl_config(upstream_environment(config.environment))
     hyperparameters = dict(config.training.hyperparameters)
     hyperparameters.pop("impl", None)
     hyperparameters.pop("playground_config_overrides", None)
@@ -428,6 +654,8 @@ def train_mjx(
     runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
     initial_checkpoint_factory: Callable[[RunConfig, Path], Path] | None = None,
     state: RunStateStore | None = None,
+    allowed_source_environment: str | None = None,
+    transition_record: dict[str, Any] | None = None,
 ) -> Path:
     started_at = utc_now_iso()
     started_monotonic = time.monotonic()
@@ -504,6 +732,7 @@ def train_mjx(
             ),
             flush=True,
         )
+        require_accelerator(jax_backend, devices)
         if state is not None:
             state.update_status(
                 STATUS_TRAINING,
@@ -521,8 +750,45 @@ def train_mjx(
             },
         )
         raw_resume = (
-            _prepare_resume_checkpoint(resume, config, paths) if resume is not None else None
+            _prepare_resume_checkpoint(
+                resume,
+                config,
+                paths,
+                allowed_source_environment=allowed_source_environment,
+            )
+            if resume is not None
+            else None
         )
+        if transition_record is not None:
+            if raw_resume is None or resume is None:
+                raise RuntimeError("a G1 transition record requires a resume checkpoint")
+            if config.seed != 0:
+                raise RuntimeError("G1 transition requires fresh learner initialization at seed 0")
+            expected_load_path = transition_record.get("restore", {}).get(
+                "trainer_load_path"
+            )
+            if expected_load_path != str(raw_resume):
+                raise RuntimeError("G1 transition trainer load path mismatch")
+            parent = transition_record.get("parent", {})
+            resume_metadata = load_checkpoint_metadata(resume)
+            if (
+                parent.get("checkpoint_name") != resume.name
+                or parent.get("sidecar_step") != resume_metadata.step
+                or parent.get("sha256") != resume_metadata.sha256
+            ):
+                raise RuntimeError("G1 transition parent mismatch before trainer load")
+            restore_evidence = _verify_brax_supported_tuple(
+                raw_resume, paths.report / "g1-restore-verification.json"
+            )
+            if store.enabled:
+                store.upload_file(
+                    paths.report / "g1-restore-verification.json",
+                    "report/g1-restore-verification.json",
+                )
+            print(
+                json.dumps({"event": "g1_resume_verified", **restore_evidence}),
+                flush=True,
+            )
 
         transition("initial_checkpoint")
         initial_raw_root = paths.root / "mjx_initial"
@@ -579,18 +845,33 @@ def train_mjx(
         raise
 
 
-def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, Any]], float]:
+def evaluate_mjx(
+    checkpoint: Path,
+    config: RunConfig,
+    *,
+    seeds: list[int] | None = None,
+    allowed_source_environment: str | None = None,
+) -> tuple[list[dict[str, Any]], float]:
     episodes: list[dict[str, Any]] = []
     started = time.monotonic()
     episode_length = int(config.training.hyperparameters.get("episode_length", 1000))
-    seeds = [
+    schedule = seeds or [
         config.evaluation.seeds[index % len(config.evaluation.seeds)]
         for index in range(config.evaluation.episodes)
     ]
-    with mjx_policy_session(checkpoint, config) as (jax, environment, policy):
+    session_options = (
+        {"allowed_source_environment": allowed_source_environment}
+        if allowed_source_environment is not None
+        else {}
+    )
+    with mjx_policy_session(checkpoint, config, **session_options) as (
+        jax,
+        environment,
+        policy,
+    ):
         reset = jax.jit(environment.reset)
         step = jax.jit(environment.step)
-        for index, seed in enumerate(seeds):
+        for index, seed in enumerate(schedule):
             key = jax.random.PRNGKey(seed)
             state = fixed_forward_command_state(
                 reset(key),
@@ -601,7 +882,7 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
             )
             reward_sum = 0.0
             velocities: list[float] = []
-            fell = False
+            terminated = False
             length = 0
             for episode_step in range(1, episode_length + 1):
                 length = episode_step
@@ -611,21 +892,40 @@ def evaluate_mjx(checkpoint: Path, config: RunConfig) -> tuple[list[dict[str, An
                 reward_sum += float(state.reward)
                 velocities.append(local_forward_velocity(environment, state))
                 if bool(state.done):
-                    fell = True
+                    terminated = True
                     break
+            if config.environment in {
+                G1_FORWARD_FLAT_ENVIRONMENT,
+                G1_FORWARD_ROUGH_ENVIRONMENT,
+                "G1JoystickFlatTerrain",
+                "G1JoystickRoughTerrain",
+            }:
+                termination_reason, termination_causes = classify_g1_termination(
+                    environment, state, terminated=terminated
+                )
+            else:
+                termination_reason = "fall" if terminated else "horizon"
+                termination_causes = (termination_reason,)
             mean_velocity = sum(velocities) / len(velocities)
             success = mean_velocity >= float(config.success.min_velocity or 0)
             if config.success.require_not_fallen:
-                success = success and not fell
+                success = success and not terminated
             episodes.append(
                 {
                     "index": index,
                     "seed": seed,
                     "reward": reward_sum,
                     "length": length,
+                    "horizon": episode_length,
                     "command_velocity": config.success.target_velocity,
+                    "forward_velocity": velocities[-1],
                     "mean_velocity": mean_velocity,
-                    "fell": fell,
+                    # Kept for compatibility with the public aggregate schema;
+                    # every non-horizon environment termination is a hard failure.
+                    "fell": terminated,
+                    "terminated": terminated,
+                    "termination_reason": termination_reason,
+                    "termination_causes": list(termination_causes),
                     "success": success,
                 }
             )
@@ -642,11 +942,105 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--runs-root", type=Path, default=Path("runs"))
     parser.add_argument("--resume", nargs="?", const="latest")
+    parser.add_argument("--resume-run-id", help="Source run ID for --resume remote.")
+    parser.add_argument("--g1-transition-source-config")
+    parser.add_argument("--g1-transition-matrix-digest")
+    parser.add_argument("--g1-transition-image-digest")
+    parser.add_argument("--g1-transition-remaining-budget", type=int)
     parser.add_argument("--set", action="append", default=[], type=_override, dest="overrides")
     return parser
 
 
+def _config_file_digest(path: str | Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _reviewed_resume_source_environment(
+    target_config: RunConfig,
+    source_config_path: str | Path | None,
+    overrides: dict[str, Any],
+) -> str | None:
+    """Resolve an explicit reviewed source when a target accepts multiple parents."""
+    candidates = sorted(
+        source
+        for source, target in REVIEWED_RESUME_TRANSITIONS
+        if target == target_config.environment
+    )
+    if source_config_path is not None:
+        source_environment = load_config(source_config_path, overrides).environment
+        if (source_environment, target_config.environment) not in REVIEWED_RESUME_TRANSITIONS:
+            raise RuntimeError("resume source and target are not a reviewed transition")
+        return source_environment
+    if len(candidates) > 1:
+        raise RuntimeError("ambiguous cross-environment resume requires a source config")
+    return candidates[0] if candidates else None
+
+
+def _build_cli_g1_transition(
+    *,
+    resume: Path,
+    config: RunConfig,
+    config_path: str | Path,
+    source_config_path: str | Path | None,
+    source_run_id: str,
+    run_id: str,
+    runs_root: Path,
+    matrix_digest: str | None,
+    image_digest: str | None,
+    remaining_budget: int | None,
+) -> dict[str, Any]:
+    """Bind a standard hosted rough smoke to the same transition contract as G1."""
+    supplied = (source_config_path, matrix_digest, image_digest, remaining_budget)
+    if any(value is None for value in supplied):
+        raise RuntimeError("fixed-forward G1 cross-environment resume requires transition evidence")
+    assert source_config_path is not None
+    assert matrix_digest is not None
+    assert image_digest is not None
+    assert remaining_budget is not None
+    if config.environment != G1_FORWARD_ROUGH_ENVIRONMENT:
+        raise RuntimeError("G1 transition evidence is valid only for fixed-forward rough terrain")
+    metadata = load_checkpoint_metadata(resume)
+    if metadata.environment != G1_FORWARD_FLAT_ENVIRONMENT:
+        raise RuntimeError("G1 transition parent is not fixed-forward flat terrain")
+    paths = create_run_paths(run_id, runs_root)
+    trainer_load_path = str(paths.root / "resume" / resume.stem)
+    source_store = ArtifactStore(config.storage, source_run_id)
+    record = build_transition_record(
+        parent_checkpoint=resume,
+        parent_object_key=source_store.key_for(f"checkpoints/{resume.name}"),
+        parent_sidecar_key=source_store.key_for(
+            f"checkpoints/{resume.with_suffix('.zip.json').name}"
+        ),
+        target_run_id=run_id,
+        trainer_load_path=trainer_load_path,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=_config_file_digest(source_config_path),
+        rough_config_digest=_config_file_digest(config_path),
+        measured_flat_steps=metadata.step,
+        remaining_rough_budget=remaining_budget,
+        requested_rough_steps=config.training.total_steps,
+    )
+    write_immutable_local(paths.root / TRANSITION_RELATIVE_PATH, record)
+    ArtifactStore(config.storage, run_id).put_immutable_json(TRANSITION_RELATIVE_PATH, record)
+    verify_transition_record(
+        record,
+        parent_checkpoint=resume,
+        target_config=config,
+        matrix_digest=matrix_digest,
+        image_digest=image_digest,
+        flat_config_digest=_config_file_digest(source_config_path),
+        rough_config_digest=_config_file_digest(config_path),
+        target_run_id=run_id,
+        trainer_load_path=trainer_load_path,
+    )
+    return record
+
+
 def main(argv: Sequence[str] | None = None) -> None:
+    from sim2policy.execution_location import require_nebius_execution
+
+    require_nebius_execution("training")
     raw_args = list(sys.argv[1:] if argv is None else argv)
     if "--initial-worker" in raw_args:
         worker = argparse.ArgumentParser()
@@ -656,16 +1050,34 @@ def main(argv: Sequence[str] | None = None) -> None:
         worker_args = worker.parse_args(raw_args)
         _create_initial_checkpoint(load_config(worker_args.config), worker_args.initial_output)
         return
+    if "--verify-brax-resume-worker" in raw_args:
+        worker = argparse.ArgumentParser()
+        worker.add_argument("--verify-brax-resume-worker", action="store_true")
+        worker.add_argument("--checkpoint-root", required=True, type=Path)
+        worker.add_argument("--verification-output", required=True, type=Path)
+        worker_args = worker.parse_args(raw_args)
+        _verify_brax_supported_tuple_worker(
+            worker_args.checkpoint_root, worker_args.verification_output
+        )
+        return
     args = build_parser().parse_args(raw_args)
     config = load_config(args.config, dict(args.overrides))
     if config.backend != "mjx":
         raise SystemExit("selected config is not an MJX config")
     resume = None
+    allowed_source_environment = None
     if args.resume:
+        allowed_source_environment = _reviewed_resume_source_environment(
+            config,
+            args.g1_transition_source_config,
+            dict(args.overrides),
+        )
         if args.resume == "remote":
             paths = create_run_paths(args.run_id, args.runs_root)
-            resume = ArtifactStore(config.storage, args.run_id).resume_latest(
-                paths.checkpoints, config
+            resume = ArtifactStore(config.storage, args.resume_run_id or args.run_id).resume_latest(
+                paths.checkpoints,
+                config,
+                allowed_source_environment=allowed_source_environment,
             )
         else:
             resume = (
@@ -673,9 +1085,35 @@ def main(argv: Sequence[str] | None = None) -> None:
                 if args.resume == "latest"
                 else Path(args.resume)
             )
+    transition_record = None
+    if (
+        resume is not None
+        and allowed_source_environment == G1_FORWARD_FLAT_ENVIRONMENT
+        and config.environment == G1_FORWARD_ROUGH_ENVIRONMENT
+    ):
+        transition_record = _build_cli_g1_transition(
+            resume=resume,
+            config=config,
+            config_path=args.config,
+            source_config_path=args.g1_transition_source_config,
+            source_run_id=args.resume_run_id or args.run_id,
+            run_id=args.run_id,
+            runs_root=args.runs_root,
+            matrix_digest=args.g1_transition_matrix_digest,
+            image_digest=args.g1_transition_image_digest,
+            remaining_budget=args.g1_transition_remaining_budget,
+        )
     state = RunStateStore(config.storage, args.run_id, args.runs_root)
     try:
-        final = train_mjx(config, args.run_id, args.runs_root, resume=resume, state=state)
+        final = train_mjx(
+            config,
+            args.run_id,
+            args.runs_root,
+            resume=resume,
+            state=state,
+            allowed_source_environment=allowed_source_environment,
+            transition_record=transition_record,
+        )
     except (RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         state.update_status(STATUS_FAILED, error=str(exc))
         print(json.dumps({"status": "error", "message": str(exc)}), file=sys.stderr)

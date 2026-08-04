@@ -17,7 +17,11 @@ SB3_CONFIGS = (
     "walker2d_sb3.yaml",
     "reacher_sb3.yaml",
 )
-MJX_CONFIGS = ("go1_mjx.yaml", "g1_mjx.yaml")
+MJX_CONFIGS = (
+    "go1_mjx.yaml",
+    "g1_forward_flat_mjx.yaml",
+    "g1_forward_rough_mjx.yaml",
+)
 
 
 def smoke_sb3() -> None:
@@ -45,11 +49,17 @@ def smoke_mjx() -> None:
     import jax
     from mujoco_playground import registry
 
+    from sim2policy.g1_forward_env import (
+        forward_command,
+        is_g1_forward_environment,
+        upstream_environment,
+    )
     from sim2policy.train_mjx import (
         _NETWORK_FACTORY_HYPERPARAMETERS,
         _apply_initial_hyperparameters,
         _environment_overrides,
         _parse_initial_worker_flags,
+        classify_g1_termination,
         fixed_forward_command_state,
         local_forward_velocity,
         validate_mjx_environment,
@@ -62,7 +72,7 @@ def smoke_mjx() -> None:
     for name in MJX_CONFIGS:
         config = load_config(ROOT / "configs" / name)
         _parse_initial_worker_flags(importlib.import_module("absl.flags").FLAGS, config)
-        ppo_params = playground_train.get_rl_config(config.environment)
+        ppo_params = playground_train.get_rl_config(upstream_environment(config.environment))
         hyperparameters = dict(config.training.hyperparameters)
         hyperparameters.pop("impl", None)
         hyperparameters.pop("playground_config_overrides", None)
@@ -95,6 +105,24 @@ def smoke_mjx() -> None:
         velocity = local_forward_velocity(environment, state)
         if not math.isfinite(velocity):
             raise RuntimeError(f"MJX gallery locomotion contract failed: {name}")
+        if is_g1_forward_environment(config.environment):
+            step = jax.jit(environment.step)
+            action = jax.numpy.zeros(environment.action_size)
+            expected_command = jax.numpy.asarray(forward_command(config.environment))
+            for index in range(1, 1001):
+                state = step(state, action)
+                command = jax.device_get(state.info["command"])
+                if command.shape != (3,) or not jax.numpy.allclose(
+                    command, expected_command
+                ):
+                    raise RuntimeError(
+                        f"fixed-forward command changed at step {index}: {name}"
+                    )
+            reason, causes = classify_g1_termination(
+                environment, state, terminated=bool(state.done)
+            )
+            if not reason or not causes:
+                raise RuntimeError(f"G1 termination telemetry failed: {name}")
         print(f"gallery environment ok: {name} {probe} local_velocity={velocity:.3f}")
 
 

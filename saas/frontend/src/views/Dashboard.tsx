@@ -5,10 +5,12 @@ import { relativeTime, Skeletons, StatusBadge } from "./shared";
 // Live-polling job list with lifecycle badges and an empty state.
 export function Dashboard({
   onOpenJob,
-  onCompose,
+  onGetStarted,
+  onBrowseShowcase,
 }: {
   onOpenJob: (id: string) => void;
-  onCompose: () => void;
+  onGetStarted: () => void;
+  onBrowseShowcase: () => void;
 }) {
   const [jobs, setJobs] = useState<Job[] | null>(null);
   const [error, setError] = useState(false);
@@ -44,10 +46,18 @@ export function Dashboard({
     return (
       <div className="empty-state">
         <h2>No jobs yet</h2>
-        <p>Train your first locomotion policy — pick an environment, tune the policy, and go.</p>
-        <button className="btn" onClick={onCompose} style={{ marginTop: "var(--sp-4)" }}>
-          Create your first job
-        </button>
+        <p>
+          Training starts from your own robot: upload a model in My Robots, build a bounded environment, and prepare it.
+          Preparing a setup is what unlocks Start training.
+        </p>
+        <div className="empty-state-actions">
+          <button className="btn" onClick={onGetStarted}>
+            Go to My Robots
+          </button>
+          <button className="btn btn-ghost" onClick={onBrowseShowcase}>
+            See a finished run
+          </button>
+        </div>
       </div>
     );
   }
@@ -58,8 +68,8 @@ export function Dashboard({
         <h1 className="section-title" style={{ flex: 1, marginBottom: 0 }}>
           Jobs
         </h1>
-        <button className="btn" onClick={onCompose}>
-          New job
+        <button className="btn" onClick={onGetStarted}>
+          Train a robot
         </button>
       </div>
       {error && <div className="alert alert-error">Connection hiccup — showing the last known state.</div>}

@@ -91,8 +91,9 @@ flowchart LR
   kustomize image mapping).
 - `.github/workflows/saas-image.yml` builds the SaaS image and pushes it to the Nebius registry,
   authenticating with a `registry.pusher` service-account credential via `docker login --password-stdin`.
-  A successful `main` build commits the immutable image tag to the kustomization after verifying
-  that `main` has not advanced, so ArgoCD deploys the exact build without an operator override.
+  During the temporary debug-deployment workflow, a successful `debug-portal` build commits the
+  immutable image tag to that branch's kustomization after verifying that the branch has not
+  advanced, so ArgoCD deploys the exact build without an operator override.
 - `runs/<run-id>/` is canonical while a process runs. `checkpoints/`, `tensorboard/`, `videos/`, and
   `report/` map to the same subpaths at `s3://<bucket>/sim2policy/<run-id>/`, which is canonical
   across ephemeral jobs. A checkpoint is uploaded fully before `latest.json` is advanced.
@@ -171,10 +172,14 @@ generic `POST /jobs`, and V1 does not offer MJX/GPU selection.
 
 The frozen V1 preparation profile is `cpu-d3` / `4vcpu-16gb`, 50 GiB, with a ten-minute cap; the
 eight canonical combinations measured about 3m42s–3m57s create-to-finish. The fixed
-`custom-ppo-quick` profile is `cpu-d3` / `8vcpu-32gb`, 100 GiB, eight vector environments, 100k
-steps, and a one-hour cap; the same matrix measured about 3m31s–3m49s and roughly $0.01 each at the
-2026-07-14 list rate. This is a dependable train-to-artifact quick attempt, not a convergence
-promise: evaluation records task success or below-threshold completion honestly.
+`custom-ppo-quick` profile (contract version `custom-ppo-quick-v2`) is `cpu-d3` /
+`16vcpu-64gb`, 100 GiB, sixteen subprocess vector environments, 3M steps, and a three-hour cap.
+Observations and rewards are normalised, and the checkpoint published as the final policy is the
+best-scoring one across the periodic evaluations rather than the last. The v1 shape — eight
+serial environments and 100k steps — reliably produced 100% fall rates even for the bundled
+sample robots on flat ground, so v2 spends real compute to make the attempt a convergence
+attempt. Evaluation still records task success or below-threshold completion honestly; a good
+result is not promised, only genuinely attempted.
 
 ### Secrets in use
 
@@ -238,11 +243,113 @@ spans those phases and writes schema-v2 runtime telemetry with sample counts, me
 peak memory, and phase durations; start/end snapshots remain for compatibility but are not treated
 as whole-run utilization.
 
-Container images are built on CPU-only builders and consumed by separate ephemeral GPU AI Jobs.
-This keeps Docker compilation and registry upload off costly accelerator time. SB3 jobs use L40S;
-the flagship MJX job uses H100. The full Track
+Container images are built on CPU-only builders and consumed by separate ephemeral AI Jobs. This
+keeps Docker compilation and registry upload off costly accelerator time. The SB3 examples are
+CPU-vectorized and run on an allowlisted `cpu-d3` shape, which is both cheaper and faster for them
+than an accelerator; only the MJX workloads take a GPU, and the flagship uses H100. The full Track
 A flow uses `Go1JoystickFlatTerrain`, Brax PPO on MJX, immutable image digests, periodic S3
 checkpoints, and a finalizer that downloads the durable run, restores progression checkpoints,
 renders media, evaluates the final policy, writes reports/comparison data, and republishes the
 completed manifest. See `sim2policy/docs/submission-checklist.md` for the verified run and artifact
 references.
+
+## Curated showcase campaigns
+
+The public gallery is served from curated runs, and a campaign is what produces one. The controller
+(`sim2policy/src/sim2policy/showcase_campaign.py`) owns plan, submit, watch, verify, select, extend,
+accept, cleanup, and audit; the operator invokes documented commands and never infers a decision
+from live logs. Exit codes are stable: 0 completed the requested transition, 10 remote work is still
+active, 20 deterministic rejection, 30 a human decision is required, 40 an invariant or cleanup
+failure. Exit 30 and 40 are full stops.
+
+**The matrix is the contract.** `configs/showcase_training_matrix.yaml` declares seeds, step budgets,
+checkpoint cadence, hardware, timeouts, and acceptance thresholds. Its normalized digest is recorded
+in every plan and re-checked at verification, so an experiment cannot drift mid-campaign. Changing
+the matrix means a new campaign, not an edited one.
+
+**Per-attempt state** is `PLANNED`, `PREFLIGHTED`, `SUBMITTED`, `RUNNING`, `FINALIZING`, `VERIFIED`,
+`ACCEPTED`, `REJECTED`, `NEEDS_HUMAN`, `CLEANED`, persisted under a gitignored
+`.showcase-campaigns/<campaign-id>/` with atomic writes, an append-only journal, and an exclusive
+lock that fails rather than queues. `NEEDS_HUMAN` is a stop, not a grave: it may reach `VERIFIED`
+again, but only through a fresh verification proving complete durable evidence against a
+terminal-completed provider state.
+
+**Selection and extension.** All three base seeds run before selection, which ranks checkpoints on
+the declared selection seeds — never on the final-acceptance seeds, and never on training reward
+alone. If the leader meets the preferred target the extension is skipped; otherwise that seed alone
+continues from its exact selected checkpoint, exactly once. A result that clears the hard floor but
+misses the preferred target after its extension becomes `NEEDS_HUMAN` rather than being pinned
+automatically.
+
+**Parallel campaigns.** A campaign is serialized internally — one active remote job — but several may
+run side by side on separate provider machines. Each declares the others through
+`SIM2POLICY_PARALLEL_CAMPAIGN_IDS`, and jobs named for a declared sibling are accounted for rather
+than treated as stray. Without this the cloud audit, which runs after every terminal attempt, would
+see a sibling's job as an unaccounted resource and stop both campaigns. Two guarantees survive the
+change: an undeclared active job still stops the campaign, and `audit-cloud` still refuses to report
+clean while the campaign's own job is running. Seeds of one example cannot be split across
+campaigns, because selection ranks candidates within a single campaign.
+
+**The G1 recovery** aligns training with the public Walk Forward task through server-owned
+`G1ForwardFlatTerrain` and `G1ForwardRoughTerrain` identities. They wrap pinned Playground v0.2.0
+without changing physics, reset/noise, observations/actions, rewards, termination rules, domain
+randomization, or PPO defaults; only the command source is phase-specific and invariant—flat
+`[1.0, 0.0, 0.0]`, rough `[0.8, 0.0, 0.0]`—and pushes are disabled. Exact termination telemetry distinguishes torso inversion, foot-foot contact,
+foot-shin contact, NaN state, and an unknown upstream `done`, retaining simultaneous causes while
+treating every non-horizon result as a hard failure.
+
+The original G1 recovery gated full spend behind an evaluation-only sweep and a 46,202,880-step
+rough pilot. The sweep reached its 90-minute provider timeout without a durable report, so it cannot
+prove a parent and its dependent pilot is superseded rather than fabricated. The reviewed emergency
+first permitted exactly one plan under `user_reviewed_direct_full_v1`. That terminal job reached
+only 8/10 flat selection horizons at 149,422,080 steps, wrote no transition, and spent zero rough
+steps. A new reviewed decision permits exactly one replacement plan only under
+`user_reviewed_rough_08_full_v2`, bound to campaign `gallery-g1-rough08-full-20260803-01`, seed 0,
+one job, immutable revision/image/matrix evidence, the
+fixed H100 shape, 100 GiB disk, five-hour timeout, and zero retries/extensions/overrides. Any drift
+fails before submission. The fresh result trains flat once, uninterrupted, to the derived
+199,229,440-step PPO boundary and evaluates only that final checkpoint. A failed gate persists its
+selection evidence without invoking final-seed evaluation. A pass atomically creates an
+immutable transition record binding the exact parent object/path, sidecar step and hashes,
+source/target environments, image/config/matrix digests,
+measured spend, rough budget, and trainer load path. Before rough updates, Brax restores only its
+supported observation-normalizer/policy/value tuple; optimizer, learner step, rollout state, and
+PRNG state are explicitly fresh at seed 0. Finalization-only recovery must consume this record and
+the recorded exact rough selection, never re-evaluate the flat gate or reconstruct lineage.
+
+The plan declares exact `-rough` and `-flat` phase evidence prefixes. Flat and rough requests are
+aligned down to whole PPO epoch quanta so Brax's batch rounding cannot overshoot the fixed 450M
+ceiling. A crash writes sanitized durable failure evidence because provider container logs are not
+readable. Finalized `REJECTED` and `NEEDS_HUMAN` policies are successful workload completions; only
+the cloud campaign controller maps those business outcomes to exit 20/30.
+
+**The durable destination travels as a unit.** A campaign job's bucket, endpoint, region, *and*
+`storage.mode` are set together on every command path — SB3, MJX, and curriculum — and asserted per
+path rather than for one representative example. The configs declare `mode: local`, and an
+`ArtifactStore` is inert unless the mode is `s3`, so a path that forwards the destination without the
+mode trains for its full budget and durably writes nothing. Nothing downstream can detect this except
+verification, which sees only an unreadable manifest.
+
+**Publication.** `catalog.SHOWCASE_RUNS` pins each example to one curated run and is the showcase
+resolver's only source of run identity. Accepted examples publish independently, so an example that
+is still training or awaiting a human decision stays a placeholder while the rest ship. A promotion
+runs the full gate suite on Nebius compute — lint, types, runtime and backend suites, frontend tests
+and production build, plus a tracked-file secret and large-file scan — and deployment is verified
+through the workflow, the GitOps tag bump, the ArgoCD sync, the rolled pod, and the public endpoint
+rather than inferred from a push.
+
+**Recorded outcome.** Six of the seven examples — Reacher, Hopper, Go1, HalfCheetah, Ant, and
+Walker2D — are pinned and serving publicly, each having cleared its hard floor *and* its preferred
+target with no extension consumed and no retry. Three of them reached that on a retune rather than
+more steps: measured evidence showed Ant and Walker2D already beating their reward targets and
+failing only on episode length, with their single extensions unable to beat their own base
+checkpoints, which identifies a plateau rather than undertraining. A wider rollout, larger batch, and
+larger policy/value heads cleared all three preferred targets at unchanged step budgets, so they
+publish on merit instead of as hard-floor overrides.
+
+G1 is the open example. The prior joystick-command curriculum completed in 244 minutes but its exact
+selected rough checkpoint achieved 0/20 no-termination episodes despite 0.862 m/s mean velocity.
+It remains an unpublished diagnostic baseline. The fixed-forward recovery above is a new causal
+experiment: no reward, PPO, seed, hardware, threshold, or total-step increase is authorized. The
+failed sweep, unrun pilot, and terminal v1 job remain historical evidence; only the exact reviewed
+rough-0.8 v2 campaign may proceed.

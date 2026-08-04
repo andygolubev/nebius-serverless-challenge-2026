@@ -35,6 +35,17 @@ spec:
               value: "24"
             - name: SAAS_DB_PATH
               value: /data/saas.db
+            # Temporary validation override: allow the explicitly approved My Robots
+            # combination matrix to occupy up to four preparation and four training
+            # slots for one tenant, and to exceed the default eight rolling-24h
+            # starts. Remove all three entries when the matrix is complete so the
+            # secret-managed production defaults (one, one, and eight) apply again.
+            - name: CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS
+              value: "4"
+            - name: CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS
+              value: "4"
+            - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
+              value: "16"
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
           # (explicit env would override envFrom): the whole nebius orchestration
           # contract — SAAS_ORCHESTRATION_BACKEND=nebius, NEBIUS_*, AWS_*,

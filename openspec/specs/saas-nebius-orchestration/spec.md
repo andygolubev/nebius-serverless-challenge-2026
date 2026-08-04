@@ -19,35 +19,93 @@ The SaaS app SHALL provide a `nebius` orchestration backend, selected via `SAAS_
 - **THEN** the `mock` backend is used and no Nebius API calls are made
 
 ### Requirement: Job creation from allowlisted presets only
-The Nebius backend SHALL build each job submission exclusively from a catalog-resolved production job specification and the server-generated job ID. It SHALL NOT accept tenant-supplied images, commands, code, environment variables, or secret references. Each public production option MUST use the configured immutable MJX runtime image and an allowlisted H100 GPU platform/preset; the backend SHALL validate this invariant before creating the local job record or remote Nebius resource.
+The Nebius backend SHALL build each submission exclusively from an owned custom
+preparation/training specification bound to an eligible or accepted preparation fingerprint, plus a
+server-generated safe identity. It SHALL NOT accept tenant-supplied images, commands, code,
+environment variables, storage keys/URLs, hardware values, hyperparameters, or secret references,
+and it SHALL NOT retain any public-catalog submission source. Custom preparation and
+`custom-ppo-quick` options MUST use the configured immutable generic SB3 runtime, the appropriate
+server-owned entrypoint, and an allowlisted `cpu-d3` preset. The backend SHALL validate the typed
+custom invariant before creating a remote Nebius resource.
 
-#### Scenario: GPU profile derives from the production catalog
-- **WHEN** a tenant submits Quick, Standard, or Quality
-- **THEN** the backend derives the immutable MJX image, Go1 config, H100 platform/preset, bounded workload settings, timeout, and secret selectors entirely from the server-owned job specification
+#### Scenario: Public catalog submission is refused
+- **WHEN** any caller or residual code path attempts to submit a public catalog production job
+  specification, gallery example, or Go1 MJX profile
+- **THEN** no Nebius resource is created, because the backend exposes no public-catalog submission
+  source
 
-#### Scenario: Non-GPU or missing job spec is refused before creation
-- **WHEN** a request resolves to an SB3, non-GPU, or missing production job specification
-- **THEN** validation returns 422 before a SaaS job record or Nebius job is created
+#### Scenario: Custom preparation derives from an eligible setup
+- **WHEN** an owner prepares a V1-eligible setup
+- **THEN** the backend derives the immutable SB3 image, preparation mode, input prefix/fingerprint,
+  `cpu-d3` platform/preset, timeout, and secret selectors from the typed server-owned preparation
+  specification
 
-#### Scenario: Unsafe run IDs are refused
-- **WHEN** the backend builds a submission whose run ID does not match the safe pattern `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`
-- **THEN** the backend refuses to submit and the job is marked failed
+#### Scenario: Custom training derives from accepted preparation
+- **WHEN** an owner starts `custom-ppo-quick` for a current accepted fingerprint
+- **THEN** the backend derives the immutable SB3 image, training mode, accepted input snapshot, fixed
+  PPO profile, `cpu-d3` platform/preset, bounds, timeout, and secret selectors entirely server-side
 
-#### Scenario: Submission derives from the preset catalog
-- **WHEN** a tenant submits an allowlisted GPU workload profile
-- **THEN** image, command, config, platform, preset, timeout, and bounds come entirely from its server-owned production job specification
+#### Scenario: Missing or stale custom fingerprint is refused
+- **WHEN** a custom training request lacks a current owned accepted preparation fingerprint
+- **THEN** validation fails before a SaaS Job or Nebius resource is created
 
-#### Scenario: MJX spec runs on the MJX runtime image
-- **WHEN** the backend builds any public production submission
-- **THEN** it uses the configured immutable MJX runtime image on the profile's allowlisted H100 shape
+#### Scenario: Unsafe run or preparation identity is refused
+- **WHEN** the backend builds a submission whose server identity does not match the safe configured
+  pattern
+- **THEN** the backend refuses submission and records a sanitized failure without reading a
+  caller-selected prefix
 
-#### Scenario: SB3 spec runs on the SB3 runtime image and right-sized hardware
-- **WHEN** production is configured with the GPU-only public catalog
-- **THEN** no public submission resolves to an SB3 runtime or SB3 compute shape
+#### Scenario: Submission derives from the matching typed specification
+- **WHEN** any allowlisted preparation or custom-training workload is submitted
+- **THEN** image, command/mode, configuration, platform, preset, timeout, disk, input/output
+  prefixes, and bounds come entirely from its typed server-owned specification
 
-#### Scenario: Missing MJX image configuration fails startup
-- **WHEN** the Nebius backend starts without its immutable MJX runtime image configuration
-- **THEN** settings validation fails before readiness and no job can be submitted
+#### Scenario: Custom SB3 spec runs on right-sized CPU hardware
+- **WHEN** the backend builds a custom preparation or training submission
+- **THEN** it uses the configured immutable generic SB3 runtime on the typed specification's
+  allowlisted `cpu-d3` shape and never substitutes H100 or a tenant-selected backend
+
+#### Scenario: Required immutable image configuration is missing
+- **WHEN** the Nebius backend starts with custom robot training enabled but no generic SB3
+  digest/profile configuration
+- **THEN** settings validation fails before readiness and no affected job can be submitted
+
+### Requirement: Preparation reconciliation is durable and artifact-gated
+The Nebius adapter SHALL persist each preparation's returned `aijob-*` identity, poll non-terminal attempts across SaaS restarts, map provider state to sanitized preparation phases, and accept an attempt only after the required report is readable, valid, and fingerprint-matched. Submission, polling, execution, timeout, or finalization failure SHALL become terminal with bounded safe diagnostics and SHALL release the active quota reservation.
+
+#### Scenario: Preparation remote identity is persisted
+- **WHEN** the SDK creates a preparation job successfully
+- **THEN** the returned remote identity is stored before the attempt is reported as running
+
+#### Scenario: Remote success waits for report
+- **WHEN** the preparation job succeeds but the report is not yet readable
+- **THEN** the attempt remains in finalization and cannot enable Start training
+
+#### Scenario: Backend restarts while polling
+- **WHEN** the SaaS service starts with a non-terminal preparation and stored remote identity
+- **THEN** reconciliation resumes without creating a duplicate remote job
+
+### Requirement: Typed submission validators preserve the trust boundary
+The orchestration layer SHALL implement distinct validation for custom preparation and custom
+training specifications and SHALL have no generic pass-through job-spec path and no public MJX
+submission path. For custom work it SHALL verify tenant ownership, eligibility/acceptance,
+fingerprint, immutable input manifest, runtime digest, entrypoint mode, `cpu-d3` platform/preset,
+timeout, and output prefix before SDK creation.
+
+#### Scenario: Typed fields are mixed
+- **WHEN** a custom preparation specification contains an MJX/H100 training field or a training
+  specification contains a preparation input prefix
+- **THEN** the backend rejects the internally inconsistent specification before remote creation
+
+#### Scenario: Tenant field reaches SDK builder
+- **WHEN** an untrusted request field is accidentally propagated toward the Nebius submission builder
+- **THEN** the typed validator rejects it and tests demonstrate that it is not emitted to the SDK
+  request
+
+#### Scenario: No public submission validator remains
+- **WHEN** the orchestration layer's submission validators are enumerated
+- **THEN** only custom preparation and custom training validators exist, and no code path can build
+  a public gallery submission
 
 ### Requirement: Nebius job ID persistence
 
@@ -95,3 +153,17 @@ If submission, polling, training, finalization, or artifact validation fails ter
 #### Scenario: Finalization failure is distinguishable
 - **WHEN** remote training succeeds but finalization fails terminally
 - **THEN** the job status becomes `failed` with phase `finalization`, retaining its remote job identity and a sanitized tenant-visible reason
+
+### Requirement: Showcase reads never reach the submission layer
+The orchestration backend SHALL expose read-only artifact capability to the public showcase — manifest
+reading, validation, and short-lived presigned URL issuance for a server-pinned run prefix — and
+SHALL NOT expose job creation, launch, resume, or status-polling capability to any showcase route.
+
+#### Scenario: Showcase requests a manifest
+- **WHEN** the showcase resolves a pinned curated run
+- **THEN** it uses only the backend's artifact reader against the reconstructed server-owned prefix
+
+#### Scenario: Showcase path is traced to submission
+- **WHEN** the call graph from any showcase route is examined
+- **THEN** it reaches no launch, submit, or remote-resource-creating function
+

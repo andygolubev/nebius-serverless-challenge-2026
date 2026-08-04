@@ -258,3 +258,17 @@ ssh-keys/
 # Node
 node_modules/
 article/
+
+# My Robots form-validation evidence (may contain tenant-visible screenshots/data)
+.form-validation-runs/
+**/playwright-report/
+**/test-results/
+
+# SaaS runtime SQLite database (created at runtime; never commit tenant data)
+saas/backend/saas.db
+saas/backend/saas.db-shm
+saas/backend/saas.db-wal
+
+# Showcase campaign state: produced on the Nebius orchestration VM, holds live
+# campaign/journal/evidence records, and is deliberately never committed.
+.showcase-campaigns/

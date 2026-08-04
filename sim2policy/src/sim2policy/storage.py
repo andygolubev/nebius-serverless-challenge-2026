@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import json
 import shutil
 import time
@@ -15,6 +16,7 @@ from sim2policy.checkpoint import (
     load_checkpoint_metadata,
     metadata_path,
     sha256_file,
+    validate_checkpoint,
 )
 from sim2policy.config import RunConfig, StorageConfig, validate_prefix, validate_run_id
 
@@ -94,7 +96,11 @@ class ArtifactStore:
         failures: list[str] = []
         for local in sorted(path for path in run_root.rglob("*") if path.is_file()):
             relative = local.relative_to(run_root).as_posix()
-            if relative == "checkpoints/latest.json":
+            if relative in {
+                "checkpoints/latest.json",
+                "report/g1-transition.json",
+                "report/g1-finalization-input.json",
+            }:
                 continue
             try:
                 uploaded.append(self.upload_file(local, relative))
@@ -217,6 +223,43 @@ class ArtifactStore:
         )
         return key
 
+    def put_immutable_json(
+        self, relative: str | PurePosixPath, payload: dict[str, Any]
+    ) -> str:
+        """Create a JSON object once, accepting only byte-identical replay.
+
+        S3's conditional create is the atomic boundary.  A retry after a lost
+        response may observe an existing object, so an identical body is treated
+        as idempotent while any difference is an immutable-evidence violation.
+        """
+        key = self.key_for(relative)
+        if not self.enabled:
+            return key
+        body = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode()
+        try:
+            self.client.put_object(
+                Bucket=self.config.bucket,
+                Key=key,
+                Body=body,
+                ContentType="application/json",
+                Metadata={"sha256": hashlib.sha256(body).hexdigest()},
+                IfNoneMatch="*",
+            )
+        except Exception as exc:
+            try:
+                existing = self.client.get_object(
+                    Bucket=self.config.bucket, Key=key
+                )["Body"].read()
+            except Exception as read_exc:
+                raise StorageError(
+                    f"immutable publish {relative} could not be verified"
+                ) from read_exc
+            if existing != body:
+                raise StorageError(
+                    f"immutable object already exists with different bytes: {relative}"
+                ) from exc
+        return key
+
     def get_json_optional(self, relative: str | PurePosixPath) -> dict[str, Any] | None:
         """Read a JSON object, returning None when it does not yet exist.
 
@@ -234,6 +277,35 @@ class ArtifactStore:
         if not isinstance(result, dict):
             raise StorageError(f"invalid JSON object at {relative}")
         return result
+
+    def head_object_optional(self, relative: str | PurePosixPath) -> dict[str, Any] | None:
+        """Return an object's size and upload digest, or None when absent.
+
+        Campaign verification proves that every artifact the manifest declares
+        actually exists at its declared size and SHA-256. Doing that with HEAD
+        keeps the check cheap and, more importantly, keeps whole run artifacts
+        on the cloud side instead of pulling them to the caller.
+        """
+        if not self.enabled:
+            return None
+        key = self.key_for(relative)
+        try:
+            response = self.client.head_object(Bucket=self.config.bucket, Key=key)
+        except Exception:  # missing key or transient error -> treat as absent
+            return None
+        size = response.get("ContentLength")
+        metadata = response.get("Metadata")
+        sha256 = None
+        if isinstance(metadata, dict):
+            sha256 = next(
+                (value for name, value in metadata.items() if str(name).lower() == "sha256"),
+                None,
+            )
+        return {
+            "size_bytes": int(size) if size is not None else None,
+            "sha256": str(sha256) if sha256 is not None else None,
+            "key": key,
+        }
 
     def presigned_url(self, relative: str | PurePosixPath, *, expires: int = 3600) -> str:
         """Return a time-limited GET URL for an object under the run prefix."""
@@ -262,11 +334,20 @@ class ArtifactStore:
             raise StorageError(f"invalid JSON object at {relative}")
         return result
 
-    def resume_latest(self, destination: Path, config: RunConfig) -> Path:
+    def resume_latest(
+        self,
+        destination: Path,
+        config: RunConfig,
+        *,
+        allowed_source_environment: str | None = None,
+    ) -> Path:
         manifest = self._get_json("checkpoints/latest.json")
         if (
             manifest.get("backend") != config.backend
-            or manifest.get("environment") != config.environment
+            or (
+                manifest.get("environment") != config.environment
+                and manifest.get("environment") != allowed_source_environment
+            )
         ):
             raise CheckpointError("latest remote checkpoint is incompatible with selected config")
         checkpoint = destination / Path(str(manifest["checkpoint_key"])).name
@@ -292,6 +373,45 @@ class ArtifactStore:
             checkpoint.unlink(missing_ok=True)
             sidecar.unlink(missing_ok=True)
             raise CheckpointError("downloaded checkpoint checksum mismatch")
+        return checkpoint
+
+    def resume_named_checkpoint(
+        self,
+        destination: Path,
+        config: RunConfig,
+        *,
+        checkpoint_name: str,
+        expected_sha256: str,
+    ) -> Path:
+        """Restore one exact, already-selected checkpoint from this run.
+
+        Extensions must never substitute the latest checkpoint for the ranked
+        parent.  The campaign records the canonical checkpoint filename and
+        digest; both are required here before a child run can resume.
+        """
+        safe = PurePosixPath(checkpoint_name)
+        if safe.is_absolute() or len(safe.parts) != 1 or safe.suffix != ".zip":
+            raise CheckpointError("selected checkpoint filename is unsafe")
+        checkpoint = destination / safe.name
+        sidecar = metadata_path(checkpoint)
+        destination.mkdir(parents=True, exist_ok=True)
+        source_checkpoint = self.key_for(f"checkpoints/{safe.name}")
+        source_sidecar = self.key_for(f"checkpoints/{sidecar.name}")
+        self._attempt(
+            "download selected checkpoint",
+            lambda: self.client.download_file(
+                self.config.bucket, source_checkpoint, str(checkpoint)
+            ),
+        )
+        self._attempt(
+            "download selected checkpoint metadata",
+            lambda: self.client.download_file(self.config.bucket, source_sidecar, str(sidecar)),
+        )
+        metadata = validate_checkpoint(checkpoint, config)
+        if metadata.sha256 != expected_sha256:
+            checkpoint.unlink(missing_ok=True)
+            sidecar.unlink(missing_ok=True)
+            raise CheckpointError("selected remote checkpoint checksum mismatch")
         return checkpoint
 
 
