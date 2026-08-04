@@ -99,7 +99,7 @@ class FakeProber:
         self.failing = failing or set()
         self.calls: list[dict[str, Any]] = []
 
-    def collect(self, *, expected_revision, hardware=None, expected_branch="debug-portal"):
+    def collect(self, *, expected_revision, hardware=None, expected_branch="main"):
         self.calls.append(
             {
                 "expected_revision": expected_revision,
@@ -360,7 +360,7 @@ def _campaign_fixture(tmp_path: Path, campaign_id: str):
             sleeper=lambda _s: None,
             environment={
                 "SIM2POLICY_IMMUTABLE_REVISION": "git:" + "a" * 40,
-                "SIM2POLICY_BRANCH": "debug-portal",
+                "SIM2POLICY_BRANCH": "main",
                 "SIM2POLICY_ARTIFACT_BUCKET": "sim2policy-artifacts",
                 "SIM2POLICY_ARTIFACT_ENDPOINT": "https://storage.eu-north1.nebius.cloud",
                 "SIM2POLICY_ARTIFACT_REGION": "eu-north1",

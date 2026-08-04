@@ -1,7 +1,7 @@
 ## 1. Re-establish the reviewed baseline
 
 - [x] 1.1 Read `AGENTS.md`, `ARCHITECTURE.md`, this change's proposal/design/specs/runbook, the archived gallery/showcase changes, `saas/API_RUNBOOK.md`, and `IMPLEMENTATION_LOG.MD`; record branch, revision, active change, observed source state, and safe next action without secrets
-- [x] 1.2 Confirm `debug-portal` is checked out, run `openspec list`, preserve unrelated worktree changes, and stop if planned implementation overlaps dirty user files
+- [x] 1.2 Confirm `main` is checked out, run `openspec list`, preserve unrelated worktree changes, and stop if planned implementation overlaps dirty user files
 - [x] 1.3 Inventory the current SB3/MJX configs, hosted entry points, submitter, finalizer, checkpoint loaders, artifact schemas, public evidence adapter, infrastructure outputs, and tests; map every runbook dependency to an existing or missing implementation
 - [x] 1.4 Re-verify sanitized historical baselines for all seven examples using a Nebius CPU verifier job/VM and save only non-tenant metrics/digests needed for regression tests; do not download/process run artifacts on the shared host, and keep historical results as comparison/rollback evidence rather than fresh campaign pins
 - [x] 1.5 Add fixtures for real canonical environment identities, nested `success.met`, selected-checkpoint evidence, a completed-but-failed G1, and measured runtime/cost fields; exclude tenant email, bearer tokens, secret selectors, storage credentials, and raw private keys
@@ -80,7 +80,7 @@
 ## 7. Prepare, test, and build exclusively on Nebius Cloud
 
 - [x] 7.1 On the shared host run only static source/plan inspection (`git diff --check`, `git status`, `rg`, and `openspec validate curate-public-showcase-runs --strict`); do not install dependencies or run project Python/Node/Docker/test/build/import/simulation commands there
-- [x] 7.2 Start or reuse the approved Nebius `cpu-d3` `8vcpu-32gb` orchestration/builder VM with a 300–500 GiB cached managed SSD, verify ownership/scope/region, attest its instance identity, check out the exact `debug-portal` revision, and record only non-secret instance state in `IMPLEMENTATION_LOG.MD`
+- [x] 7.2 Start or reuse the approved Nebius `cpu-d3` `8vcpu-32gb` orchestration/builder VM with a 300–500 GiB cached managed SSD, verify ownership/scope/region, attest its instance identity, check out the exact `main` revision, and record only non-secret instance state in `IMPLEMENTATION_LOG.MD`
 - [x] 7.3 On that Nebius VM install dependencies and run lint, type, unit, integration, backend/frontend, production-build, secret-scan, and large-file gates; store sanitized results plus location/revision attestations and resolve failures before image work
 - [x] 7.4 On that Nebius VM build SB3 and MJX images with BuildKit from the exact reviewed commit, tag with immutable commit SHA, run health/import/config/matrix/CLI tests, and push without replacing any tag used by an active job
 - [x] 7.5 From the Nebius VM resolve and record registry digests; prove planned configs/modules are present and no secret or generated training artifact is baked into either image
@@ -134,7 +134,7 @@ recovery work begins at section 13.
 - [x] 11.2 Prepare a minimal source change replacing exactly that example's placeholder/current pin; reject tenant-shaped IDs, failed runs, marginal hard-only results, duplicates, or pins not present in the campaign acceptance inventory
 - [x] 11.3 Allow partial publication: accepted examples may ship independently while rejected/needs-human examples remain placeholders or retain their prior accepted pin
 - [x] 11.4 For each promotion batch run complete runtime/backend/frontend suites, production builds, and executable secret/large-file scans on Nebius CPU compute with location attestations; run only static `git diff --check` and strict OpenSpec validation on the shared host
-- [x] 11.5 Review the exact pin diff and acceptance records, then commit/push only `debug-portal`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
+- [x] 11.5 Review the exact pin diff and acceptance records, then commit/push only `main`; never commit campaign state, generated runs, checkpoints, logs, media, credentials, environment files, OpenTofu state, or plans
 - [x] 11.6 Use authenticated `gh` to inspect relevant Actions runs and failed logs; do not infer build/deploy success from a push alone
 - [x] 11.7 Verify deployment/ArgoCD health, then anonymously test catalog/detail/progress playback/seeking/downloads on desktop and 375px light/dark layouts with no training action or secret/storage leak
 - [x] 11.8 Verify signed-in tenant custom training/history, private artifact isolation, and user jobs remain unchanged by public pins
@@ -184,7 +184,7 @@ recovery work begins at section 13.
 
 - [x] 16.1 Finalize `execution-runbook.md` and update `ARCHITECTURE.md`, operator documentation, and sanitized fixtures for the fixed-forward direct-full flow, exact transition recovery, and termination taxonomy
 - [x] 16.2 If G1 is accepted, run complete runtime/backend/frontend suites, production builds, secret/large-file scans, and strict OpenSpec validation on the required Nebius/static locations; if rejected or needs-human, retain the placeholder and skip source pinning
-- [x] 16.3 For an accepted result only, replace exactly the G1 showcase pin on `debug-portal`, inspect GitHub Actions with `gh`, verify GitOps/ArgoCD rollout, and anonymously test catalog/detail/progression playback/downloads on desktop and 375px light/dark layouts with no tenant/storage leak
+- [x] 16.3 For an accepted result only, replace exactly the G1 showcase pin on `main`, inspect GitHub Actions with `gh`, verify GitOps/ArgoCD rollout, and anonymously test catalog/detail/progression playback/downloads on desktop and 375px light/dark layouts with no tenant/storage leak
 - [x] 16.4 Repeat the final cloud audit, stop/delete every chargeable VM, update `IMPLEMENTATION_LOG.MD` with commands/results/blockers/safe next action, and archive the OpenSpec change only after every required production verification is complete
 
 ## 17. Execute the reviewed rough-0.8 G1 replacement
@@ -204,7 +204,7 @@ recovery work begins at section 13.
 - [x] 18.2 Implement a fail-closed exact-tuple curation exception that publishes the reviewed G1 recording without changing its evaluation result, hard gate, thresholds, or the accepted-only rule for every other run
 - [x] 18.3 Replace only the G1 placeholder pin and add backend/frontend coverage proving the run appears as a verified recording with the existing `Below task threshold` badge and no `not verified` label
 - [x] 18.4 Run complete backend/frontend production validation and secret/large-file scans on the approved Nebius builder, retain location evidence, and run static diff/OpenSpec validation on the shared host
-- [x] 18.5 Commit/push only `debug-portal`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
+- [x] 18.5 Commit/push only `main`, inspect GitHub Actions and GitOps rollout, anonymously verify catalog/detail/media/downloads, preserve all Serverless jobs, stop the builder, and record the sanitized final handoff
 
 ## 19. Simplify the public showcase result presentation
 

@@ -41,7 +41,7 @@ The current generic submitter invokes only `train_sb3` or `train_mjx`; hosted en
 finalize but always evaluate the final checkpoint. Neither is sufficient for a low-judgment campaign
 operator. Implementation must precede paid execution.
 
-Constraints are unchanged: work remains on `debug-portal`; public routes are anonymous and read-only;
+Constraints are unchanged: work remains on `main`; public routes are anonymous and read-only;
 tenant identities cannot be pinned; images/configs are immutable; bucket and registry secrets are
 resolved from existing infrastructure; Serverless AI provider history is retained unless explicitly
 reversed; every chargeable VM is stopped or deleted when its work ends. The shared host is not an
@@ -85,7 +85,7 @@ smoke tests, checkpoint evaluation, rendering, artifact verification, finalizati
 transitions.
 
 Implementation creates or reuses the approved Nebius `cpu-d3` orchestration/builder VM in
-`eu-north1`, normally `8vcpu-32gb` with a 300–500 GiB managed SSD. The exact `debug-portal` revision is
+`eu-north1`, normally `8vcpu-32gb` with a 300–500 GiB managed SSD. The exact `main` revision is
 checked out there. It runs dependency setup, all CPU validation/test/build work, immutable image
 construction, the campaign CLI, artifact verification, and cloud audits. GPU smoke/training executes
 only in bounded Nebius Serverless AI jobs using the immutable image. The orchestration VM persists
@@ -444,7 +444,7 @@ owner job result remains a separate surface and retains its KPI grid.
    validation/image/preflight gates pass.
 4. Accept and pin examples independently only after hard and preferred quality gates, public-schema
    fixtures, and provenance checks pass.
-5. Deploy through `debug-portal`, verify GitHub Actions with `gh`, then verify anonymous production
+5. Deploy through `main`, verify GitHub Actions with `gh`, then verify anonymous production
    cards, media, measured details, and unchanged tenant isolation.
 
 Rollback is a source revert from a curated run ID to its placeholder or last accepted baseline. It

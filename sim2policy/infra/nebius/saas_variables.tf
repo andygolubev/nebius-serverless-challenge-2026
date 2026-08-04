@@ -51,7 +51,7 @@ variable "saas_argocd_repo_path" {
 variable "saas_argocd_repo_revision" {
   description = "Git revision ArgoCD tracks."
   type        = string
-  default     = "debug-portal"
+  default     = "main"
 }
 
 variable "saas_use_registry_pull_secret" {

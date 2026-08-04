@@ -180,7 +180,7 @@ class InfrastructurePreflight:
     # -- repository and revision --------------------------------------------
 
     def repository(
-        self, *, expected_branch: str = "debug-portal", expected_revision: str | None = None
+        self, *, expected_branch: str = "main", expected_revision: str | None = None
     ) -> Probe:
         """Prove the checkout is the reviewed branch/revision with no tracked overlap."""
         detail: dict[str, Any] = {"expected_branch": expected_branch}
@@ -216,7 +216,7 @@ class InfrastructurePreflight:
         revision_ok = bool(wanted) and head == wanted
         detail["revision_matches"] = revision_ok
 
-        ok = branch == expected_branch and branch != "main" and not tracked_overlap and revision_ok
+        ok = branch == expected_branch and not tracked_overlap and revision_ok
         return Probe("repository", ok, detail)
 
     # -- OpenTofu infrastructure outputs ------------------------------------
@@ -448,7 +448,7 @@ class InfrastructurePreflight:
         *,
         expected_revision: str | None,
         hardware: Mapping[str, Any] | None = None,
-        expected_branch: str = "debug-portal",
+        expected_branch: str = "main",
     ) -> list[Probe]:
         """Run every probe, always. One handoff should show every problem at once."""
         probes = [

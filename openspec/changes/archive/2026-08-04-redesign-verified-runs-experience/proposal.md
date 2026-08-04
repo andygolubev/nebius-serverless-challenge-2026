@@ -28,4 +28,4 @@ None.
 - Frontend: `saas/frontend/src/styles.css`, `index.html`, `App.tsx`, `views/Showcase.tsx`, `views/ResultPanels.tsx`, two new static views, and their tests/Playwright coverage.
 - Backend: `saas/backend/app/catalog.py` and gallery order assertions only; response fields, endpoints, evidence gates, pinning, and orchestration remain unchanged.
 - Dependencies/assets: Archivo is added as a webfont with system fallbacks; existing same-origin avatar SVGs remain unchanged and are recolored in CSS.
-- Operations: delivery continues through `debug-portal`; implementation requires normal frontend/backend gates and anonymous deployed checks but no training jobs, GPU work, infrastructure change, or data migration.
+- Operations: delivery continues through `main`; implementation requires normal frontend/backend gates and anonymous deployed checks but no training jobs, GPU work, infrastructure change, or data migration.

@@ -91,7 +91,7 @@ flowchart LR
   kustomize image mapping).
 - `.github/workflows/saas-image.yml` builds the SaaS image and pushes it to the Nebius registry,
   authenticating with a `registry.pusher` service-account credential via `docker login --password-stdin`.
-  During the temporary debug-deployment workflow, a successful `debug-portal` build commits the
+  In the deployment workflow, a successful `main` build commits the
   immutable image tag to that branch's kustomization after verifying that the branch has not
   advanced, so ArgoCD deploys the exact build without an operator override.
 - `runs/<run-id>/` is canonical while a process runs. `checkpoints/`, `tensorboard/`, `videos/`, and

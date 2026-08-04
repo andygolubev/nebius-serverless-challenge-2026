@@ -387,7 +387,7 @@ class Campaign:
 
             attestation = state.get("location_attestation") or {}
             checks["execution_location"] = attestation.get("provider") == "nebius"
-            checks["branch"] = self._environment.get("SIM2POLICY_BRANCH", "debug-portal") == "debug-portal"
+            checks["branch"] = self._environment.get("SIM2POLICY_BRANCH", "main") == "main"
             revision = self._environment.get("SIM2POLICY_IMMUTABLE_REVISION")
             checks["immutable_revision"] = bool(revision)
 

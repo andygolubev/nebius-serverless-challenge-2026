@@ -124,7 +124,7 @@ The UI treats a completed job as durable setup history: it links to that result 
 2. Expand component tests and make the existing SaaS image workflow run the full cheap gate in parallel shards.
 3. Add the local full-stack Playwright job and verify deterministic cleanup and artifacts.
 4. Add a manually triggered deployed smoke workflow with secrets supplied only by the runner environment and paid flags defaulting off.
-5. Run the cheap matrix, repair discovered defects regression-first, deploy through the existing `debug-portal` GitOps path, and run the no-cost production smoke.
+5. Run the cheap matrix, repair discovered defects regression-first, deploy through the existing `main` GitOps path, and run the no-cost production smoke.
 6. Enable one remote preparation/training canary only when explicitly requested; audit all jobs/instances afterward.
 
 Rollback removes the new test jobs, dependency, and harness without data migration. Product repairs are independently revertible, but their regression tests remain unless the owning public requirement is deliberately changed through OpenSpec.

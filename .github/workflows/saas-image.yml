@@ -9,7 +9,7 @@ name: saas-image
 
 on:
   push:
-    branches: [main, debug-portal]
+    branches: [main]
     tags: ["v*"]
     paths:
       - "saas/**"
@@ -260,22 +260,22 @@ jobs:
           echo "Pushed $NEBIUS_REGISTRY/sim2policy-saas:$sha_tag"
 
       - name: Set up Kustomize
-        if: github.event_name == 'push' && github.ref == 'refs/heads/debug-portal'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: imranismail/setup-kustomize@v2
         with:
           kustomize-version: "5.7.1"
 
       - name: Bump GitOps image tag
-        if: github.event_name == 'push' && github.ref == 'refs/heads/debug-portal'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
         run: |
-          git fetch origin debug-portal
-          if [ "$(git rev-parse origin/debug-portal)" != "$GITHUB_SHA" ]; then
-            echo "debug-portal advanced after this build started; the newer run owns the deployment bump"
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "main advanced after this build started; the newer run owns the deployment bump"
             exit 0
           fi
-          git checkout debug-portal
+          git checkout main
           cd deploy/manifests/saas
           kustomize edit set image \
             "sim2policy-saas=${NEBIUS_REGISTRY}/sim2policy-saas:${GITHUB_SHA::12}"
@@ -288,4 +288,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "Deploy SaaS image ${GITHUB_SHA::12} [skip ci]"
-          git push origin HEAD:debug-portal
+          git push origin HEAD:main

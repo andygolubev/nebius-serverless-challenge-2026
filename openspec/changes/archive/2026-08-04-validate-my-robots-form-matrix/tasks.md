@@ -48,7 +48,7 @@
 - [x] 6.1 Run the complete backend matrix, record every deterministic product defect or infrastructure blocker in `IMPLEMENTATION_LOG.MD`, add minimal regressions, repair the owning backend boundary, and rerun the affected shards.
 - [x] 6.2 Run the complete component and local-browser matrices, add minimal regressions for each deterministic defect, repair the owning frontend/full-stack boundary, and rerun the affected shards.
 - [x] 6.3 Run the merged cheap gate, frontend production build, strict OpenSpec validation, `git diff --check`, and tracked-file secret/large-artifact scans; record exact commands and results.
-- [x] 6.4 Deploy only through the `debug-portal` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
+- [x] 6.4 Deploy only through the `main` GitHub Actions/GitOps path, verify the workflow and rolled production revision, then run the no-cost deployed smoke and targeted cleanup.
 - [x] 6.5 Record an explicit decision for the remote preparation/training canary; if enabled, run at most the designed single case and audit all cloud resources, otherwise record both paths as `not-run-cost-gated` without claiming coverage.
 - [x] 6.6 Summarize final combination/control coverage, repaired defects, remaining infrastructure or paid-gate gaps, cleanup state, and safe next steps in `IMPLEMENTATION_LOG.MD`.
 
@@ -68,4 +68,4 @@
 
 ## 9. Temporary Validation Override Cleanup
 
-- [x] 9.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `debug-portal`, and verify the normal per-tenant limit of one preparation and one training is restored. This must be the final task.
+- [x] 9.1 After the explicitly approved parallel production matrix is complete and all of its provider jobs are terminal, remove the temporary Deployment overrides for `CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS` and `CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS`, redeploy through `main`, and verify the normal per-tenant limit of one preparation and one training is restored. This must be the final task.

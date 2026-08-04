@@ -255,7 +255,7 @@ and undeclared fallback hardware SHALL be prohibited.
 - **THEN** it submits nothing further and records a needs-human blocker
 
 ### Requirement: Cloud preflight, budget, and cleanup
-Before every paid attempt the workflow SHALL verify `debug-portal`, Nebius-executed quality-gate
+Before every paid attempt the workflow SHALL verify `main`, Nebius-executed quality-gate
 attestations, immutable images, infrastructure outputs, registry/artifact access, quota, exact
 redacted command, timeout,
 expected durable prefix, and absence of unintended active campaign compute. After terminal evidence
@@ -279,7 +279,7 @@ retained under the current policy.
 ### Requirement: Safe independent promotion
 Each example SHALL be promoted independently only from a fresh accepted non-tenant run. Promotion
 SHALL replace exactly that example's placeholder or previous accepted pin, run strict runtime/backend/
-frontend/OpenSpec validation, deploy only through `debug-portal`, and verify the anonymous public
+frontend/OpenSpec validation, deploy only through `main`, and verify the anonymous public
 surface. A failed example SHALL remain unpublished without blocking already accepted cards.
 
 #### Scenario: Six examples pass and G1 fails

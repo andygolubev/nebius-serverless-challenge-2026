@@ -13,7 +13,7 @@ saas_ssh_ingress_cidrs = ["0.0.0.0/0"]
 
 saas_argocd_repo_url      = "https://github.com/REPLACE_ORG/REPLACE_REPO.git"
 saas_argocd_repo_path     = "deploy/argocd"
-saas_argocd_repo_revision = "debug-portal"
+saas_argocd_repo_revision = "main"
 
 # k3s requires the existing Registry static-key token from MysteryBox.
 saas_use_registry_pull_secret = true

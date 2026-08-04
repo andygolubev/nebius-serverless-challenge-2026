@@ -52,7 +52,7 @@ The campaign does not authorize:
 - pinning a hard-floor-only result that misses its preferred target;
 - deleting provider job history, SaaS rows, or durable S3 evidence;
 - recording credentials, bearer tokens, access keys, secret values, or raw signed URLs;
-- touching `main`, or committing/pushing anywhere except `debug-portal`;
+- committing or pushing anywhere except `main`;
 - leaving a chargeable VM running after its task completes.
 
 When the matrix and this document conflict, stop. Do not choose one silently.
@@ -61,7 +61,7 @@ When the matrix and this document conflict, stop. Do not choose one silently.
 
 The execution agent SHALL follow these invariants for every invocation:
 
-1. Work from the repository root on `debug-portal`.
+1. Work from the repository root on `main`.
 2. Read `IMPLEMENTATION_LOG.MD` before acting and append a sanitized handoff after each state change.
 3. Execute the campaign CLI only on the approved Nebius orchestration VM for submission, watching,
    verification, selection, extension, cleanup, and promotion preparation. Direct
@@ -194,7 +194,7 @@ there is no live campaign process on the Nebius orchestration VM and changes no 
 Before `init`, all items below must be true. If any is false, no paid job is allowed.
 
 - A Nebius CPU orchestration/builder VM is identified, its managed disk is mounted, its exact
-  `debug-portal` revision is recorded, and its execution-location attestation passes.
+  `main` revision is recorded, and its execution-location attestation passes.
 - The campaign matrix exists and passes its schema/unit tests executed on that Nebius VM.
 - The hosted SB3 and MJX paths accept an explicit selected checkpoint for finalization.
 - The G1 curriculum module passes flat-to-rough resume and provenance tests.
@@ -203,7 +203,7 @@ Before `init`, all items below must be true. If any is false, no paid job is all
 - The artifact verifier validates every required object, checksum, policy bundle member, resolved
   configuration, runtime version, selected checkpoint, progression entry, and public API fixture.
 - The cloud auditor can enumerate jobs, VMs, disks, public IPs, temporary rules, and builder state.
-- The exact SB3 and MJX images are built from the intended `debug-portal` commit, pushed under an
+- The exact SB3 and MJX images are built from the intended `main` commit, pushed under an
   immutable tag, resolved to digests, and pass image health/import tests.
 - A bounded smoke test has proven CUDA/JAX discovery, environment construction, one update,
   checkpoint upload, finalization, and durable artifact reading for the MJX image.
@@ -231,7 +231,7 @@ mutable image tag is a failure.
 2. On the host, use static Git/OpenSpec inspection to confirm the intended revision and preserve
    unrelated user work. Execute no project code.
 3. Start the approved Nebius CPU orchestration VM, connect to it, and attest its instance ID/region.
-   In its clean repository checkout run `git status --short --branch`; confirm `debug-portal` and the
+   In its clean repository checkout run `git status --short --branch`; confirm `main` and the
    intended immutable revision. Stop on any dirty overlap or revision mismatch.
 4. On the Nebius VM, inspect `openspec list` and run the implementation-complete gate.
 5. Choose the campaign ID once. Use `gallery-result-YYYYMMDD-01`; increment the suffix only if that
@@ -247,7 +247,7 @@ Run `preflight` immediately before `plan`. It SHALL fail closed unless all check
 
 ### Repository and revision
 
-- branch is `debug-portal`;
+- branch is `main`;
 - Nebius orchestration checkout matches the intended reviewed revision and is clean;
 - Nebius source commit equals the immutable image revision expected by the matrix;
 - required Nebius-executed tests are successful; existing GitHub Actions status is inspected for
@@ -592,7 +592,7 @@ For an accepted example:
 3. Prepare a source diff replacing exactly that example's placeholder/current pin.
 4. Run runtime/backend/frontend tests, production builds, and executable secret/large-file scanners
    on the Nebius CPU VM. The host may run only static `git diff --check` and OpenSpec validation.
-5. Commit/push only on `debug-portal` after human review of the pin diff.
+5. Commit/push only on `main` after human review of the pin diff.
 6. Use `gh` to inspect the relevant GitHub Actions run and failed logs.
 7. Verify deployment health, then anonymous catalog/detail/media/download behavior on desktop and
    375px light/dark layouts.

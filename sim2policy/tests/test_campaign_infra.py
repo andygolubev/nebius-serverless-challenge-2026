@@ -107,14 +107,14 @@ def _default_script() -> dict[tuple[str, ...], Completed]:
         IAM: Completed(0, TOKEN),
         PLATFORMS: Completed(0, _platforms()),
         QUOTAS: Completed(0, _allowances()),
-        GH: Completed(0, json.dumps([{"workflowName": "saas-image", "headBranch": "debug-portal", "status": "completed", "conclusion": "success"}])),
+        GH: Completed(0, json.dumps([{"workflowName": "saas-image", "headBranch": "main", "status": "completed", "conclusion": "success"}])),
     }
 
 
 class GitScript:
     """Git needs per-subcommand answers, so it gets its own small dispatcher."""
 
-    def __init__(self, *, branch="debug-portal", head=REVISION, porcelain="") -> None:
+    def __init__(self, *, branch="main", head=REVISION, porcelain="") -> None:
         self.branch, self.head, self.porcelain = branch, head, porcelain
 
     def __call__(self, command) -> Completed:
@@ -166,7 +166,7 @@ def _probe(runner: Runner, tmp_path: Path, **kwargs: Any) -> InfrastructurePrefl
 def test_repository_probe_accepts_the_reviewed_branch_and_revision(tmp_path: Path) -> None:
     probe = _probe(Runner(), tmp_path).repository(expected_revision="git:" + REVISION)
     assert probe.ok is True
-    assert probe.detail["branch"] == "debug-portal"
+    assert probe.detail["branch"] == "main"
     assert probe.detail["tracked_overlap"] == []
 
 
@@ -179,9 +179,9 @@ def test_repository_probe_rejects_a_tracked_modification(tmp_path: Path) -> None
     assert probe.detail["tracked_overlap"] == ["sim2policy/src/sim2policy/run.py"]
 
 
-def test_repository_probe_rejects_main_and_a_drifted_revision(tmp_path: Path) -> None:
-    on_main = _probe(Runner(git=GitScript(branch="main")), tmp_path)
-    assert on_main.repository(expected_revision=REVISION).ok is False
+def test_repository_probe_rejects_an_unexpected_branch_and_a_drifted_revision(tmp_path: Path) -> None:
+    on_other_branch = _probe(Runner(git=GitScript(branch="feature")), tmp_path)
+    assert on_other_branch.repository(expected_revision=REVISION).ok is False
     drifted = _probe(Runner(git=GitScript(head="b" * 40)), tmp_path)
     result = drifted.repository(expected_revision=REVISION)
     assert result.ok is False and result.detail["revision_matches"] is False
@@ -332,7 +332,7 @@ def test_github_status_is_informational_and_never_decides(tmp_path: Path) -> Non
         script={
             GH: Completed(
                 0,
-                json.dumps([{"workflowName": "saas-image", "headBranch": "debug-portal", "status": "completed", "conclusion": "failure"}]),
+                json.dumps([{"workflowName": "saas-image", "headBranch": "main", "status": "completed", "conclusion": "failure"}]),
             )
         }
     )

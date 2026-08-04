@@ -11,7 +11,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/andygolubev/nebius-serverless-challenge-2026.git
-    targetRevision: debug-portal
+    targetRevision: main
     path: deploy/manifests/saas
   destination:
     server: https://kubernetes.default.svc

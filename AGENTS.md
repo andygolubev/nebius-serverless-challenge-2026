@@ -1,7 +1,6 @@
-## Temporary branch policy
+## Branch policy
 
-For now, commits and pushes to the `main` branch are not allowed. Commit and push only to the
-`debug-portal` branch.
+Develop, commit, and push only on the `main` branch.
 
 # Agent instructions
 

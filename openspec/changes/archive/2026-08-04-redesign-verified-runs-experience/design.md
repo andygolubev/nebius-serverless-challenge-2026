@@ -62,7 +62,7 @@ Alternative considered: reorder the fetched entries in `Showcase.tsx`. Rejected 
 
 ### Verify in increasing scope and ship both parts together
 
-Part 1 verification covers catalog order, showcase component states, exact card information hierarchy, keyboard names/focus, responsive gallery, text-based deployed selectors, and inherited-view token regressions. Part 2 adds route/static-copy tests, shared footer navigation, public detail and owner Job result tests, media/bundle safeguards, responsive accordions/tables, and production build. Then run the complete relevant backend/frontend suites, strict OpenSpec validation, and deployed anonymous smoke through the existing `debug-portal` delivery path.
+Part 1 verification covers catalog order, showcase component states, exact card information hierarchy, keyboard names/focus, responsive gallery, text-based deployed selectors, and inherited-view token regressions. Part 2 adds route/static-copy tests, shared footer navigation, public detail and owner Job result tests, media/bundle safeguards, responsive accordions/tables, and production build. Then run the complete relevant backend/frontend suites, strict OpenSpec validation, and deployed anonymous smoke through the existing `main` delivery path.
 
 ## Risks / Trade-offs
 
@@ -79,8 +79,8 @@ Part 1 verification covers catalog order, showcase component states, exact card 
 1. Implement and verify Part 1: tokens/font, shared top bar, landing-page composition, gallery cards/states, server order, and compatibility checks for inherited views.
 2. Implement and verify Part 2: detail/result presentation, About and Terms routes/views, shared footer, and owner Job result compatibility.
 3. Run focused tests after each phase, then the full relevant backend/frontend suites, production build, strict OpenSpec validation, whitespace checks, and browser checks at representative desktop/mobile widths.
-4. Commit and push only on `debug-portal`; inspect the exact GitHub Actions run and GitOps deployment before anonymous production smoke of gallery, detail media/download, About, Terms, navigation, focus, and responsive behavior.
-5. Roll back by reverting the frontend/catalog change on `debug-portal`; there is no data or API migration to reverse.
+4. Commit and push only on `main`; inspect the exact GitHub Actions run and GitOps deployment before anonymous production smoke of gallery, detail media/download, About, Terms, navigation, focus, and responsive behavior.
+5. Roll back by reverting the frontend/catalog change on `main`; there is no data or API migration to reverse.
 
 ## Open Questions
 
