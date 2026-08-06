@@ -46,15 +46,22 @@ spec:
               value: "4"
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
               value: "16"
-            # Temporary runtime pin: the `saas-nebius` Secret still carries the
-            # Terraform default `saas_sb3_image_tag`, sb3-59117bd6…, whose
-            # custom_robot_contract.REWARD_VERSION is locomotion-rewards-v2. The
-            # SaaS image declares v3, so custom_robot_io._load() rejects every
-            # manifest before run_preparation and each preparation dies as an
-            # unexplained `remote-job-failed` with report_ready=false.
-            # This explicit entry shadows the Secret — remove it as soon as
-            # sim2policy/infra/nebius/saas_variables.tf is corrected and applied,
-            # otherwise later Secret updates will silently have no effect.
+            # Temporary runtime pin: the live `saas-nebius` Secret still carries
+            # sb3-59117bd6…, whose custom_robot_contract.REWARD_VERSION is
+            # locomotion-rewards-v2. The SaaS image declares v3, so
+            # custom_robot_io.validate_documents() rejects every manifest before
+            # run_preparation and each preparation dies as an unexplained
+            # `remote-job-failed` with report_ready=false.
+            # saas_sb3_image_tag in sim2policy/infra/nebius/saas_variables.tf now
+            # names this same revision, but that default only reaches the Secret
+            # after `tofu apply` plus `systemctl restart saas-nebius-sync` on the
+            # saas server. This entry shadows the Secret until then — deleting it
+            # first hands preparation straight back to the v2 image. Verify with
+            #   kubectl -n saas get secret saas-nebius \
+            #     -o jsonpath='{.data.CUSTOM_ROBOT_SB3_IMAGE}' | base64 -d
+            # and only remove this once that prints sb3-6b6b0d44….
+            # Note SIM2POLICY_JOB_IMAGE (the public SB3 gallery runtime) has no
+            # such shadow and is still on v2 in the Secret; the same apply fixes it.
             - name: CUSTOM_ROBOT_SB3_IMAGE
               value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-6b6b0d44ebbff364b4c2cf358b41fe995491d478
           # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
