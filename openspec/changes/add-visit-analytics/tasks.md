@@ -87,12 +87,12 @@
 - [x] 7.1 Write `saas/ANALYTICS_QUERIES.md` with runnable SQL for visits and unique visitors over a
       window, page popularity by view, traffic by day, top referrers, human/bot split, and long-term
       trend from `analytics_daily`, plus the `ssh` + `kubectl exec` access recipe
-- [ ] 7.2 Generate a random salt and add it to the existing Kubernetes Secret out of band — never to
+- [x] 7.2 Generate a random salt and add it to the existing Kubernetes Secret out of band — never to
       Git — then confirm no salt value appears in any tracked file
 - [x] 7.3 Add `SAAS_ANALYTICS_IP_SALT` to `deploy/manifests/saas/deployment.yaml` sourced from that
       Secret via `secretKeyRef`
 - [x] 7.4 Run the changed-source secret scan and `git diff --check` before pushing
-- [ ] 7.5 After the GitOps roll, load the public site, then verify visit and page-view rows appear and
+- [x] 7.5 After the GitOps roll, load the public site, then verify visit and page-view rows appear and
       that no raw address literal is stored
-- [ ] 7.6 Confirm every documented query in `ANALYTICS_QUERIES.md` runs against the live database and
+- [x] 7.6 Confirm every documented query in `ANALYTICS_QUERIES.md` runs against the live database and
       returns sensible results — do this before promoting the site, not after
