@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v3"
+REWARD_VERSION = "locomotion-rewards-v4"
 SCENE_VERSION = "custom-locomotion-scenes-v2"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
@@ -150,8 +150,17 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
     "stand-balance": {
         "version": REWARD_VERSION,
         "episode_steps": 1000,
-        "target_height_scale": 0.9,
-        "fall_height_scale": 0.45,
+        # v3 scaled the target off ``reference_height``, which is sampled after only
+        # ``settle_steps`` of zero control — while a primitive robot is still dropping.
+        # For the sample quadruped that reads 0.4457, putting the success band at
+        # [0.301, 0.501]; the tallest posture it can actually hold is ~0.29, so every
+        # run scored success_rate 0 no matter how long it trained. Measured locally at
+        # the production profile (16 envs, VecNormalize, 256x256): baseline 0.10 vs
+        # 0.90 here, both converging to h~0.27 — the ceiling is the robot's geometry,
+        # not the training budget. 0.575 centres the band on that reachable height.
+        "target_height_scale": 0.575,
+        # Lowered with the target so exploration has room to dip without terminating.
+        "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
         "settle_steps": 20,
         "success_upright": 0.85,

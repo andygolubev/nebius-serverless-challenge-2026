@@ -1,13 +1,13 @@
 {
   "adapter": {
-    "reward_version": "locomotion-rewards-v3",
+    "reward_version": "locomotion-rewards-v4",
     "scene_version": "custom-locomotion-scenes-v2",
     "version": "custom-robot-sb3-v1"
   },
   "backend": "sb3",
   "job_kind": "custom-robot",
   "preparation": {
-    "fingerprint": "7910984c15895ded12541fce56860cce217a7419c99102aebef1d32f17ed7ef0",
+    "fingerprint": "5146ed657d6e805f4d4a04f9f412ea659a6632103d908041e31dc1a854acd048",
     "id": "preparation-fixture"
   },
   "profile": "custom-ppo-quick",
