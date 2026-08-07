@@ -66,6 +66,12 @@ class VerifyRequest(BaseModel):
     code: str
 
 
+class CollectRequest(BaseModel):
+    visit_id: str | None = None
+    view: str
+    entity_id: str | None = None
+
+
 class Job(BaseModel):
     id: str
     tenant_id: str

@@ -85,6 +85,34 @@ CREATE TABLE IF NOT EXISTS custom_training_requests (
 );
 CREATE INDEX IF NOT EXISTS custom_training_requests_tenant_created
     ON custom_training_requests (tenant_id, created_at);
+CREATE TABLE IF NOT EXISTS analytics_visits (
+    id TEXT PRIMARY KEY,
+    first_seen REAL NOT NULL,
+    last_seen REAL NOT NULL,
+    ip_hash TEXT NOT NULL,
+    user_agent TEXT NOT NULL,
+    referrer TEXT NOT NULL,
+    is_bot INTEGER NOT NULL CHECK (is_bot IN (0, 1))
+);
+CREATE INDEX IF NOT EXISTS analytics_visits_last_seen ON analytics_visits (last_seen);
+CREATE INDEX IF NOT EXISTS analytics_visits_ip_hash ON analytics_visits (ip_hash);
+CREATE TABLE IF NOT EXISTS analytics_page_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    visit_id TEXT NOT NULL,
+    view TEXT NOT NULL,
+    entity_id TEXT,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (visit_id) REFERENCES analytics_visits(id)
+);
+CREATE INDEX IF NOT EXISTS analytics_page_views_created_at ON analytics_page_views (created_at);
+CREATE INDEX IF NOT EXISTS analytics_page_views_view ON analytics_page_views (view);
+CREATE TABLE IF NOT EXISTS analytics_daily (
+    day TEXT PRIMARY KEY,
+    visits INTEGER NOT NULL,
+    page_views INTEGER NOT NULL,
+    unique_visitors INTEGER NOT NULL,
+    bot_visits INTEGER NOT NULL
+);
 """
 
 

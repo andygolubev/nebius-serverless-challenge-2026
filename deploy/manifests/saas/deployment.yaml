@@ -35,6 +35,11 @@ spec:
               value: "24"
             - name: SAAS_DB_PATH
               value: /data/saas.db
+            - name: SAAS_ANALYTICS_IP_SALT
+              valueFrom:
+                secretKeyRef:
+                  name: saas-nebius
+                  key: SAAS_ANALYTICS_IP_SALT
             # Temporary validation override: allow the explicitly approved My Robots
             # combination matrix to occupy up to four preparation and four training
             # slots for one tenant, and to exceed the default eight rolling-24h

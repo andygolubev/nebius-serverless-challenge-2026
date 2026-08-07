@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, session, SESSION_EXPIRED_EVENT } from "./api";
+import { trackView } from "./analytics";
 import { About } from "./views/About";
 import { Dashboard } from "./views/Dashboard";
 import { JobDetail } from "./views/JobDetail";
@@ -67,6 +68,10 @@ export function App() {
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+  }, [routeKey]);
+
+  useEffect(() => {
+    trackView(active.view, "id" in active ? active.id : undefined);
   }, [routeKey]);
 
   return (

@@ -338,6 +338,17 @@ async function publicRequest<T>(path: string): Promise<T> {
   return res.json();
 }
 
+// Fire-and-forget public writes intentionally bypass session handling. Analytics is
+// not authenticated and a network failure must never sign a visitor out.
+export function publicPost(path: string, body: unknown, init: RequestInit = {}): Promise<Response> {
+  return fetch(path, {
+    ...init,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...init.headers },
+    body: JSON.stringify(body),
+  });
+}
+
 async function requestBlob(path: string): Promise<Blob> {
   return (await authorizedFetch(path)).blob();
 }

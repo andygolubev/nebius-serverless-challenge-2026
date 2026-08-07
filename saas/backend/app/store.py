@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 
 from . import db
+from .analytics import daily_rollup_and_prune
 from .models import (
     TERMINAL_STATES,
     ArtifactManifest,
@@ -24,6 +26,74 @@ from .models import (
 
 ROBOT_QUOTA = 20
 SETUP_QUOTA = 50
+
+
+class AnalyticsStore:
+    """Anonymous analytics only; deliberately has no tenant or session operations."""
+
+    def __init__(self, db_path: str | None = None, *, session_gap_minutes: int = 30) -> None:
+        self._lock = threading.Lock()
+        self._conn = db.connect(db_path)
+        self._session_gap_seconds = session_gap_minutes * 60
+
+    def record(
+        self,
+        visit_id: str | None,
+        view: str,
+        entity_id: str | None,
+        ip_hash: str,
+        user_agent: str,
+        referrer: str,
+        is_bot: bool,
+        now: float,
+    ) -> str:
+        with self._lock:
+            self._conn.execute("BEGIN IMMEDIATE")
+            try:
+                row = (
+                    self._conn.execute(
+                        "SELECT last_seen, ip_hash, user_agent FROM analytics_visits WHERE id = ?",
+                        (visit_id,),
+                    ).fetchone()
+                    if visit_id
+                    else None
+                )
+                reusable = row is not None and (
+                    now - row[0] <= self._session_gap_seconds
+                    and row[1] == ip_hash
+                    and row[2] == user_agent
+                )
+                # The browser mints its per-tab UUID. It becomes the persisted visit
+                # ID on first sight; a stale or forged existing ID is replaced.
+                actual_visit_id = (
+                    visit_id if reusable or row is None and visit_id else str(uuid.uuid4())
+                )
+                if reusable:
+                    self._conn.execute(
+                        "UPDATE analytics_visits SET last_seen = ? WHERE id = ?",
+                        (now, actual_visit_id),
+                    )
+                else:
+                    self._conn.execute(
+                        """INSERT INTO analytics_visits
+                           (id, first_seen, last_seen, ip_hash, user_agent, referrer, is_bot)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (actual_visit_id, now, now, ip_hash, user_agent, referrer, int(is_bot)),
+                    )
+                self._conn.execute(
+                    """INSERT INTO analytics_page_views (visit_id, view, entity_id, created_at)
+                       VALUES (?, ?, ?, ?)""",
+                    (actual_visit_id, view, entity_id, now),
+                )
+                self._conn.execute("COMMIT")
+                return actual_visit_id
+            except Exception:
+                self._conn.execute("ROLLBACK")
+                raise
+
+    def prune(self, retention_days: int, now: float) -> None:
+        with self._lock:
+            daily_rollup_and_prune(self._conn, retention_days, now)
 
 
 class QuotaExceeded(Exception):

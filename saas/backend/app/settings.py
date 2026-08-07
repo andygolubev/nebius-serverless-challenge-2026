@@ -16,6 +16,37 @@ class SettingsError(RuntimeError):
     """Raised at startup when the nebius backend is selected but misconfigured."""
 
 
+@dataclass(frozen=True)
+class AnalyticsSettings:
+    """Privacy-preserving analytics controls; an absent salt disables collection."""
+
+    ip_salt: str | None
+    retention_days: int
+    session_gap_minutes: int
+
+    @classmethod
+    def from_env(cls, env: dict[str, str] | None = None) -> AnalyticsSettings:
+        env = os.environ if env is None else env
+
+        def positive_int(name: str, default: int, *, maximum: int) -> int:
+            raw = env.get(name, str(default))
+            try:
+                value = int(raw)
+            except ValueError as exc:
+                raise SettingsError(f"{name} must be an integer") from exc
+            if not 1 <= value <= maximum:
+                raise SettingsError(f"{name} must be between 1 and {maximum}")
+            return value
+
+        return cls(
+            ip_salt=env.get("SAAS_ANALYTICS_IP_SALT") or None,
+            retention_days=positive_int("SAAS_ANALYTICS_RETENTION_DAYS", 90, maximum=3650),
+            session_gap_minutes=positive_int(
+                "SAAS_ANALYTICS_SESSION_GAP_MINUTES", 30, maximum=24 * 60
+            ),
+        )
+
+
 # Required env vars and the settings field each one populates.
 _REQUIRED = {
     "NEBIUS_PROJECT_ID": "project_id",

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,7 +19,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import catalog, environment_catalog, showcase
+from . import analytics, catalog, environment_catalog, showcase
 from .auth import (
     AuthService,
     RateLimited,
@@ -44,6 +45,7 @@ from .models import (
     Artifact,
     ArtifactManifest,
     AuthRequest,
+    CollectRequest,
     Job,
     JobRequest,
     CustomTrainingRequest,
@@ -58,9 +60,10 @@ from .models import (
 )
 from .orchestration import build_backend
 from .robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate_mjcf
-from .settings import CustomTrainingSettings, ShowcaseSettings
+from .settings import AnalyticsSettings, CustomTrainingSettings, ShowcaseSettings
 from .store import (
     AuthStore,
+    AnalyticsStore,
     CustomTrainingStore,
     JobStore,
     QuotaExceeded,
@@ -74,6 +77,10 @@ log = logging.getLogger(__name__)
 # Durable state lives in SQLite at SAAS_DB_PATH (a PVC in the cluster); defaults to a
 # local file for development.
 _db_path = resolve_path()
+_analytics_settings = AnalyticsSettings.from_env()
+_analytics_store = AnalyticsStore(
+    _db_path, session_gap_minutes=_analytics_settings.session_gap_minutes
+)
 _store = JobStore(_db_path)
 _robot_store = RobotStore(_db_path)
 _custom_store = CustomTrainingStore(_db_path)
@@ -91,6 +98,7 @@ _auth = AuthService(
     AuthStore(_db_path),
     build_email_sender(os.environ.get("SAAS_EMAIL_BACKEND", "mock")),
 )
+_analytics_prune_task: asyncio.Task[None] | None = None
 
 
 @app.on_event("startup")
@@ -107,6 +115,34 @@ def resume_jobs() -> None:
     resume_preparations = getattr(_backend, "resume_preparations", None)
     if resume_preparations is not None:
         resume_preparations(_custom_store)
+    if _analytics_settings.ip_salt is None:
+        log.warning("site visit analytics is disabled: SAAS_ANALYTICS_IP_SALT is absent")
+    global _analytics_prune_task
+    _analytics_prune_task = asyncio.create_task(_prune_analytics_forever())
+
+
+@app.on_event("shutdown")
+async def stop_analytics_prune_task() -> None:
+    global _analytics_prune_task
+    if _analytics_prune_task is not None:
+        _analytics_prune_task.cancel()
+        try:
+            await _analytics_prune_task
+        except asyncio.CancelledError:
+            pass
+        _analytics_prune_task = None
+
+
+async def _prune_analytics_forever() -> None:
+    while True:
+        try:
+            _analytics_store.prune(
+                _analytics_settings.retention_days,
+                datetime.now(timezone.utc).timestamp(),
+            )
+        except Exception:
+            log.exception("analytics pruning failed")
+        await asyncio.sleep(24 * 60 * 60)
 
 
 def _now() -> str:
@@ -243,6 +279,36 @@ def health() -> dict[str, str]:
         "custom_robot_training": "enabled" if _custom_settings.enabled else "disabled",
         "showcase": "enabled" if _showcase_settings.enabled else "disabled",
     }
+
+
+@app.post("/analytics/collect", status_code=204)
+async def collect_analytics(request: Request) -> Response:
+    """Best-effort, write-only endpoint: analytics must never affect a page load."""
+    try:
+        payload = CollectRequest.model_validate(await request.json())
+        if not analytics.valid_view(payload.view):
+            raise ValueError("unknown analytics view")
+        if payload.visit_id is not None:
+            uuid.UUID(payload.visit_id)
+        address_hash = analytics.hash_address(
+            analytics.client_address(request), _analytics_settings.ip_salt
+        )
+        if address_hash is None:
+            return Response(status_code=204)
+        user_agent = analytics.bounded_user_agent(request.headers.get("user-agent"))
+        _analytics_store.record(
+            payload.visit_id,
+            payload.view,
+            analytics.bounded_entity_id(payload.entity_id),
+            address_hash,
+            user_agent,
+            analytics.bounded_referrer(request.headers.get("referer")),
+            analytics.is_bot(user_agent),
+            datetime.now(timezone.utc).timestamp(),
+        )
+    except Exception:
+        log.exception("analytics collection failed")
+    return Response(status_code=204)
 
 
 # -- auth --
