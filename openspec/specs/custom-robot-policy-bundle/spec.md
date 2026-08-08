@@ -3,7 +3,9 @@
 ## Purpose
 Package a completed custom-robot training run into a single self-contained, load-verified archive
 that reproduces the exact prepared inputs and resolved configuration, while making unambiguous
-that the result is simulator-only.
+that the result is simulator-only. This extends the common envelope, determinism, and delivery
+contract of `policy-bundle-export` with the members and load verification specific to a custom run;
+it does not replace or relax any of them.
 
 ## Requirements
 ### Requirement: Self-contained simulator policy bundle

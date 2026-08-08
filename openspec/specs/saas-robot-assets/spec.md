@@ -2,8 +2,9 @@
 
 ## Purpose
 Let a tenant upload a bounded, primitive-only MJCF robot model, validate its structure server-side,
-and manage immutable versioned copies — while keeping custom robots isolated from production
-training until a dedicated custom-training capability accepts them.
+and manage immutable versioned copies. Validation here is structural only: a robot version is never
+itself trainable, and it reaches training solely by being referenced from a setup that passes the
+preparation gate in `custom-robot-training-preparation`.
 
 ## Requirements
 ### Requirement: Constrained tenant robot upload
@@ -77,10 +78,17 @@ download these exact examples with their type, description, filename, and digest
 
 ### Requirement: Honest custom robot readiness
 A structurally valid custom robot SHALL be represented as `readiness: validated` and
-`trainable: false` with reason `custom-training-not-enabled` until a production-executable custom
-MJX job specification has passed its own acceptance change.
+`trainable: false` with reason `custom-training-not-enabled`. Training readiness is a property of a
+*setup*, not of a robot: a robot version alone SHALL never be trainable, and the API and UI SHALL
+distinguish structural validation from training readiness rather than implying a robot is ready to
+run.
 
 #### Scenario: Validated robot is inspected
 - **WHEN** a tenant views an accepted custom robot
-- **THEN** the API and UI distinguish structural validation from training readiness and offer no
-  path that submits it through the Go1 job specification
+- **THEN** the API and UI report structural validation only, and the offered next action is to build
+  a setup rather than to start training
+
+#### Scenario: Robot is not a submission identity
+- **WHEN** a client supplies a robot identifier to any job-creating route
+- **THEN** the request is rejected and no job or remote resource is created, because training is
+  started only from an accepted setup

@@ -70,11 +70,22 @@ and object catalog.
   workflow
 
 ### Requirement: Honest environment readiness
-Every saved custom environment draft SHALL return `trainable: false` and reason
-`custom-training-not-enabled`; it SHALL NOT appear in `/training-options` or be accepted by
-`POST /jobs`.
+A saved draft SHALL report `readiness: validated` for its structural composition and SHALL carry a
+separate derived `training_readiness` that never conflates the two. `trainable` SHALL be true only
+while the setup has a current accepted preparation fingerprint. A draft SHALL NOT appear in
+`/training-options` and SHALL NOT be accepted by any general job route; the only way to train it is
+the setup-bound route defined in `saas-job-customization`.
 
 #### Scenario: Validated draft is completed
 - **WHEN** a tenant finishes a valid robot/task/scene composition
-- **THEN** the UI labels it `Validated setup`, explains that GPU training requires a future
-  accepted adapter, and exposes no misleading Start Training action
+- **THEN** the UI labels it `Validated setup`, states that no training job was created, and offers
+  the preparation action rather than a Start Training action
+
+#### Scenario: Structural validity is not training readiness
+- **WHEN** a catalog-valid draft has no accepted preparation for its current fingerprint
+- **THEN** it reports `trainable: false` with a stable reason and Start training is refused before
+  any local or remote job creation
+
+#### Scenario: Draft is never a public catalog entry
+- **WHEN** any client fetches `/training-options`
+- **THEN** no tenant robot, setup, or custom profile appears in the response

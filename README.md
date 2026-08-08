@@ -13,17 +13,24 @@ often slow, expensive, and difficult to reproduce.
 ## The solution
 
 Sim2Policy uses MuJoCo simulation and reinforcement learning to train robots without physical
-hardware. Training can run as a Nebius Serverless AI Job, while artifacts are stored in durable
-object storage. A small web application provides ready-to-run examples and a guided flow for
-validating and training custom robot models.
+hardware. Training runs as a Nebius Serverless AI Job while artifacts are stored in durable object
+storage. A web application shows a read-only gallery of verified runs to anyone, and gives signed-in
+users a guided flow to upload a robot model, compose a task and scene from server-owned options,
+validate it, and train it.
+
+The project supports both Stable-Baselines3 for dependable CPU training and MJX/JAX for GPU-parallel
+simulation.
 
 ## What is inside
 
-- `sim2policy/` — training, evaluation, rendering, job submission, and cloud infrastructure.
-- `saas/` — the FastAPI and React application for launching and reviewing training runs.
-- `deploy/` — Kubernetes and ArgoCD deployment configuration.
-- `openspec/` — project proposals, specifications, designs, and implementation tasks.
-- `ARCHITECTURE.md` — the detailed system architecture and technical boundaries.
+| Path | Contents |
+| --- | --- |
+| [`sim2policy/`](sim2policy/README.md) | Training, evaluation, rendering, job submission, cloud infrastructure |
+| [`saas/`](saas/README.md) | FastAPI + React application for the public showcase and custom-robot training |
+| [`deploy/`](deploy/README.md) | Kubernetes and ArgoCD state reconciled onto the cluster |
+| [`openspec/specs/`](openspec/specs/) | Behavioural requirements, one directory per capability |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | System boundaries, design decisions, and their rationale |
+| [`AGENTS.md`](AGENTS.md) | Working agreements and cloud cost rules |
 
-The project supports both Stable-Baselines3 for dependable CPU training and MJX/JAX for
-GPU-parallel simulation.
+Start with [ARCHITECTURE.md](ARCHITECTURE.md) — it explains how the two planes fit together and why
+each boundary is where it is, and points at the more detailed document for every area.

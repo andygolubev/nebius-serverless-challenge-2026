@@ -4,6 +4,8 @@
 Make every training run's outputs durable and resumable: a stable per-run local/S3 artifact
 layout, endpoint-configurable synchronization with bounded retries, complete-before-publish
 checkpoint semantics, and explicit compatibility-checked resumption from the latest checkpoint.
+The status lifecycle and artifact manifest that APIs read from the same tree are specified in
+`run-state-artifacts`.
 
 ## Requirements
 ### Requirement: Stable per-run artifact layout

@@ -1,7 +1,12 @@
 # my-robots-validation-suite Specification
 
 ## Purpose
-TBD - created by archiving change validate-my-robots-form-matrix. Update Purpose after archive.
+Prove the My Robots surface exhaustively and cheaply: derive the case inventory from the server's
+own catalogs so an uncovered choice fails the build, exhaust every compatibility edge and numeric
+boundary at the API and component layers, verify every interaction in a browser including
+accessibility and 375-pixel usability, and keep the paid remote gates explicit, opt-in, and audited
+rather than silently counted as passing coverage.
+
 ## Requirements
 ### Requirement: Catalog-driven complete scenario inventory
 The validation suite SHALL derive its case inventory from the canonical sample metadata, serialized environment catalog, and custom-training eligibility contract while retaining independent invariants for the currently accepted robot types, compatibility edges, scenes, objects, capacity, and preparation eligibility. Every server-advertised discrete choice and every visible My Robots control MUST map to at least one stable case identifier, and an unmapped addition or removal MUST fail with an actionable coverage diagnostic.

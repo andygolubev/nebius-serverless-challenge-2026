@@ -4,11 +4,16 @@ Develop, commit, and push only on the `main` branch.
 
 # Agent instructions
 
-This repository uses OpenSpec to plan and implement changes. Before editing, inspect the active
-change with `openspec list`, then follow the relevant proposal, design, specs, and tasks beneath
-`openspec/changes/`. Use the matching OpenSpec skill and check off tasks only after verification.
+This repository uses OpenSpec. `openspec/specs/` holds the behavioural contract — one directory per
+capability, each stating requirements and the scenarios that verify them. Read the spec for any
+capability you touch and keep it true; a behaviour change is a spec change. Active work goes under
+`openspec/changes/<change-id>/` (proposal, design, specs, tasks) via the matching OpenSpec skill;
+check off tasks only after verification. Historical changes were consolidated into
+[ARCHITECTURE.md](ARCHITECTURE.md) and the READMEs and remain in Git history.
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing system boundaries or cloud workflows.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing system boundaries or cloud workflows. It is
+the source of truth for how the system is put together and why, and its "Where things are
+documented" table points at the detailed document for each area.
 Record progress, commands, observed results, blockers, and safe next steps in
 `IMPLEMENTATION_LOG.MD` so another agent can resume without guessing. The log is a local handoff
 artifact and is intentionally gitignored; never put credentials or secret selectors in it.

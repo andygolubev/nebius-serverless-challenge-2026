@@ -1,9 +1,10 @@
 # saas-web-ui Specification
 
 ## Purpose
-Provide the styled tenant-facing web application: passwordless login flow, a catalog-driven job
-composer, a live jobs dashboard, and results views — built on a consistent, accessible,
-light/dark-aware design system that works from mobile to desktop.
+Provide the styled web application: a public showcase as the unauthenticated landing view, a
+passwordless login flow, the My Robots upload/build/prepare/train workspace, a live jobs dashboard,
+and browser-first result views — built on one consistent, accessible, deliberately light design
+system that works from 375-pixel mobile to desktop.
 ## Requirements
 ### Requirement: Login flow UI
 The web app SHALL let a visitor reach the login screen deliberately from the public showcase, and
@@ -83,7 +84,7 @@ The web app SHALL use one consistent light visual system across public and authe
 ### Requirement: Browser media player and artifact actions
 The results view SHALL embed manifest-declared MP4 artifacts in an accessible HTML5 video player,
 designate the final rollout as primary media when present, allow selection among progression and
-intermediate videos, and provide a primary **Download policy bundle** action for completed gallery
+intermediate videos, and provide a primary **Download policy bundle** action for completed
 jobs with a validated bundle. Individual open/download actions SHALL remain available under
 secondary result files. All actions SHALL use tenant-authorized artifact URLs, and media SHALL
 support seeking without loading the entire file first.
@@ -98,7 +99,7 @@ support seeking without loading the entire file first.
 - **THEN** the user can select each by a human-readable label without navigating away
 
 #### Scenario: Download policy bundle
-- **WHEN** a completed gallery result declares a validated policy bundle
+- **WHEN** a completed result declares a validated policy bundle
 - **THEN** the compact result header offers Download policy bundle and explains that it targets the
   matching simulator rather than a physical robot
 
@@ -119,7 +120,7 @@ and individual files SHALL be organized into readable labeled sections or collap
 than equal-width raw JSON columns.
 
 #### Scenario: Completed result opens on desktop
-- **WHEN** the owner opens a completed gallery job
+- **WHEN** the owner opens a completed job
 - **THEN** the key outcome and actions fit in a compact overview and nested objects do not render as
   narrow full-height JSON columns
 
@@ -193,8 +194,9 @@ models.
 
 #### Scenario: Training readiness is shown honestly
 - **WHEN** a tenant opens a validated custom robot
-- **THEN** the workspace shows `Validated model`, states that custom GPU training is not enabled,
-  and does not display an active Start Training control
+- **THEN** the workspace shows `Validated model`, explains that training readiness belongs to a
+  setup rather than to a model, and offers building a setup as the next action instead of a Start
+  Training control
 
 ### Requirement: Environment builder UI
 The web app SHALL let a tenant select a compatible server-owned locomotion task, choose a scene
@@ -217,7 +219,7 @@ server.
   operable without horizontal scrolling
 
 ### Requirement: Preparation and training actions follow the setup lifecycle
-The My Robots setup UI SHALL show training eligibility and one of `Not prepared`, `Preparing`, `Ready for training`, `Preparation failed`, or `Ineligible` with a concise explanation. An eligible saved setup SHALL provide **Prepare for training**; only its latest current accepted fingerprint SHALL enable **Start training**. Preparation failure SHALL show a sanitized phase/reason and Retry action. The UI SHALL NOT show the former misleading “Training coming after GPU validation” state, because V1 custom training is SB3 on CPU.
+The My Robots setup UI SHALL show training eligibility and one of `Not prepared`, `Preparing`, `Ready for training`, `Preparation failed`, or `Ineligible` with a concise explanation. An eligible saved setup SHALL provide **Prepare for training**; only its latest current accepted fingerprint SHALL enable **Start training**. Preparation failure SHALL show a sanitized phase/reason and Retry action. The UI SHALL NOT show the former misleading “Training coming after GPU validation” state, because custom training is SB3 on CPU. Every setup the builder accepted SHALL be offered preparation; `Ineligible` SHALL be reserved for a setup outside the server-owned task/scene/robot contract.
 
 #### Scenario: User saves an eligible setup
 - **WHEN** a user saves a biped Stand Balance setup on Flat Arena with no optional objects
@@ -235,9 +237,15 @@ The My Robots setup UI SHALL show training eligibility and one of `Not prepared`
 - **WHEN** the latest attempt fails
 - **THEN** the UI keeps Start training disabled and shows safe diagnostic and Retry controls
 
-#### Scenario: Setup is outside V1
-- **WHEN** a saved setup uses an unsupported task, scene, or optional object
-- **THEN** the UI explains the exact V1 restriction and does not offer Prepare
+#### Scenario: Setup with optional objects is preparable
+- **WHEN** a user saves a setup on any published scene preset carrying bounded catalog objects
+  within the six-object total
+- **THEN** the setup shows Not prepared with an enabled Prepare for training action
+
+#### Scenario: Setup is outside the server contract
+- **WHEN** a saved setup pairs a robot type with an incompatible task, or references an unknown task
+  or scene
+- **THEN** the UI explains the exact restriction and does not offer Prepare
 
 ### Requirement: Custom start creates and opens a normal Job
 Starting an accepted setup SHALL submit only the setup identity plus idempotency metadata, show quota or stale-preparation errors inline, and on success create a normal dashboard Job and provide a direct route to its detail. The UI SHALL NOT expose a backend, algorithm, hardware, image, command, PPO, task, scene, or object override at start time.
@@ -273,7 +281,7 @@ The normal result view for a custom Job SHALL identify the uploaded robot, task,
 Production acceptance SHALL be performed through the deployed UI for both canonical repository robots and every supported task/scene combination. The operator SHALL click Prepare, observe Ready, click Start training, open the resulting Jobs, play rollout media, and download/verify bundles. SaaS Job rows and S3 result artifacts created for this acceptance SHALL be retained for user review; temporary compute/build resources SHALL still be cleaned up according to operations policy.
 
 #### Scenario: Canonical acceptance matrix is completed
-- **WHEN** release validation claims V1 custom training support
+- **WHEN** release validation claims custom training support
 - **THEN** retained production evidence exists for two robots × two tasks × two scenes, including preparation, Job lifecycle, results, video, and bundle checks
 
 #### Scenario: User later opens an acceptance Job

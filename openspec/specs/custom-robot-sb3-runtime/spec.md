@@ -7,11 +7,25 @@ per-robot image, tenant world code, or tenant-selected hyperparameters.
 
 ## Requirements
 ### Requirement: Server-owned scene composition and training allowlist
-The generic runtime SHALL compose the validated single floating robot subtree into a versioned server-owned Flat Arena or Ramp Course and SHALL own gravity, timestep bounds, floor/ramp geometry, contact defaults, lights, cameras, reset distribution, episode horizon, reward, termination, and evaluation rules. Training eligibility SHALL require the bounded primitive-geometry contract, supported compiled finite dynamics, supported hinge joints, and explicit finite motor actuator control ranges. Tenant world floors, scene obstacles, simulation overrides, cameras, lights, sensors as policy inputs, external assets, and unsupported compiled features SHALL NOT affect the executable V1 environment.
+The generic runtime SHALL compose the validated single floating robot subtree into a versioned
+server-owned scene — any published preset plus the setup's bounded normalized primitive objects
+within the six-object total — and SHALL own gravity, timestep bounds, floor and obstacle geometry,
+contact defaults, lights, cameras, reset distribution, episode horizon, reward, termination, and
+evaluation rules. Training eligibility SHALL require the bounded primitive-geometry contract,
+supported compiled finite dynamics, supported hinge joints, and explicit finite motor actuator
+control ranges. Tenant world floors, simulation overrides, cameras, lights, sensors as policy
+inputs, external assets, and unsupported compiled features SHALL NOT affect the executable
+environment.
 
-#### Scenario: Ramp scene is composed
-- **WHEN** a prepared setup selects Ramp Course
-- **THEN** the worker attaches the robot to the exact versioned server ramp scene and records the scene version and parameters in resolved configuration
+#### Scenario: Scene preset is composed
+- **WHEN** a prepared setup selects any published scene preset
+- **THEN** the worker attaches the robot to that exact versioned server scene and records the scene
+  version, preset identity, and normalized object parameters in resolved configuration
+
+#### Scenario: Normalized object is tampered with after publication
+- **WHEN** a normalized object has an unknown field, type, or source, a missing parameter, a
+  non-finite or out-of-bound number, or makes the total exceed six
+- **THEN** the runtime rejects the input before MuJoCo compilation with a sanitized stable reason
 
 #### Scenario: Uploaded world tries to alter the task
 - **WHEN** an otherwise upload-valid MJCF contains a tenant world floor, light, camera, or simulation option outside the executable robot subtree contract
@@ -58,8 +72,33 @@ The `walk-forward` adapter SHALL use versioned server-owned reset, reward, termi
 - **WHEN** a policy moves rapidly but violates the configured forward-direction, lateral, upright, or fall criterion
 - **THEN** the episode is not counted as successful solely because its scalar reward is high
 
+### Requirement: Fixed Recover From Fall task contract
+The `recover-from-fall` adapter SHALL apply to validated quadrupeds only and SHALL use versioned
+server-owned reset, reward, termination, and success definitions based on a bounded fallen-state
+reset distribution, recovery toward upright orientation and target root height, bounded root motion,
+action/energy penalties, non-finite/runaway protection, and a fixed episode horizon. All
+coefficients and thresholds SHALL be present in resolved configuration and final metrics.
+
+#### Scenario: Recovery episode is scored
+- **WHEN** an evaluation episode starts from a bounded fallen state and reaches upright orientation
+  near the target height within the configured motion bounds
+- **THEN** its task metrics and success value are calculated from the recorded Recover From Fall
+  contract
+
+#### Scenario: Biped requests the quadruped-only task
+- **WHEN** a setup pairs a biped robot with `recover-from-fall`
+- **THEN** validation rejects it before preparation and no environment is composed
+
 ### Requirement: Fixed custom PPO quick training profile
-An accepted setup SHALL start only the server-owned `custom-ppo-quick` profile using the immutable generic SB3 runtime on an allowlisted `cpu-d3` preset. Backend, algorithm, PPO hyperparameters, vector-environment count, total timesteps, evaluation cadence/seeds, checkpoint cadence, disk, timeout, and artifact settings SHALL be fixed in a versioned resolved job specification and SHALL NOT be tenant-editable. Production enablement SHALL require benchmark evidence that freezes a bounded profile for all eight canonical biped/quadruped, task, and scene combinations.
+An accepted setup SHALL start only the server-owned `custom-ppo-quick` profile using the immutable
+generic SB3 runtime on an allowlisted `cpu-d3` preset. Backend, algorithm, PPO hyperparameters,
+vector-environment count, total timesteps, observation/reward normalization, checkpoint selection
+policy, evaluation cadence and seeds, checkpoint cadence, disk, timeout, and artifact settings SHALL
+be fixed in a versioned resolved job specification and SHALL NOT be tenant-editable. The profile
+SHALL be sized to make convergence a genuine attempt rather than a smoke test, and the published
+final policy SHALL be the best-scoring checkpoint across the periodic evaluations rather than the
+last. A profile change SHALL advance the training-profile contract version, which participates in
+the preparation fingerprint.
 
 #### Scenario: Owner starts an accepted setup
 - **WHEN** the owner starts training from the latest accepted fingerprint

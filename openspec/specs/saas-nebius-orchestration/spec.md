@@ -1,8 +1,10 @@
 # saas-nebius-orchestration Specification
 
 ## Purpose
-Connect the tenant SaaS control plane to Nebius Serverless AI jobs through a preset-only,
-SDK-backed orchestration adapter that persists remote job identities and reflects their lifecycle.
+Connect the tenant SaaS control plane to Nebius Serverless AI jobs through an SDK-backed
+orchestration adapter built exclusively from typed, server-owned specifications, which persists
+remote job identities, reconciles their lifecycle durably across restarts, and gates `completed` on
+validated artifacts.
 ## Requirements
 ### Requirement: Nebius orchestration backend
 
@@ -11,7 +13,8 @@ The SaaS app SHALL provide a `nebius` orchestration backend, selected via `SAAS_
 #### Scenario: Backend selected by configuration
 
 - **WHEN** the service starts with `SAAS_ORCHESTRATION_BACKEND=nebius` and valid Nebius credentials
-- **THEN** `GET /health` reports the `nebius` backend and `POST /jobs` submits real Serverless AI jobs
+- **THEN** `GET /health` reports the `nebius` backend and starting an accepted setup submits a real
+  Serverless AI job
 
 #### Scenario: Mock remains the default
 

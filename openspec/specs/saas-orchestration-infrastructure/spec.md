@@ -9,15 +9,25 @@ reconciliation of MysteryBox secret versions into Kubernetes Secrets without exp
 ## Requirements
 
 ### Requirement: Dedicated orchestration identity
-The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` service account and SHALL grant project-level `editor` only to that account for Serverless AI job creation and cancellation. The grant MUST be documented as temporary until Nebius offers a job-scoped role and MUST NOT broaden the SaaS server, CI, or artifact identities.
+The OpenTofu stack SHALL create a dedicated `sim2policy-saas-orchestrator` service account and SHALL
+grant it, and only it, the narrowest project-level role that actually provisions Serverless AI jobs.
+The documented `editor` prerequisite was verified insufficient — jobs created by that account remain
+in `PROVISIONING` under `editor` regardless of authentication method or client, while an audited
+probe reached `STARTING` under project `admin` — so the stack SHALL use `admin`, SHALL record in the
+configuration why, and SHALL treat it as temporary until Nebius narrows or fixes the requirement. The
+grant MUST NOT broaden the SaaS server, CI, or artifact identities, and no human credential,
+tenant-wide admin membership, or long-lived service-account key SHALL be used in its place.
 
 #### Scenario: Fresh infrastructure apply
 - **WHEN** the Nebius stack is applied to the configured project
-- **THEN** the dedicated orchestrator service account exists with the project `editor` grant and unrelated service-account grants remain unchanged
+- **THEN** the dedicated orchestrator service account exists with its isolated project grant and
+  unrelated service-account grants remain unchanged
 
 #### Scenario: Future role narrowing
-- **WHEN** a Nebius job-scoped role becomes available
-- **THEN** the isolated access binding can be replaced without changing the SaaS server, CI, or artifact identities
+- **WHEN** a Nebius job-scoped role becomes available, or the documented `editor` prerequisite is
+  confirmed sufficient
+- **THEN** the isolated access binding can be narrowed without changing the SaaS server, CI, or
+  artifact identities
 
 ### Requirement: Metadata-based orchestrator authentication
 The stack SHALL attach the dedicated orchestrator service account to the SaaS VM, mount the VM-managed instance-metadata directory (containing the renewable token file) read-only into the SaaS pod — mounting the directory rather than the token file itself so Nebius's atomic rotation of the underlying symlink target is picked up instead of pinning a stale inode — and authenticate the Nebius SDK with a renewable file bearer without a private SDK credential.

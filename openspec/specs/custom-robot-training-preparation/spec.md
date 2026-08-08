@@ -1,25 +1,41 @@
 # custom-robot-training-preparation Specification
 
 ## Purpose
-Gate custom robot training behind a bounded, server-run preparation stage that proves a narrow
-V1-eligible setup compiles, simulates, renders, and trains for a short smoke cycle before Start
-training is ever enabled — with no per-robot image build and no tenant-controlled execution input.
+Gate custom robot training behind a bounded, server-run preparation stage that proves a saved setup
+compiles, simulates, renders, and trains for a short smoke cycle before Start training is ever
+enabled — with no per-robot image build and no tenant-controlled execution input.
 
 ## Requirements
-### Requirement: Narrow V1 preparation eligibility
-The system SHALL offer training preparation only for an active tenant-owned validated setup whose robot is declared `biped` or `quadruped`, whose task is `stand-balance` or `walk-forward`, whose scene is `flat-arena` or `ramp-course`, and whose tenant-selected object list is empty. The server-owned ramp intrinsic to Ramp Course SHALL NOT count as an optional object. Other valid saved setups SHALL remain usable as drafts and SHALL return a stable, human-readable training-ineligibility reason.
+### Requirement: Catalog-valid setups are preparation-eligible
+The system SHALL offer training preparation for every active tenant-owned validated setup whose
+robot is declared `biped` or `quadruped`, whose task is a supported template compatible with that
+robot type, and whose scene is one of the published presets — including any bounded catalog object
+combination within the six-object total. Eligibility SHALL be derived from the same server-owned
+contract the environment builder validates against, so a setup the builder accepted is never
+rejected later as an unsupported task, scene, or object combination. A setup outside that contract
+SHALL remain visible as a validated draft and SHALL report `training_readiness=ineligible` with a
+stable, human-readable reason.
 
 #### Scenario: Eligible setup can be prepared
-- **WHEN** an owner requests preparation for a validated quadruped Walk Forward setup on Ramp Course with no optional objects
+- **WHEN** an owner requests preparation for a validated quadruped Walk Forward setup on Ramp Course
 - **THEN** the service accepts the preparation request and derives all execution settings server-side
 
-#### Scenario: Optional object prevents preparation
-- **WHEN** an owner requests preparation for an otherwise eligible setup containing an optional catalog object
-- **THEN** the service rejects the request before input publication or remote job creation and identifies that V1 custom training does not support optional objects
+#### Scenario: Optional objects do not block preparation
+- **WHEN** an owner requests preparation for a setup carrying bounded Box, Ramp, Hurdle, or Step
+  objects within the six-object total
+- **THEN** the service accepts it and the server-owned runtime composes the exact normalized preset
+  and primitives without accepting tenant code, meshes, plugins, files, or URLs
 
-#### Scenario: Wider beta setup stays saved
-- **WHEN** a tenant owns a validated Recover from Fall or Hurdle Course setup
-- **THEN** it remains visible as a validated draft but reports `training_readiness=ineligible` and cannot start preparation
+#### Scenario: Quadruped-only task is prepared for a quadruped
+- **WHEN** a quadruped setup selects Recover From Fall with any valid terrain and object
+  configuration
+- **THEN** preparation exercises bounded fallen-state resets, the recovery reward and success
+  criteria, evaluation, rendering, and checkpoint reload before training can become ready
+
+#### Scenario: Incompatible setup stays ineligible
+- **WHEN** a biped setup requests Recover From Fall, or a setup carries an unknown robot type, task,
+  or scene
+- **THEN** it reports `training_readiness=ineligible` with its reason and cannot start preparation
 
 ### Requirement: Immutable server-selected preparation inputs
 The service SHALL read the owned robot XML and canonical setup from durable persistence, write size-bounded exact snapshots plus an input manifest beneath a server-generated preparation prefix, and pass only opaque server identities and resolved configuration to the worker. The input manifest SHALL contain schema and profile versions, immutable runtime image digest, robot/setup identifiers and SHA-256 digests, byte sizes, robot declaration, adapter/reward versions, and canonical task/scene selection. No tenant request SHALL select an object key, URL, image, command, environment variable, secret, platform, preset, or entrypoint.

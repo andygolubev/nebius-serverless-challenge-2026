@@ -5,7 +5,8 @@ Keep all durable run state in object storage under one validated per-run prefix 
 for metadata, checkpoints, logs, videos, and reports; a `status.json` advanced through the
 canonical lifecycle `queued → starting → training → rendering → evaluating → completed/failed`;
 and an artifact manifest from which APIs build presigned, run-scoped URLs — so API instances stay
-stateless.
+stateless. This is the *observability* view of the run tree; `durable-run-artifacts` owns the
+same tree's synchronization, checkpoint publication, and resumption semantics.
 
 ## Requirements
 ### Requirement: Per-run object-storage layout

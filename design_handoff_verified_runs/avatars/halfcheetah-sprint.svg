@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
-  <title id="title">HalfCheetah sprinter</title>
-  <rect width="96" height="96" rx="22" fill="#fef3c7"></rect>
-  <path d="M18 53c13-17 35-24 57-12l8 8-15 8-29-1-14 10z" fill="#d97706"></path>
-  <circle cx="76" cy="43" r="9" fill="#92400e"></circle>
-  <circle cx="79" cy="41" r="2" fill="#fff"></circle>
-  <path d="M38 55L22 77M56 55l13 21M24 52L9 42M67 39L54 25" stroke="#92400e" stroke-width="7" stroke-linecap="round"></path>
-  <path d="M26 39h7M42 33h7M55 39h7" stroke="#fef3c7" stroke-width="3" stroke-linecap="round"></path>
-</svg>

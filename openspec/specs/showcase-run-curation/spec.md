@@ -1,7 +1,12 @@
 # showcase-run-curation Specification
 
 ## Purpose
-TBD - created by archiving change curate-public-showcase-runs. Update Purpose after archive.
+Produce the curated runs the public showcase serves, through a resumable campaign workflow whose
+contract is a versioned matrix rather than an operator's judgement: every executable step runs on
+Nebius and attests to it, every transition is idempotent and journalled, checkpoint selection uses
+seeds disjoint from final acceptance, spend is preflighted and cleaned up, and an example is pinned
+only from a fresh accepted run with complete immutable evidence.
+
 ## Requirements
 ### Requirement: Nebius-only preparation and workload execution
 The system and operator workflow SHALL execute every project preparation and workload process on

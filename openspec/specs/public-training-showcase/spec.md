@@ -1,8 +1,80 @@
 # public-training-showcase Specification
 
 ## Purpose
-TBD - created by archiving change add-public-training-showcase. Update Purpose after archive.
+Serve the project's landing experience: a session-free, read-only gallery of curated training runs
+that already happened. Each entry is bound in server-owned source to exactly one curated run,
+publishes only what that run actually recorded, offers no way to start training, and degrades to an
+unpublished entry rather than an error when its evidence is incomplete. The delivery mechanics for
+showcase artifacts are specified in `saas-artifact-access`.
+
 ## Requirements
+### Requirement: Exact seven-entry showcase
+The system SHALL expose exactly seven showcase examples with stable IDs in this order:
+`g1-rough-terrain`, `go1-walker`, `ant-explorer`, `halfcheetah-sprint`, `hopper-balance`,
+`walker2d-stride`, and `reacher-target`. Each entry SHALL carry a label, concise task and
+environment description, local avatar, expected result, backend and hardware labels, the bounded
+configuration its curated run actually executed, observed duration/cost guidance, success criteria,
+and its server-owned pinned curated run reference. No entry SHALL carry an executable submission
+contract, and a workload size that a pinned run happened to use SHALL NOT multiply cards.
+
+#### Scenario: User requests the showcase
+- **WHEN** any visitor requests the public showcase catalog
+- **THEN** it receives G1 Rough Terrain first, Go1 Walker second, the remaining five in their
+  documented relative order, complete display and evidence metadata, no additional card, and no
+  submission affordance
+
+#### Scenario: One example resolves to one card
+- **WHEN** an example's curated run used one of several historical workload sizes
+- **THEN** the showcase still contains exactly one card for that example and reports the single
+  workload its pinned run actually ran
+
+### Requirement: Honest measured guidance
+Every visible example SHALL retain observed end-to-end duration and cost guidance tied to its exact
+pinned curated run and the immutable image revision that run used. The compact gallery card MAY omit
+those values, but the read-only detail SHALL present them as recorded historical measurements and
+SHALL NOT present an unmeasured estimate as verified or imply a live run.
+
+#### Scenario: Accepted measurement is shown
+- **WHEN** a visitor opens a showcase card backed by accepted recorded evidence
+- **THEN** its detail identifies the measured duration, measured cost, and accepted revision while
+  the compact card remains focused on task and evaluation evidence
+
+#### Scenario: Measurement becomes stale
+- **WHEN** an entry's declared configuration, image, or compute shape no longer matches what its
+  pinned run recorded
+- **THEN** the entry is withheld from the public showcase until the declaration and the pinned run
+  agree
+
+### Requirement: Original accessible avatars
+Each showcase example SHALL use an original, repository-owned, same-origin SVG avatar with a stable
+aspect ratio and no third-party image request. When an avatar is decorative inside a card or identity
+control, that containing control SHALL provide the meaningful accessible example label and task so
+assistive technology does not rely on the image.
+
+#### Scenario: Gallery assets load
+- **WHEN** the showcase is opened on mobile or desktop, signed in or not
+- **THEN** all published avatars render from local application assets without layout shift or an
+  external image dependency
+
+#### Scenario: Assistive technology reads a card
+- **WHEN** a screen-reader user focuses an example card
+- **THEN** the example name and task are available from the card's accessible name while the
+  decorative avatar is not announced redundantly
+
+### Requirement: Server-selected training backend
+Every showcase entry SHALL report exactly one SB3 or MJX backend — the one its pinned curated run
+used. The UI SHALL display that backend as informational metadata about a historical run and SHALL
+NOT provide any backend, algorithm, or compute selector.
+
+#### Scenario: User reviews a card
+- **WHEN** any visitor opens G1 Rough Terrain
+- **THEN** the detail identifies MJX/JAX PPO and the hardware its curated run used, with no SB3
+  toggle and no way to re-run it
+
+#### Scenario: Client attempts backend override
+- **WHEN** a client sends an algorithm, backend, or hardware value to a showcase route
+- **THEN** the value is rejected or ignored and no SaaS job or remote resource is created
+
 ### Requirement: Unauthenticated showcase catalog
 The system SHALL expose `GET /showcase` without any session, bearer token, or cookie. The response
 SHALL list the published showcase entries in the documented gallery order, each carrying its stable
@@ -149,33 +221,24 @@ remove the KPI grid from the authenticated owner job result.
 - **THEN** neither catalog nor detail publishes it, even though its infrastructure status is
   completed, unless it matches the exact reviewed G1 verified-recording tuple
 
-### Requirement: Session-free allowlisted artifact delivery
-The system SHALL expose `GET /showcase/{example_id}/artifacts/{artifact_id}` without a session. Each
-access SHALL resolve the example to its pinned run, resolve the opaque artifact identifier against
-that run's cached validated manifest, and either stream the object with HTTP range support or
-redirect to a short-lived presigned HTTPS URL. Callers SHALL NOT supply object keys, prefixes, or
-content dispositions. The showcase artifact route SHALL NOT be capable of returning an object
-belonging to any tenant-owned run, and the artifact bucket SHALL remain private.
+### Requirement: Session-free artifact route
+The system SHALL expose `GET /showcase/{example_id}/artifacts/{artifact_id}` without a session, and
+SHALL resolve it only through the public artifact boundary specified in `saas-artifact-access`:
+example ID to pinned run, opaque artifact identifier against that run's cached validated manifest,
+then stream or short-lived redirect. Callers SHALL NOT supply object keys, prefixes, run identities,
+or content dispositions, and the route SHALL be structurally incapable of returning a tenant-owned
+object.
 
 #### Scenario: Anonymous visitor plays a rollout
 - **WHEN** a visitor requests a published example's MP4 artifact
 - **THEN** the response supports browser playback and byte-range seeking with `video/mp4` content
   type
 
-#### Scenario: Artifact identifier is not in the manifest
-- **WHEN** a caller supplies an artifact identifier absent from the pinned run's validated manifest
-- **THEN** the API returns 404 and performs no storage read for the caller-supplied value
-
 #### Scenario: Showcase route is aimed at a tenant run
 - **WHEN** a caller substitutes a tenant job ID, tenant run ID, or traversing value for the example
   ID or artifact ID
 - **THEN** the API returns 404, reads no tenant prefix, and reveals nothing about the tenant run's
   existence
-
-#### Scenario: Presigned exposure is bounded
-- **WHEN** the showcase issues a presigned URL
-- **THEN** it is short-lived, scoped to exactly one validated in-prefix object, and grants no list,
-  write, or sibling-object access
 
 ### Requirement: Showcase cannot start training
 No showcase route SHALL create, queue, mutate, or schedule a local job record, remote compute

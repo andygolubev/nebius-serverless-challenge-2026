@@ -1,8 +1,8 @@
 # policy-bundle-export Specification
 
 ## Purpose
-Package and deliver a deterministic, tenant-authorized policy bundle for completed gallery
-training jobs so a user can understand and reproduce a result without inspecting raw diagnostics,
+Package and deliver a deterministic policy bundle for completed custom-robot jobs and published
+showcase runs so a user can understand and reproduce a result without inspecting raw diagnostics,
 while keeping the checkpoint clearly scoped to its simulator and not implying physical-robot
 readiness.
 ## Requirements
@@ -24,14 +24,14 @@ nested diagnostics SHALL be secondary to this summary.
   download
 
 ### Requirement: Deterministic policy bundle
-Finalization for every new gallery job SHALL create `policy-bundle.zip` containing `README.md`,
-`manifest.json`, `resolved-config.json`, `evaluation/metrics.json`, `runtime/versions.json`, and the
-final backend-native checkpoint beneath `checkpoint/`. Member paths, order, timestamps, and JSON
-serialization SHALL be normalized so identical finalized inputs produce an identical SHA-256
-bundle digest. The bundle SHALL exclude credentials, tenant session data, storage keys, logs, and
-rollout video.
+Finalization for every completed custom-robot job and every curated showcase run SHALL create
+`policy-bundle.zip` containing `README.md`, `manifest.json`, `resolved-config.json`,
+`evaluation/metrics.json`, `runtime/versions.json`, and the final backend-native checkpoint beneath
+`checkpoint/`. Member paths, order, timestamps, and JSON serialization SHALL be normalized so
+identical finalized inputs produce an identical SHA-256 bundle digest. The bundle SHALL exclude
+credentials, tenant session data, storage keys, logs, and rollout video.
 
-#### Scenario: Gallery run finalizes successfully
+#### Scenario: Run finalizes successfully
 - **WHEN** training has produced a final checkpoint and validated evaluation metadata
 - **THEN** finalization publishes one deterministic bundle whose manifest lists every member's
   safe path, size, media type, and SHA-256 digest
@@ -110,7 +110,7 @@ job ownership, resolve only the cached allowlisted identifier, and stream or red
 short-lived presigned HTTPS URL. A client SHALL NOT provide a bucket key or prefix.
 
 #### Scenario: Owner requests policy bundle metadata
-- **WHEN** the owning tenant requests artifacts for a completed gallery job
+- **WHEN** the owning tenant requests artifacts for a completed custom-robot job
 - **THEN** the structured response includes the bundle's opaque identifier, safe display name,
   size, digest, and tenant-authorized download URL without exposing its object key
 
@@ -136,7 +136,7 @@ untrusted archive.
 #### Scenario: Bundle validates
 - **WHEN** the readable archive matches its outer digest and all required members match the
   internal manifest
-- **THEN** it is cached as a validated artifact and may participate in gallery-job completion
+- **THEN** it is cached as a validated artifact and may participate in job completion
 
 #### Scenario: Bundle digest or member is invalid
 - **WHEN** an archive is corrupt, missing a required file, contains an unsafe path, or disagrees

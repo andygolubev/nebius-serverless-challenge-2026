@@ -3,8 +3,9 @@
 ## Purpose
 Expose the sim2policy training workflow as a thin, stateless FastAPI demo layer on the data plane:
 health, preset listing, run start, status, and artifact endpoints guarded by demo-token auth and
-preset allowlists. This is distinct from the tenant SaaS application (`saas-tenant-app` /
-`saas-email-auth`), which serves multi-tenant users through its own authenticated job API.
+preset allowlists. This is distinct from the tenant SaaS application
+(`saas-email-auth` / `saas-job-customization`), which serves multi-tenant users through its own
+authenticated API and SDK-based orchestration.
 
 ## Requirements
 ### Requirement: Service health endpoint

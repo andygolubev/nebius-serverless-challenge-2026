@@ -158,6 +158,8 @@ Terminal states are `completed` and `failed`. The training job (or mock backend)
 ## Not in this phase
 
 Custom environments, reward functions, policy architectures, user Docker images, multi-tenant
-billing, production auth, and a required web UI are out of scope. See the change proposal under
-`openspec/changes/add-serverless-training-api/` for future extension points.
+billing, production auth, and a required web UI are out of scope for this data-plane surface. See
+`openspec/specs/training-demo-api/` and `openspec/specs/training-presets/` for its contract, and
+[`../../ARCHITECTURE.md`](../../ARCHITECTURE.md) for how the tenant SaaS control plane covers
+multi-tenant auth and custom-robot training.
 ```
