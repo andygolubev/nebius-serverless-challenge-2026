@@ -1,16 +1,9 @@
-# Exposes the SaaS app at https://sim-policy-trainer-challenge.info via k3s's built-in
-# Traefik. cert-manager (see deploy/argocd/cert-manager-app.yaml) watches the cluster-issuer
-# annotation, solves HTTP-01 on port 80, and keeps the saas-tls secret renewed. The router
-# also listens on web (80) and redirects to HTTPS; the ACME solver ingress cert-manager
-# creates is a separate, more specific router without the middleware, so challenges pass.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: saas
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    # No router.tls annotation: it would force the router TLS-only and break the plain-HTTP
-    # match on `web` that the redirect middleware needs. spec.tls still enables HTTPS.
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.middlewares: saas-redirect-https@kubernetescrd
 spec:

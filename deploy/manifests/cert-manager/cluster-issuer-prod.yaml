@@ -1,5 +1,3 @@
-# Production Let's Encrypt issuer. HTTP-01 challenges are solved through the built-in k3s
-# Traefik ingress on port 80 (already open in the saas-server firewall).
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:

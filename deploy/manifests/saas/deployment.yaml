@@ -5,8 +5,6 @@ metadata:
   labels:
     app: saas
 spec:
-  # Durable state is SQLite on a ReadWriteOnce PVC: single replica, and Recreate so the
-  # old pod releases the volume before the new one starts (rolling update would deadlock).
   replicas: 1
   strategy:
     type: Recreate
@@ -22,13 +20,11 @@ spec:
         - name: nebius-registry
       containers:
         - name: saas
-          image: sim2policy-saas # replaced by kustomize images: mapping
+          image: sim2policy-saas
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           env:
-            # Production must use the non-optional saas-smtp Secret below. Local and
-            # test processes retain the application's explicit mock default.
             - name: SAAS_EMAIL_BACKEND
               value: smtp
             - name: SAAS_SESSION_TTL_HOURS
@@ -40,44 +36,14 @@ spec:
                 secretKeyRef:
                   name: saas-nebius
                   key: SAAS_ANALYTICS_IP_SALT
-            # Temporary validation override: allow the explicitly approved My Robots
-            # combination matrix to occupy up to four preparation and four training
-            # slots for one tenant, and to exceed the default eight rolling-24h
-            # starts. Remove all three entries when the matrix is complete so the
-            # secret-managed production defaults (one, one, and eight) apply again.
             - name: CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS
               value: "4"
             - name: CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS
               value: "4"
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
               value: "16"
-            # Temporary runtime pin: the live `saas-nebius` Secret still carries
-            # sb3-59117bd6…, whose custom_robot_contract.REWARD_VERSION is
-            # locomotion-rewards-v2. The SaaS image declares v3, so
-            # custom_robot_io.validate_documents() rejects every manifest before
-            # run_preparation and each preparation dies as an unexplained
-            # `remote-job-failed` with report_ready=false.
-            # saas_sb3_image_tag in sim2policy/infra/nebius/saas_variables.tf now
-            # names this same revision, but that default only reaches the Secret
-            # after `tofu apply` plus `systemctl restart saas-nebius-sync` on the
-            # saas server. This entry shadows the Secret until then — deleting it
-            # first hands preparation straight back to the v2 image. Verify with
-            #   kubectl -n saas get secret saas-nebius \
-            #     -o jsonpath='{.data.CUSTOM_ROBOT_SB3_IMAGE}' | base64 -d
-            # and only remove this once that prints sb3-6b6b0d44….
-            # Note SIM2POLICY_JOB_IMAGE (the public SB3 gallery runtime) has no
-            # such shadow and is still on v2 in the Secret; the same apply fixes it.
             - name: CUSTOM_ROBOT_SB3_IMAGE
-              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-6b6b0d44ebbff364b4c2cf358b41fe995491d478
-          # SAAS_ORCHESTRATION_BACKEND intentionally has no explicit `env` entry
-          # (explicit env would override envFrom): the whole nebius orchestration
-          # contract — SAAS_ORCHESTRATION_BACKEND=nebius, NEBIUS_*, AWS_*,
-          # SIM2POLICY_*, and disabled-by-default CUSTOM_ROBOT_* controls — comes
-          # from the `saas-nebius` Secret, created
-          # out-of-band from MysteryBox values (see sim2policy/infra/nebius/
-          # README.md). Without the secret the app falls back to its built-in
-          # default backend (mock), so this manifest syncs safely in any order
-          # and no credentials live in Git.
+              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-d905e49136ee1aad3b214574e394c1024521ebb6
           envFrom:
             - secretRef:
                 name: saas-nebius
@@ -86,9 +52,6 @@ spec:
                 name: saas-smtp
                 optional: false
           volumeMounts:
-            # Mount the projected metadata directory, not its `token` symlink
-            # target. Nebius rotates `..data` atomically; a file-level hostPath
-            # bind pins the old inode and expires after the token lifetime.
             - name: nebius-metadata
               mountPath: /var/run/secrets/nebius-metadata
               readOnly: true
