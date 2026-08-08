@@ -9,11 +9,24 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 
 class SettingsError(RuntimeError):
     """Raised at startup when the nebius backend is selected but misconfigured."""
+
+
+def _positive_int(
+    env: Mapping[str, str], name: str, default: int, *, maximum: int
+) -> int:
+    try:
+        value = int(env.get(name, str(default)))
+    except ValueError as exc:
+        raise SettingsError(f"{name} must be an integer") from exc
+    if not 1 <= value <= maximum:
+        raise SettingsError(f"{name} must be between 1 and {maximum}")
+    return value
 
 
 @dataclass(frozen=True)
@@ -27,22 +40,13 @@ class AnalyticsSettings:
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> AnalyticsSettings:
         env = os.environ if env is None else env
-
-        def positive_int(name: str, default: int, *, maximum: int) -> int:
-            raw = env.get(name, str(default))
-            try:
-                value = int(raw)
-            except ValueError as exc:
-                raise SettingsError(f"{name} must be an integer") from exc
-            if not 1 <= value <= maximum:
-                raise SettingsError(f"{name} must be between 1 and {maximum}")
-            return value
-
         return cls(
             ip_salt=env.get("SAAS_ANALYTICS_IP_SALT") or None,
-            retention_days=positive_int("SAAS_ANALYTICS_RETENTION_DAYS", 90, maximum=3650),
-            session_gap_minutes=positive_int(
-                "SAAS_ANALYTICS_SESSION_GAP_MINUTES", 30, maximum=24 * 60
+            retention_days=_positive_int(
+                env, "SAAS_ANALYTICS_RETENTION_DAYS", 90, maximum=3650
+            ),
+            session_gap_minutes=_positive_int(
+                env, "SAAS_ANALYTICS_SESSION_GAP_MINUTES", 30, maximum=24 * 60
             ),
         )
 
@@ -145,29 +149,23 @@ class CustomTrainingSettings:
                     "CUSTOM_ROBOT_SB3_IMAGE must use an immutable sb3-<git-sha> tag or digest"
                 )
 
-        def positive_int(name: str, default: int, *, maximum: int) -> int:
-            raw = env.get(name, str(default))
-            try:
-                value = int(raw)
-            except ValueError as exc:
-                raise SettingsError(f"{name} must be an integer") from exc
-            if not 1 <= value <= maximum:
-                raise SettingsError(f"{name} must be between 1 and {maximum}")
-            return value
-
         return cls(
             enabled=enabled,
             runtime_image=runtime_image or "custom-robot-training-disabled",
-            max_active_preparations_per_tenant=positive_int(
+            max_active_preparations_per_tenant=_positive_int(
+                env,
                 "CUSTOM_ROBOT_MAX_ACTIVE_PREPARATIONS", 1, maximum=10
             ),
-            max_active_training_jobs_per_tenant=positive_int(
+            max_active_training_jobs_per_tenant=_positive_int(
+                env,
                 "CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS", 1, maximum=10
             ),
-            max_daily_starts_per_tenant=positive_int(
+            max_daily_starts_per_tenant=_positive_int(
+                env,
                 "CUSTOM_ROBOT_MAX_DAILY_STARTS", 8, maximum=100
             ),
-            preparation_finalize_attempts=positive_int(
+            preparation_finalize_attempts=_positive_int(
+                env,
                 "CUSTOM_ROBOT_PREPARATION_FINALIZE_ATTEMPTS", 60, maximum=720
             ),
             feature_revision=env.get(

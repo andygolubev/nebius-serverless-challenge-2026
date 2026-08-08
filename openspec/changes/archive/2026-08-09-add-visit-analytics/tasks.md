@@ -79,7 +79,7 @@
       `analytics_daily`, is idempotent across repeated runs, and modifies no non-analytics table
 - [x] 6.7 Frontend: the beacon fires once per view change with the correct view name and entity id,
       and a rejected fetch neither throws nor blocks rendering
-- [ ] 6.8 Run the full backend and frontend suites on the approved Nebius builder and confirm the
+- [x] 6.8 Run the full backend and frontend suites on the approved Nebius builder and confirm the
       existing 565 backend and 53 frontend tests still pass
 
 ## 7. Statistics access and deployment

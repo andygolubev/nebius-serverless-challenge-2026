@@ -7,12 +7,13 @@ artifact is scoped to the session's tenant (the verified email).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
-import asyncio
 import uuid
-from datetime import datetime, timezone
+from contextlib import suppress
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -38,6 +39,7 @@ from .custom_training import (
     resolved_custom_job,
     sha256_bytes,
 )
+from .db import resolve_path
 from .email_sender import EmailDeliveryError, build_email_sender
 from .models import (
     STATUS_COMPLETED,
@@ -46,9 +48,9 @@ from .models import (
     ArtifactManifest,
     AuthRequest,
     CollectRequest,
+    CustomTrainingRequest,
     Job,
     JobRequest,
-    CustomTrainingRequest,
     PreparationAttempt,
     PreparationRequest,
     RobotAsset,
@@ -62,15 +64,14 @@ from .orchestration import build_backend
 from .robot_validation import MAX_ROBOT_BYTES, RobotValidationError, validate_mjcf
 from .settings import AnalyticsSettings, CustomTrainingSettings, ShowcaseSettings
 from .store import (
-    AuthStore,
     AnalyticsStore,
+    AuthStore,
     CustomTrainingStore,
     JobStore,
     QuotaExceeded,
     RobotStore,
     Session,
 )
-from .db import resolve_path
 
 app = FastAPI(title="Sim2Policy SaaS", version="0.2.0")
 log = logging.getLogger(__name__)
@@ -126,10 +127,8 @@ async def stop_analytics_prune_task() -> None:
     global _analytics_prune_task
     if _analytics_prune_task is not None:
         _analytics_prune_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError):
             await _analytics_prune_task
-        except asyncio.CancelledError:
-            pass
         _analytics_prune_task = None
 
 
@@ -138,7 +137,7 @@ async def _prune_analytics_forever() -> None:
         try:
             _analytics_store.prune(
                 _analytics_settings.retention_days,
-                datetime.now(timezone.utc).timestamp(),
+                datetime.now(UTC).timestamp(),
             )
         except Exception:
             log.exception("analytics pruning failed")
@@ -146,7 +145,7 @@ async def _prune_analytics_forever() -> None:
 
 
 def _now() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _field_error(field: str, message: str, *, status_code: int = 422) -> HTTPException:
@@ -304,7 +303,7 @@ async def collect_analytics(request: Request) -> Response:
             user_agent,
             analytics.bounded_referrer(request.headers.get("referer")),
             analytics.is_bot(user_agent),
-            datetime.now(timezone.utc).timestamp(),
+            datetime.now(UTC).timestamp(),
         )
     except Exception:
         log.exception("analytics collection failed")

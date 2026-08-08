@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import Request
 
@@ -63,7 +63,7 @@ def valid_view(value: str) -> bool:
 
 def daily_rollup_and_prune(conn: sqlite3.Connection, retention_days: int, now: float) -> None:
     """Idempotently roll up elapsed UTC days and prune raw analytics in small batches."""
-    today = datetime.fromtimestamp(now, timezone.utc).date().isoformat()
+    today = datetime.fromtimestamp(now, UTC).date().isoformat()
     completed_days = conn.execute(
         "SELECT DISTINCT date(first_seen, 'unixepoch') FROM analytics_visits "
         "WHERE date(first_seen, 'unixepoch') < ?",
@@ -81,19 +81,15 @@ def daily_rollup_and_prune(conn: sqlite3.Connection, retention_days: int, now: f
             (day, day, day, day, day),
         )
     cutoff = now - retention_days * 24 * 60 * 60
-    while True:
-        deleted = conn.execute(
+    for statement in (
+        (
             "DELETE FROM analytics_page_views WHERE id IN "
-            "(SELECT id FROM analytics_page_views WHERE created_at < ? LIMIT 500)",
-            (cutoff,),
-        ).rowcount
-        if not deleted:
-            break
-    while True:
-        deleted = conn.execute(
+            "(SELECT id FROM analytics_page_views WHERE created_at < ? LIMIT 500)"
+        ),
+        (
             "DELETE FROM analytics_visits WHERE id IN "
-            "(SELECT id FROM analytics_visits WHERE last_seen < ? LIMIT 500)",
-            (cutoff,),
-        ).rowcount
-        if not deleted:
-            break
+            "(SELECT id FROM analytics_visits WHERE last_seen < ? LIMIT 500)"
+        ),
+    ):
+        while conn.execute(statement, (cutoff,)).rowcount:
+            pass

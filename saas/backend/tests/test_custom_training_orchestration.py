@@ -200,6 +200,11 @@ def test_storage_uses_fixed_prefixes_verifies_size_and_cleans_partial_objects() 
         "sim2policy/preparations/prepare-one/inputs/normalized-setup.json",
         "sim2policy/preparations/prepare-one/inputs/input-manifest.json",
     }
+    storage.snapshot_training_inputs(
+        "run-one", robot=b"<mujoco/>", setup=b"{}", manifest=b"{}"
+    )
+    assert len(client.objects) == 6
+    assert "sim2policy/run-one/inputs/input-manifest.json" in client.objects
     failed_client = S3()
     failed_client.fail_head = (
         "sim2policy/preparations/prepare-two/inputs/normalized-setup.json"

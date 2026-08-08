@@ -4,12 +4,21 @@ import sqlite3
 import time
 import uuid
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app import analytics, db, main
-from app.settings import AnalyticsSettings
+from app.settings import AnalyticsSettings, SettingsError
 from app.store import AnalyticsStore
+
+
+def test_analytics_settings_from_env_is_bounded() -> None:
+    assert AnalyticsSettings.from_env({}) == AnalyticsSettings(None, 90, 30)
+    with pytest.raises(SettingsError, match="must be an integer"):
+        AnalyticsSettings.from_env({"SAAS_ANALYTICS_RETENTION_DAYS": "invalid"})
+    with pytest.raises(SettingsError, match="must be between"):
+        AnalyticsSettings.from_env({"SAAS_ANALYTICS_SESSION_GAP_MINUTES": "0"})
 
 
 def test_client_address_prefers_valid_forwarded_address_and_falls_back() -> None:

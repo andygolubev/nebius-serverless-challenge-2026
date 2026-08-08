@@ -28,12 +28,17 @@ ROBOT_QUOTA = 20
 SETUP_QUOTA = 50
 
 
-class AnalyticsStore:
+class _SQLiteStore:
+    def __init__(self, db_path: str | None = None) -> None:
+        self._lock = threading.Lock()
+        self._conn = db.connect(db_path)
+
+
+class AnalyticsStore(_SQLiteStore):
     """Anonymous analytics only; deliberately has no tenant or session operations."""
 
     def __init__(self, db_path: str | None = None, *, session_gap_minutes: int = 30) -> None:
-        self._lock = threading.Lock()
-        self._conn = db.connect(db_path)
+        super().__init__(db_path)
         self._session_gap_seconds = session_gap_minutes * 60
 
     def record(
@@ -47,49 +52,44 @@ class AnalyticsStore:
         is_bot: bool,
         now: float,
     ) -> str:
-        with self._lock:
+        with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                row = (
-                    self._conn.execute(
-                        "SELECT last_seen, ip_hash, user_agent FROM analytics_visits WHERE id = ?",
-                        (visit_id,),
-                    ).fetchone()
-                    if visit_id
-                    else None
-                )
-                reusable = row is not None and (
-                    now - row[0] <= self._session_gap_seconds
-                    and row[1] == ip_hash
-                    and row[2] == user_agent
-                )
-                # The browser mints its per-tab UUID. It becomes the persisted visit
-                # ID on first sight; a stale or forged existing ID is replaced.
-                actual_visit_id = (
-                    visit_id if reusable or row is None and visit_id else str(uuid.uuid4())
-                )
-                if reusable:
-                    self._conn.execute(
-                        "UPDATE analytics_visits SET last_seen = ? WHERE id = ?",
-                        (now, actual_visit_id),
-                    )
-                else:
-                    self._conn.execute(
-                        """INSERT INTO analytics_visits
-                           (id, first_seen, last_seen, ip_hash, user_agent, referrer, is_bot)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                        (actual_visit_id, now, now, ip_hash, user_agent, referrer, int(is_bot)),
-                    )
+            row = (
                 self._conn.execute(
-                    """INSERT INTO analytics_page_views (visit_id, view, entity_id, created_at)
-                       VALUES (?, ?, ?, ?)""",
-                    (actual_visit_id, view, entity_id, now),
+                    "SELECT last_seen, ip_hash, user_agent FROM analytics_visits WHERE id = ?",
+                    (visit_id,),
+                ).fetchone()
+                if visit_id
+                else None
+            )
+            reusable = row is not None and (
+                now - row[0] <= self._session_gap_seconds
+                and row[1] == ip_hash
+                and row[2] == user_agent
+            )
+            # The browser mints its per-tab UUID. It becomes the persisted visit
+            # ID on first sight; a stale or forged existing ID is replaced.
+            actual_visit_id = (
+                visit_id if visit_id and (reusable or row is None) else str(uuid.uuid4())
+            )
+            if reusable:
+                self._conn.execute(
+                    "UPDATE analytics_visits SET last_seen = ? WHERE id = ?",
+                    (now, actual_visit_id),
                 )
-                self._conn.execute("COMMIT")
-                return actual_visit_id
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+            else:
+                self._conn.execute(
+                    """INSERT INTO analytics_visits
+                       (id, first_seen, last_seen, ip_hash, user_agent, referrer, is_bot)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (actual_visit_id, now, now, ip_hash, user_agent, referrer, int(is_bot)),
+                )
+            self._conn.execute(
+                """INSERT INTO analytics_page_views (visit_id, view, entity_id, created_at)
+                   VALUES (?, ?, ?, ?)""",
+                (actual_visit_id, view, entity_id, now),
+            )
+            return actual_visit_id
 
     def prune(self, retention_days: int, now: float) -> None:
         with self._lock:
@@ -103,17 +103,13 @@ class QuotaExceeded(Exception):
         super().__init__(f"{field} quota of {limit} reached")
 
 
-class JobStore:
+class JobStore(_SQLiteStore):
     """Append/update-only job history.
 
     Terminal jobs and artifact manifests are intentionally retained. There is
     no delete operation: provider-resource lifecycle must never erase the
     tenant-visible history kept in SQLite and object storage.
     """
-
-    def __init__(self, db_path: str | None = None) -> None:
-        self._lock = threading.Lock()
-        self._conn = db.connect(db_path)
 
     def put(self, job: Job) -> None:
         with self._lock:
@@ -168,12 +164,8 @@ class JobStore:
         return ArtifactManifest.model_validate_json(row[0])
 
 
-class CustomTrainingStore:
+class CustomTrainingStore(_SQLiteStore):
     """Atomic preparation and setup-bound custom start reservations."""
-
-    def __init__(self, db_path: str | None = None) -> None:
-        self._lock = threading.Lock()
-        self._conn = db.connect(db_path)
 
     @staticmethod
     def _attempt(row: tuple[str, str]) -> PreparationAttempt:
@@ -232,57 +224,50 @@ class CustomTrainingStore:
         max_active_per_tenant: int,
         retry: bool,
     ) -> tuple[PreparationAttempt, bool]:
-        with self._lock:
+        with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                rows = self._conn.execute(
-                    """SELECT tenant_id, data FROM preparation_attempts
-                       WHERE tenant_id = ? AND setup_id = ? AND fingerprint = ?
-                       ORDER BY created_at DESC, rowid DESC""",
-                    (attempt.tenant_id, attempt.setup_id, attempt.fingerprint),
-                ).fetchall()
-                existing = [self._attempt(row) for row in rows]
-                reusable = next(
-                    (
-                        item
-                        for item in existing
-                        if item.state in {"queued", "preparing", "accepted"}
-                    ),
-                    None,
-                )
-                if reusable is not None:
-                    self._conn.execute("COMMIT")
-                    return reusable, False
-                if existing and not retry:
-                    self._conn.execute("COMMIT")
-                    return existing[0], False
-                active = self._conn.execute(
-                    """SELECT COUNT(*) FROM preparation_attempts
-                       WHERE tenant_id = ? AND state IN ('queued', 'preparing')""",
-                    (attempt.tenant_id,),
-                ).fetchone()[0]
-                if active >= max_active_per_tenant:
-                    raise QuotaExceeded("active_preparations", max_active_per_tenant)
-                self._conn.execute(
-                    """INSERT INTO preparation_attempts
-                       (id, tenant_id, setup_id, robot_id, fingerprint, state, data, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        attempt.id,
-                        attempt.tenant_id,
-                        attempt.setup_id,
-                        attempt.robot_id,
-                        attempt.fingerprint,
-                        attempt.state,
-                        self._attempt_json(attempt),
-                        time.time(),
-                    ),
-                )
-                self._conn.execute("COMMIT")
-                return attempt, True
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+            rows = self._conn.execute(
+                """SELECT tenant_id, data FROM preparation_attempts
+                   WHERE tenant_id = ? AND setup_id = ? AND fingerprint = ?
+                   ORDER BY created_at DESC, rowid DESC""",
+                (attempt.tenant_id, attempt.setup_id, attempt.fingerprint),
+            ).fetchall()
+            existing = [self._attempt(row) for row in rows]
+            reusable = next(
+                (
+                    item
+                    for item in existing
+                    if item.state in {"queued", "preparing", "accepted"}
+                ),
+                None,
+            )
+            if reusable is not None:
+                return reusable, False
+            if existing and not retry:
+                return existing[0], False
+            active = self._conn.execute(
+                """SELECT COUNT(*) FROM preparation_attempts
+                   WHERE tenant_id = ? AND state IN ('queued', 'preparing')""",
+                (attempt.tenant_id,),
+            ).fetchone()[0]
+            if active >= max_active_per_tenant:
+                raise QuotaExceeded("active_preparations", max_active_per_tenant)
+            self._conn.execute(
+                """INSERT INTO preparation_attempts
+                   (id, tenant_id, setup_id, robot_id, fingerprint, state, data, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    attempt.id,
+                    attempt.tenant_id,
+                    attempt.setup_id,
+                    attempt.robot_id,
+                    attempt.fingerprint,
+                    attempt.state,
+                    self._attempt_json(attempt),
+                    time.time(),
+                ),
+            )
+            return attempt, True
 
     def put_preparation(self, attempt: PreparationAttempt) -> None:
         with self._lock:
@@ -308,69 +293,58 @@ class CustomTrainingStore:
         max_active_per_tenant: int,
         max_daily_starts: int,
     ) -> tuple[Job, bool]:
-        with self._lock:
+        with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                existing = self._conn.execute(
-                    """SELECT job_id FROM custom_training_requests
-                       WHERE tenant_id = ? AND setup_id = ? AND idempotency_key = ?""",
-                    (job.tenant_id, setup_id, idempotency_key),
+            existing = self._conn.execute(
+                """SELECT job_id FROM custom_training_requests
+                   WHERE tenant_id = ? AND setup_id = ? AND idempotency_key = ?""",
+                (job.tenant_id, setup_id, idempotency_key),
+            ).fetchone()
+            if existing is not None:
+                row = self._conn.execute(
+                    "SELECT data FROM jobs WHERE id = ? AND tenant_id = ?",
+                    (existing[0], job.tenant_id),
                 ).fetchone()
-                if existing is not None:
-                    row = self._conn.execute(
-                        "SELECT data FROM jobs WHERE id = ? AND tenant_id = ?",
-                        (existing[0], job.tenant_id),
-                    ).fetchone()
-                    if row is None:
-                        raise RuntimeError("idempotency reservation has no job")
-                    self._conn.execute("COMMIT")
-                    return Job.model_validate_json(row[0]), False
-                active_jobs = [
-                    Job.model_validate_json(row[0])
-                    for row in self._conn.execute(
-                        "SELECT data FROM jobs WHERE tenant_id = ?",
-                        (job.tenant_id,),
-                    ).fetchall()
-                ]
-                active = sum(
-                    item.job_kind == "custom-robot"
-                    and item.status not in TERMINAL_STATES
-                    for item in active_jobs
-                )
-                if active >= max_active_per_tenant:
-                    raise QuotaExceeded("active_training_jobs", max_active_per_tenant)
-                since = time.time() - 24 * 60 * 60
-                daily = self._conn.execute(
-                    """SELECT COUNT(*) FROM custom_training_requests
-                       WHERE tenant_id = ? AND created_at >= ?""",
-                    (job.tenant_id, since),
-                ).fetchone()[0]
-                if daily >= max_daily_starts:
-                    raise QuotaExceeded("daily_training_starts", max_daily_starts)
-                self._conn.execute(
-                    """INSERT INTO jobs
-                       (id, tenant_id, gallery_example_id, data) VALUES (?, ?, ?, ?)""",
-                    (job.id, job.tenant_id, None, job.model_dump_json()),
-                )
-                self._conn.execute(
-                    """INSERT INTO custom_training_requests
-                       (tenant_id, setup_id, idempotency_key, job_id, created_at)
-                       VALUES (?, ?, ?, ?, ?)""",
-                    (job.tenant_id, setup_id, idempotency_key, job.id, time.time()),
-                )
-                self._conn.execute("COMMIT")
-                return job, True
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+                if row is None:
+                    raise RuntimeError("idempotency reservation has no job")
+                return Job.model_validate_json(row[0]), False
+            active_jobs = [
+                Job.model_validate_json(row[0])
+                for row in self._conn.execute(
+                    "SELECT data FROM jobs WHERE tenant_id = ?",
+                    (job.tenant_id,),
+                ).fetchall()
+            ]
+            active = sum(
+                item.job_kind == "custom-robot" and item.status not in TERMINAL_STATES
+                for item in active_jobs
+            )
+            if active >= max_active_per_tenant:
+                raise QuotaExceeded("active_training_jobs", max_active_per_tenant)
+            since = time.time() - 24 * 60 * 60
+            daily = self._conn.execute(
+                """SELECT COUNT(*) FROM custom_training_requests
+                   WHERE tenant_id = ? AND created_at >= ?""",
+                (job.tenant_id, since),
+            ).fetchone()[0]
+            if daily >= max_daily_starts:
+                raise QuotaExceeded("daily_training_starts", max_daily_starts)
+            self._conn.execute(
+                """INSERT INTO jobs
+                   (id, tenant_id, gallery_example_id, data) VALUES (?, ?, ?, ?)""",
+                (job.id, job.tenant_id, None, job.model_dump_json()),
+            )
+            self._conn.execute(
+                """INSERT INTO custom_training_requests
+                   (tenant_id, setup_id, idempotency_key, job_id, created_at)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (job.tenant_id, setup_id, idempotency_key, job.id, time.time()),
+            )
+            return job, True
 
 
-class RobotStore:
+class RobotStore(_SQLiteStore):
     """Transactional, tenant-scoped storage for immutable robots and setup drafts."""
-
-    def __init__(self, db_path: str | None = None) -> None:
-        self._lock = threading.Lock()
-        self._conn = db.connect(db_path)
 
     @staticmethod
     def _robot(row: tuple[str, str]) -> RobotAsset:
@@ -388,42 +362,36 @@ class RobotStore:
         self, robot: RobotAsset, xml_content: str
     ) -> tuple[RobotAsset, bool]:
         """Create once, or return the active same-tenant/type/content version."""
-        with self._lock:
+        with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                existing = self._conn.execute(
-                    """SELECT tenant_id, data FROM robot_assets
-                       WHERE tenant_id = ? AND robot_type = ? AND digest = ?
-                         AND deleted_at IS NULL""",
-                    (robot.tenant_id, robot.robot_type, robot.digest),
-                ).fetchone()
-                if existing is not None:
-                    self._conn.execute("COMMIT")
-                    return self._robot(existing), False
-                count = self._conn.execute(
-                    "SELECT COUNT(*) FROM robot_assets WHERE tenant_id = ? AND deleted_at IS NULL",
-                    (robot.tenant_id,),
-                ).fetchone()[0]
-                if count >= ROBOT_QUOTA:
-                    raise QuotaExceeded("robots", ROBOT_QUOTA)
-                self._conn.execute(
-                    """INSERT INTO robot_assets
-                       (id, tenant_id, digest, robot_type, data, xml_content, deleted_at)
-                       VALUES (?, ?, ?, ?, ?, ?, NULL)""",
-                    (
-                        robot.id,
-                        robot.tenant_id,
-                        robot.digest,
-                        robot.robot_type,
-                        robot.model_dump_json(),
-                        xml_content,
-                    ),
-                )
-                self._conn.execute("COMMIT")
-                return robot, True
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+            existing = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_assets
+                   WHERE tenant_id = ? AND robot_type = ? AND digest = ?
+                     AND deleted_at IS NULL""",
+                (robot.tenant_id, robot.robot_type, robot.digest),
+            ).fetchone()
+            if existing is not None:
+                return self._robot(existing), False
+            count = self._conn.execute(
+                "SELECT COUNT(*) FROM robot_assets WHERE tenant_id = ? AND deleted_at IS NULL",
+                (robot.tenant_id,),
+            ).fetchone()[0]
+            if count >= ROBOT_QUOTA:
+                raise QuotaExceeded("robots", ROBOT_QUOTA)
+            self._conn.execute(
+                """INSERT INTO robot_assets
+                   (id, tenant_id, digest, robot_type, data, xml_content, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, ?, NULL)""",
+                (
+                    robot.id,
+                    robot.tenant_id,
+                    robot.digest,
+                    robot.robot_type,
+                    robot.model_dump_json(),
+                    xml_content,
+                ),
+            )
+            return robot, True
 
     def list_robots(self, tenant_id: str) -> list[RobotAsset]:
         with self._lock:
@@ -466,40 +434,34 @@ class RobotStore:
         return cursor.rowcount == 1
 
     def create_setup(self, setup: RobotSetup) -> tuple[RobotSetup, bool]:
-        with self._lock:
+        with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
-            try:
-                existing = self._conn.execute(
-                    """SELECT tenant_id, data FROM robot_setups
-                       WHERE tenant_id = ? AND digest = ? AND deleted_at IS NULL""",
-                    (setup.tenant_id, setup.digest),
-                ).fetchone()
-                if existing is not None:
-                    self._conn.execute("COMMIT")
-                    return self._setup(existing), False
-                count = self._conn.execute(
-                    "SELECT COUNT(*) FROM robot_setups WHERE tenant_id = ? AND deleted_at IS NULL",
-                    (setup.tenant_id,),
-                ).fetchone()[0]
-                if count >= SETUP_QUOTA:
-                    raise QuotaExceeded("setups", SETUP_QUOTA)
-                self._conn.execute(
-                    """INSERT INTO robot_setups
-                       (id, tenant_id, robot_id, digest, data, deleted_at)
-                       VALUES (?, ?, ?, ?, ?, NULL)""",
-                    (
-                        setup.id,
-                        setup.tenant_id,
-                        setup.robot_id,
-                        setup.digest,
-                        setup.model_dump_json(),
-                    ),
-                )
-                self._conn.execute("COMMIT")
-                return setup, True
-            except Exception:
-                self._conn.execute("ROLLBACK")
-                raise
+            existing = self._conn.execute(
+                """SELECT tenant_id, data FROM robot_setups
+                   WHERE tenant_id = ? AND digest = ? AND deleted_at IS NULL""",
+                (setup.tenant_id, setup.digest),
+            ).fetchone()
+            if existing is not None:
+                return self._setup(existing), False
+            count = self._conn.execute(
+                "SELECT COUNT(*) FROM robot_setups WHERE tenant_id = ? AND deleted_at IS NULL",
+                (setup.tenant_id,),
+            ).fetchone()[0]
+            if count >= SETUP_QUOTA:
+                raise QuotaExceeded("setups", SETUP_QUOTA)
+            self._conn.execute(
+                """INSERT INTO robot_setups
+                   (id, tenant_id, robot_id, digest, data, deleted_at)
+                   VALUES (?, ?, ?, ?, ?, NULL)""",
+                (
+                    setup.id,
+                    setup.tenant_id,
+                    setup.robot_id,
+                    setup.digest,
+                    setup.model_dump_json(),
+                ),
+            )
+            return setup, True
 
     def list_setups(self, tenant_id: str) -> list[RobotSetup]:
         with self._lock:
@@ -560,15 +522,14 @@ class User:
     created_at: float
 
 
-class AuthStore:
+class AuthStore(_SQLiteStore):
     """Users and sessions in SQLite; pending codes and rate limiting in memory.
 
     Single-replica: one process owns the database file, same as JobStore.
     """
 
     def __init__(self, db_path: str | None = None) -> None:
-        self._lock = threading.Lock()
-        self._conn = db.connect(db_path)
+        super().__init__(db_path)
         self._codes: dict[str, PendingCode] = {}
         self._request_times: dict[str, list[float]] = {}
 

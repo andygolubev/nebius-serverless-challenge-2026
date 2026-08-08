@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from contextlib import suppress
 from typing import Any
 
 from .custom_training import SCHEMA_VERSION, canonical_json
@@ -79,34 +80,14 @@ class CustomRobotStorage:
         setup: bytes,
         manifest: bytes,
     ) -> None:
-        if not _SAFE_ID.fullmatch(preparation_id):
-            raise CustomStorageError("preparation identity is invalid")
-        prefix = f"sim2policy/preparations/{preparation_id}/inputs"
-        keys = [
-            f"{prefix}/robot.xml",
-            f"{prefix}/normalized-setup.json",
-            f"{prefix}/input-manifest.json",
-        ]
-        try:
-            for name, value, content_type, maximum in (
-                ("robot.xml", robot, "application/xml", MAX_INPUT_BYTES),
-                ("normalized-setup.json", setup, "application/json", MAX_INPUT_BYTES),
-                (
-                    "input-manifest.json",
-                    manifest,
-                    "application/json",
-                    MAX_MANIFEST_BYTES,
-                ),
-            ):
-                key = f"{prefix}/{name}"
-                self._put_verified(key, value, content_type, maximum)
-        except Exception:
-            for key in keys:
-                try:
-                    self._client.delete_object(Bucket=self._bucket, Key=key)
-                except Exception:
-                    pass
-            raise
+        self._publish_inputs(
+            preparation_id,
+            "preparation",
+            f"sim2policy/preparations/{preparation_id}/inputs",
+            robot,
+            setup,
+            manifest,
+        )
 
     def snapshot_training_inputs(
         self,
@@ -116,9 +97,26 @@ class CustomRobotStorage:
         setup: bytes,
         manifest: bytes,
     ) -> None:
-        if not _SAFE_ID.fullmatch(run_id):
-            raise CustomStorageError("run identity is invalid")
-        prefix = f"sim2policy/{run_id}/inputs"
+        self._publish_inputs(
+            run_id,
+            "run",
+            f"sim2policy/{run_id}/inputs",
+            robot,
+            setup,
+            manifest,
+        )
+
+    def _publish_inputs(
+        self,
+        identity: str,
+        identity_kind: str,
+        prefix: str,
+        robot: bytes,
+        setup: bytes,
+        manifest: bytes,
+    ) -> None:
+        if not _SAFE_ID.fullmatch(identity):
+            raise CustomStorageError(f"{identity_kind} identity is invalid")
         members = (
             ("robot.xml", robot, "application/xml", MAX_INPUT_BYTES),
             ("normalized-setup.json", setup, "application/json", MAX_INPUT_BYTES),
@@ -129,12 +127,10 @@ class CustomRobotStorage:
                 self._put_verified(f"{prefix}/{name}", value, content_type, maximum)
         except Exception:
             for name, *_ in members:
-                try:
+                with suppress(Exception):
                     self._client.delete_object(
                         Bucket=self._bucket, Key=f"{prefix}/{name}"
                     )
-                except Exception:
-                    pass
             raise
 
     def read_preparation_report(self, preparation_id: str) -> dict[str, Any] | None:
