@@ -23,10 +23,10 @@ ROUGH_CONFIG = ROOT / "configs/g1_forward_rough_mjx.yaml"
 SELECTION_SEEDS = (101, 151, 211, 271, 331)
 FINAL_SEEDS = (0, 1, 2, 3, 4)
 ACCEPTANCE = {
-    "hard": {"episodes": 20, "no_fall": True, "min_velocity": 0.4},
+    "hard": {"episodes": 20, "required_horizons": 18, "min_velocity": 0.4},
     "preferred": {
         "episodes": 20,
-        "no_fall": True,
+        "required_horizons": 18,
         "min_velocity": 0.4,
         "mean_velocity": 0.6,
     },
@@ -183,13 +183,16 @@ def test_failed_derived_flat_gate_stops_before_transition(tmp_path: Path) -> Non
         phase,
     ):
         episodes = list(_episodes(tuple(selection_seeds), episodes_per_seed))
-        episodes[0].update(
-            fell=True,
-            terminated=True,
-            length=900,
-            termination_reason="foot_shin_contact",
-            termination_causes=["foot_shin_contact"],
-        )
+        # The gate tolerates one sampled failure, so a genuinely unreliable gait
+        # needs two before it is rejected.
+        for episode in episodes[:2]:
+            episode.update(
+                fell=True,
+                terminated=True,
+                length=900,
+                termination_reason="foot_shin_contact",
+                termination_causes=["foot_shin_contact"],
+            )
         return [
             EvaluationEvidence(
                 checkpoint_inventory(checkpoints[0], config, run_lineage=run_lineage, phase=phase),

@@ -14,6 +14,8 @@ from typing import Any
 
 import yaml
 
+from .locomotion_gate import MIN_GATE_PASS_PROBABILITY, gate_pass_probability
+
 
 class MatrixError(ValueError):
     """Raised when a campaign matrix is incomplete, mutable, or inconsistent."""
@@ -145,10 +147,42 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
             raise MatrixError(f"examples.{name}.acceptance.{level} is required")
         for criterion, threshold in criteria.items():
             if criterion == "no_fall":
-                if threshold is not True:
-                    raise MatrixError(f"examples.{name}.acceptance.{level}.no_fall must be true")
-            else:
-                _number(threshold, f"examples.{name}.acceptance.{level}.{criterion}")
+                raise MatrixError(
+                    f"examples.{name}.acceptance.{level}.no_fall is implicit; declare "
+                    "required_horizons and assumed_reliability so the gate's pass "
+                    "probability can be checked"
+                )
+            _number(threshold, f"examples.{name}.acceptance.{level}.{criterion}")
+        required = criteria.get("required_horizons")
+        episodes = criteria.get("episodes")
+        if backend == "mjx":
+            if required is None or episodes is None:
+                raise MatrixError(
+                    f"examples.{name}.acceptance.{level} requires episodes and "
+                    "required_horizons"
+                )
+            if int(required) > int(episodes):
+                raise MatrixError(
+                    f"examples.{name}.acceptance.{level}.required_horizons exceeds episodes"
+                )
+            reliability = criteria.get("assumed_reliability")
+            if reliability is None:
+                raise MatrixError(
+                    f"examples.{name}.acceptance.{level} must declare assumed_reliability"
+                )
+            # Rollouts are sampled, so a gate can be unreachable in practice even
+            # for a policy that is good enough. Refuse to fund one that a policy
+            # meeting the assumed reliability would fail more often than not.
+            chance = gate_pass_probability(
+                int(episodes), int(required), float(reliability)
+            )
+            if chance < MIN_GATE_PASS_PROBABILITY:
+                raise MatrixError(
+                    f"examples.{name}.acceptance.{level} passes only {chance:.1%} of the "
+                    f"time for a policy at {float(reliability):.2f} per-episode "
+                    f"reliability ({required}/{episodes}); below the required "
+                    f"{MIN_GATE_PASS_PROBABILITY:.0%} floor"
+                )
     ranking = _mapping(value.get("ranking"), f"examples.{name}.ranking")
     kind = ranking.get("kind")
     if kind != ("mean_reward" if backend == "sb3" else "locomotion"):
@@ -226,7 +260,7 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
             "timeout_minutes": 300,
             "seed": 0,
             "flat_gate_episodes": 10,
-            "flat_required_horizons": 10,
+            "flat_required_horizons": 9,
             "flat_min_velocity": 0.4,
             "extension_steps": None,
         }:

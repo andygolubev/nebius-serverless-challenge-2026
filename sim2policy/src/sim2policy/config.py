@@ -9,9 +9,15 @@ from typing import Any, Literal, TypeVar, cast
 
 import yaml
 
+from .locomotion_reward import SurvivalRewardError, check_survival_reward
 from .locomotion_scene import SceneExtentError, check_scene_extent
 
 Backend = Literal["sb3", "mjx"]
+# The closed allowlist of pinned-Playground settings a run config may tune.
+# Everything else about the environment stays server-owned and unreachable.
+_MJX_PLAYGROUND_OVERRIDES = frozenset(
+    {"push_config.enable", "reward_config.scales.alive"}
+)
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SAFE_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$")
 _SECRET_KEYS = {"access_key", "secret_key", "session_token", "password", "token"}
@@ -216,7 +222,7 @@ def _validate(config: RunConfig) -> None:
             if not isinstance(playground_overrides, dict):
                 raise ConfigError("MJX playground_config_overrides must be a mapping")
             unknown_overrides = sorted(
-                set(playground_overrides) - {"push_config.enable"}
+                set(playground_overrides) - _MJX_PLAYGROUND_OVERRIDES
             )
             if unknown_overrides:
                 raise ConfigError(
@@ -227,6 +233,15 @@ def _validate(config: RunConfig) -> None:
                 raise ConfigError(
                     "MJX push_config.enable environment override must be boolean"
                 )
+            alive = playground_overrides.get("reward_config.scales.alive")
+            if alive is not None:
+                # Survival must be worth something without outcompeting the task.
+                try:
+                    check_survival_reward(
+                        alive, target_velocity=config.success.target_velocity
+                    )
+                except SurvivalRewardError as exc:
+                    raise ConfigError(str(exc)) from exc
         batch_size = config.training.hyperparameters.get("batch_size")
         num_minibatches = config.training.hyperparameters.get("num_minibatches")
         if batch_size is not None and num_minibatches is not None:

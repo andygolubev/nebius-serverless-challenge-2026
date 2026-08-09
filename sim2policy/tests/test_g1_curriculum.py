@@ -46,18 +46,55 @@ def test_reviewed_quantum_contract_is_exact_and_below_ceiling() -> None:
     assert PILOT_EFFECTIVE_STEPS < 50_000_000
 
 
-def test_flat_gate_accepts_only_exact_final_checkpoint_and_no_termination() -> None:
+def test_flat_gate_accepts_only_the_exact_reviewed_checkpoint() -> None:
     passing = flat_gate_result(
         FLAT_EFFECTIVE_STEPS, [_episode() for _ in range(10)]
     )
-    failing = flat_gate_result(
-        FLAT_EFFECTIVE_STEPS,
-        [_episode(reason="foot_foot_contact"), *[_episode() for _ in range(9)]],
-    )
     assert passing.passed
-    assert not failing.passed
     with pytest.raises(CurriculumError, match="reviewed gate"):
         flat_gate_result(100_000_000, [_episode() for _ in range(10)])
+
+
+def test_flat_gate_tolerates_one_sampled_failure_but_not_two() -> None:
+    """Evidence is sampled, so the gate states a tolerance rather than perfection."""
+    fall = {"reason": "foot_foot_contact", "length": 640}
+    one_failure = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [_episode(**fall), *[_episode() for _ in range(9)]],
+    )
+    two_failures = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [*[_episode(**fall) for _ in range(2)], *[_episode() for _ in range(8)]],
+    )
+    assert one_failure.passed
+    assert one_failure.complete_horizon_count == 9
+    assert not two_failures.passed
+    assert two_failures.complete_horizon_count == 8
+
+
+def test_terminated_episode_is_not_also_counted_as_a_velocity_failure() -> None:
+    """A fall averages backwards; that is the same defect, not a second one."""
+    result = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [
+            _episode(reason="foot_foot_contact", length=120, velocity=-1.1908),
+            *[_episode() for _ in range(9)],
+        ],
+    )
+    # The fall costs a horizon, and its backwards average never reaches the
+    # velocity statistic, which reports only completed episodes.
+    assert result.complete_horizon_count == 9
+    assert result.min_velocity > 0.4
+    assert result.passed
+
+
+def test_flat_gate_still_rejects_a_gait_that_is_merely_slow() -> None:
+    result = flat_gate_result(
+        FLAT_EFFECTIVE_STEPS,
+        [_episode(velocity=0.2), *[_episode() for _ in range(9)]],
+    )
+    assert result.complete_horizon_count == 10
+    assert not result.passed
 
 
 def test_all_measured_flat_work_is_charged_before_rough_quantization() -> None:

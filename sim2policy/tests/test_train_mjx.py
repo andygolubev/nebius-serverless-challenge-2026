@@ -76,6 +76,7 @@ def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
     assert _environment_overrides(config) == {
         "impl": "jax",
         "push_config.enable": False,
+        "reward_config.scales.alive": 0.25,
     }
     assert _environment_overrides(load_config(ROOT / "configs/go1_mjx.yaml")) == {
         "impl": "jax"
@@ -84,6 +85,7 @@ def test_g1_command_pins_no_push_environment_override(tmp_path: Path) -> None:
     assert json.loads(command[override_index + 1]) == {
         "impl": "jax",
         "push_config.enable": False,
+        "reward_config.scales.alive": 0.25,
     }
     assert not any(
         part.startswith("--playground_config_overrides=") for part in command

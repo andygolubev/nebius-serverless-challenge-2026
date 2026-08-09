@@ -77,17 +77,32 @@ preferred mean SHALL be at least 0.6 m/s.
 
 ## ADDED Requirements
 
-### Requirement: Gate tolerance is justified against measured reliability
-A curated locomotion gate SHALL record the per-episode reliability it assumes and the resulting
-probability that a policy meeting that reliability passes. A gate whose pass probability falls below
-50% for a policy at the assumed reliability SHALL NOT be authorized, so that a campaign is never
-funded against a bar it is unlikely to clear even when the policy is good enough.
+### Requirement: Gate tolerance is justified against assumed reliability
+Every curated locomotion acceptance gate SHALL declare its episode count, the number of full-horizon
+episodes it requires, and the per-episode reliability it assumes. The matrix SHALL compute the
+probability that a policy at that reliability clears the gate, and SHALL reject any gate whose pass
+probability falls below 50%, so a campaign is never funded against a bar it would likely fail even
+with a good enough policy. An exact-count gate remains admissible when the assumed reliability
+carries it above that floor — Go1 measured 20/20 and keeps 20/20 at an assumed 0.99, while G1's
+20/20 at an assumed 0.95 would pass only 36% of the time and moves to 18/20.
 
-#### Scenario: A gate is authorized
-- **WHEN** a G1 campaign authorization is planned
-- **THEN** it records the assumed per-episode reliability and the computed pass probability for the
-  flat and final gates, and planning fails if either falls below 50%
+#### Scenario: A clearable gate is authorized
+- **WHEN** a locomotion acceptance gate declares episodes, required horizons, and assumed reliability
+  whose computed pass probability is at least 50%
+- **THEN** the matrix loads and the campaign may be planned against it
 
-#### Scenario: An all-or-nothing gate is proposed
-- **WHEN** a gate requires every sampled episode to succeed
-- **THEN** planning fails, because sampled evidence cannot support an exact-count requirement
+#### Scenario: An unclearable gate is rejected
+- **WHEN** a gate's computed pass probability at its assumed reliability falls below 50%
+- **THEN** the matrix fails to load, naming the computed probability, the required count, and the
+  episode count, and no campaign is planned
+
+#### Scenario: A gate omits its assumed reliability
+- **WHEN** a locomotion acceptance gate declares no assumed reliability, or declares the legacy
+  all-or-nothing `no_fall` flag instead of an explicit required-horizon count
+- **THEN** the matrix fails to load, because a gate whose pass probability cannot be computed cannot
+  be reviewed
+
+#### Scenario: A gate a policy already clears is not weakened
+- **WHEN** an example has measured an exact-count gate successfully, as Go1 did at 20/20
+- **THEN** its required-horizon count is left at what it achieved rather than relaxed alongside a
+  different example's

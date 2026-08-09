@@ -152,6 +152,7 @@ def test_fixed_forward_configs_pin_command_target_and_disable_pushes() -> None:
         assert config.success.target_velocity == command[0]
         assert forward_command(environment) == command
         assert config.training.hyperparameters["playground_config_overrides"] == {
-            "push_config.enable": False
+            "push_config.enable": False,
+            "reward_config.scales.alive": 0.25,
         }
         assert config.seed == 0

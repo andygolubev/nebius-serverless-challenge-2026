@@ -88,10 +88,10 @@ def test_acceptance_from_aggregate_evaluates_hard_and_preferred_criteria() -> No
         "no_fall_count": 5,
     }
     hard = acceptance_from_aggregate(
-        aggregate, 5, {"episodes": 5, "no_fall": True, "min_velocity": 0.4}
+        aggregate, 5, {"episodes": 5, "required_horizons": 5, "min_velocity": 0.4}
     )
     preferred = acceptance_from_aggregate(
-        aggregate, 5, {"episodes": 5, "no_fall": True, "min_velocity": 0.4, "mean_velocity": 0.6}
+        aggregate, 5, {"episodes": 5, "required_horizons": 5, "min_velocity": 0.4, "mean_velocity": 0.6}
     )
     assert all(hard.values())
     assert preferred["mean_velocity"] is False

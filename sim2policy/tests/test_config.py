@@ -86,7 +86,10 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
     assert config.checkpoint.keep == 20
     assert config.training.hyperparameters == {
         "impl": "jax",
-        "playground_config_overrides": {"push_config.enable": False},
+        "playground_config_overrides": {
+            "push_config.enable": False,
+            "reward_config.scales.alive": 0.25,
+        },
         "num_eval_envs": 128,
         "num_evals": 20,
         "batch_size": 256,
@@ -96,7 +99,7 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
         "episode_length": 1000,
         "learning_rate": 0.0003,
         "entropy_cost": 0.005,
-        "discounting": 0.97,
+        "discounting": 0.99,
         "reward_scaling": 1.0,
         "action_repeat": 1,
         "clipping_epsilon": 0.2,
@@ -112,7 +115,10 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
     "overrides, message",
     [
         ({"push_config.enable": "false"}, "must be boolean"),
-        ({"reward_config.scales.alive": 1.0}, "unsupported MJX Playground"),
+        # Supported now, but 1.0 leaves walking only 1.9x better than standing.
+        ({"push_config.enable": False, "reward_config.scales.alive": 1.0}, "margin"),
+        ({"push_config.enable": False, "reward_config.scales.alive": -1.0}, "non-negative"),
+        ({"reward_config.scales.gait": 1.0}, "unsupported MJX Playground"),
         ([], "must be a mapping"),
     ],
 )

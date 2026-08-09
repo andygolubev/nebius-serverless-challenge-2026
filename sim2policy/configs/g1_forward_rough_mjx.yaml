@@ -9,6 +9,9 @@ training:
     impl: jax
     playground_config_overrides:
       push_config.enable: false
+      # Pinned G1 pays nothing to stay upright; T1, the other humanoid in the
+      # same pinned package, ships 0.25. Walking still out-pays standing 3.8x.
+      reward_config.scales.alive: 0.25
     num_eval_envs: 128
     num_evals: 20
     batch_size: 256
@@ -18,7 +21,8 @@ training:
     episode_length: 1000
     learning_rate: 0.0003
     entropy_cost: 0.005
-    discounting: 0.97
+    # 0.99 at 50 Hz gives a 2 s lookahead; 0.97 gave 0.67 s, too short to see a fall.
+    discounting: 0.99
     reward_scaling: 1.0
     action_repeat: 1
     clipping_epsilon: 0.2

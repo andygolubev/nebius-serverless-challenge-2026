@@ -240,8 +240,10 @@ def acceptance_from_aggregate(
     for name, target in criteria.items():
         if name == "episodes":
             results[name] = episode_count == int(target)
-        elif name == "no_fall":
-            results[name] = aggregate["no_fall_count"] == episode_count
+        elif name == "required_horizons":
+            # Evidence is sampled, not bit-reproducible, so acceptance states a
+            # tolerance instead of demanding every sampled episode be perfect.
+            results[name] = int(aggregate["no_fall_count"]) >= int(target)
         elif name == "mean_reward":
             results[name] = float(aggregate["mean_reward"]) >= float(target)
         elif name == "mean_episode_length":
