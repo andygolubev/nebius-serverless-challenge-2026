@@ -150,7 +150,7 @@ def register_g1_forward_environments() -> None:
             del rng
             return jax_numpy.asarray(self.sim2policy_forward_command)
 
-    class ForwardRoughJoystick(ForwardJoystick):  # type: ignore[misc, valid-type]
+    class ForwardRoughJoystick(ForwardJoystick):
         """Fixed-forward G1 on the server-owned enlarged rough-terrain field.
 
         ``Joystick.__init__`` hardcodes ``consts.task_to_xml(task)``, so the
