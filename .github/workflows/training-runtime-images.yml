@@ -159,3 +159,58 @@ jobs:
             echo "- Compatibility: \`$compatibility_ref\`"
             echo "- Digest: \`$digest\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Single job, after BOTH matrix legs, so the sb3 and mjx bumps cannot race each
+  # other pushing to main. ArgoCD picks the commit up; the OpenTofu-written
+  # secret is no longer the source of truth for these three values.
+  bump-runtime-images:
+    needs: build-validate-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump GitOps runtime images
+        env:
+          NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
+        run: |
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "main advanced after this build started; the newer run owns the runtime bump"
+            exit 0
+          fi
+          git checkout main
+
+          env_file=deploy/manifests/saas/runtime-images.env
+          sb3_ref="$NEBIUS_REGISTRY/sim2policy:sb3-${GITHUB_SHA}"
+          mjx_ref="$NEBIUS_REGISTRY/sim2policy:mjx-${GITHUB_SHA}"
+
+          # Rewrite values in place; the leading comment block is left untouched.
+          sed -i \
+            -e "s|^SIM2POLICY_JOB_IMAGE=.*|SIM2POLICY_JOB_IMAGE=${sb3_ref}|" \
+            -e "s|^CUSTOM_ROBOT_SB3_IMAGE=.*|CUSTOM_ROBOT_SB3_IMAGE=${sb3_ref}|" \
+            -e "s|^SIM2POLICY_MJX_JOB_IMAGE=.*|SIM2POLICY_MJX_JOB_IMAGE=${mjx_ref}|" \
+            "$env_file"
+
+          # Never push a reference the backend would reject at startup.
+          bash deploy/tests/assert-saas-runtime-images.sh
+
+          git add "$env_file"
+          if git diff --cached --quiet; then
+            echo "runtime images already point at ${GITHUB_SHA}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Deploy training runtimes ${GITHUB_SHA::12} [skip ci]"
+          git push origin HEAD:main
+
+          {
+            echo "### GitOps runtime images bumped"
+            echo "- SB3: \`$sb3_ref\`"
+            echo "- MJX: \`$mjx_ref\`"
+          } >> "$GITHUB_STEP_SUMMARY"

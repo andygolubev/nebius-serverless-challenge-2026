@@ -228,6 +228,7 @@ jobs:
         run: |
           bash deploy/tests/assert-saas-production-email.sh
           bash deploy/tests/assert-saas-gitops-workflow.sh
+          bash deploy/tests/assert-saas-runtime-images.sh
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

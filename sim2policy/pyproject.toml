@@ -15,9 +15,6 @@ dependencies = [
   "imageio-ffmpeg>=0.5,<1",
   "matplotlib>=3.9,<4",
   "numpy>=1.26,<2.3",
-  # Directly imported to tile the pinned G1 rough height field; also arrives
-  # transitively with matplotlib, but the direct use is declared here.
-  "pillow>=10.0,<12",
   "pyyaml>=6.0.2,<7",
   "tensorboard>=2.18,<3",
 ]

@@ -42,8 +42,24 @@ spec:
               value: "4"
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
               value: "16"
+            # Runtime job images come from Git (runtime-images.env), not from the
+            # OpenTofu-written secret. Explicit env beats envFrom, so these win
+            # over the stale keys still present in `saas-nebius`.
+            - name: SIM2POLICY_JOB_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: saas-runtime-images
+                  key: SIM2POLICY_JOB_IMAGE
+            - name: SIM2POLICY_MJX_JOB_IMAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: saas-runtime-images
+                  key: SIM2POLICY_MJX_JOB_IMAGE
             - name: CUSTOM_ROBOT_SB3_IMAGE
-              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-5fd882b1548a7f7a3475db1cc1ec8c7f90fa1995
+              valueFrom:
+                configMapKeyRef:
+                  name: saas-runtime-images
+                  key: CUSTOM_ROBOT_SB3_IMAGE
           envFrom:
             - secretRef:
                 name: saas-nebius

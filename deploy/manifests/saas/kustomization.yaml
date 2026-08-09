@@ -11,6 +11,11 @@ resources:
 - ingress.yaml
 - middleware-redirect-https.yaml
 
+configMapGenerator:
+- name: saas-runtime-images
+  envs:
+  - runtime-images.env
+
 images:
 - name: sim2policy-saas
   newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas

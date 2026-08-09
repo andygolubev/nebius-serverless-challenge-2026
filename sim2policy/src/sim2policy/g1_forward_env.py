@@ -56,35 +56,31 @@ def rough_scene_path() -> Any:
     return resources.files("sim2policy").joinpath("scenes", G1_ROUGH_SCENE_FILE)
 
 
-def tiled_rough_hfield(upstream_png: bytes) -> Any:
+def tiled_rough_hfield(upstream_field: Any) -> Any:
     """Tile the pinned upstream height field into the enlarged server-owned field.
 
-    Returns a ``(768, 768)`` float array normalized to ``[0, 1]``, which is the
-    layout MuJoCo expects in ``model.hfield_data``.  Tiling -- rather than
-    stretching the same 256x256 asset over a larger ``size`` -- is what keeps
-    metres-per-cell and the elevation amplitude identical to upstream, so the
-    terrain is no easier per step than the field this replaces.
+    ``upstream_field`` is MuJoCo's own ``model.hfield_data`` for the upstream
+    rough scene, reshaped to ``(256, 256)`` -- never a hand-decoded PNG.  MuJoCo
+    min-max normalizes a height-field image over its actual value range and has
+    its own row order, so decoding ``hfield.png`` independently produces a
+    different field.  Reading MuJoCo's array makes the enlarged field's cell
+    values identical to upstream's by construction.
+
+    Tiling -- rather than stretching the same 256x256 asset over a larger
+    ``size`` -- is what keeps metres-per-cell and the elevation amplitude
+    identical to upstream, so the terrain is no easier per step than the field
+    this replaces.
     """
-    import io
-
     import numpy as np
-    from PIL import Image
 
-    image = np.asarray(Image.open(io.BytesIO(upstream_png)))
-    if image.ndim == 3:
-        if not (
-            np.array_equal(image[..., 0], image[..., 1])
-            and np.array_equal(image[..., 0], image[..., 2])
-        ):
-            raise RuntimeError("upstream G1 height field is not single-valued across channels")
-        image = image[..., 0]
-    if image.shape != (G1_ROUGH_UPSTREAM_CELLS, G1_ROUGH_UPSTREAM_CELLS):
+    field = np.asarray(upstream_field, dtype=np.float64)
+    if field.shape != (G1_ROUGH_UPSTREAM_CELLS, G1_ROUGH_UPSTREAM_CELLS):
         raise RuntimeError(
             "upstream G1 height field is "
-            f"{image.shape}, expected "
+            f"{field.shape}, expected "
             f"({G1_ROUGH_UPSTREAM_CELLS}, {G1_ROUGH_UPSTREAM_CELLS})"
         )
-    tiled = np.tile(image.astype(np.float64) / 255.0, (G1_ROUGH_TILE_FACTOR, G1_ROUGH_TILE_FACTOR))
+    tiled = np.tile(field, (G1_ROUGH_TILE_FACTOR, G1_ROUGH_TILE_FACTOR))
     if tiled.shape != (G1_ROUGH_CELLS, G1_ROUGH_CELLS):
         raise RuntimeError("tiled G1 height field has the wrong shape")
     return tiled
@@ -128,7 +124,9 @@ def register_g1_forward_environments() -> None:
         "mujoco_playground._src.locomotion.g1.g1_constants"
     )
     jax_numpy = importlib.import_module("jax.numpy")
+    mujoco = importlib.import_module("mujoco")
     mjx = importlib.import_module("mujoco.mjx")
+    numpy = importlib.import_module("numpy")
 
     class ForwardJoystick(joystick.Joystick):  # type: ignore[misc, name-defined]
         """Pinned G1 joystick physics with one invariant local-forward command."""
@@ -194,10 +192,25 @@ def register_g1_forward_environments() -> None:
                 G1_ROUGH_CELLS,
             ):
                 raise RuntimeError("server-owned G1 rough scene has the wrong height-field size")
-            upstream_png = (
-                g1_constants.ROOT_PATH / "xmls" / "assets" / "hfield.png"
-            ).read_bytes()
-            model.hfield_data[:] = tiled_rough_hfield(upstream_png).ravel()
+            # Read the upstream field through MuJoCo rather than decoding
+            # ``hfield.png`` here: MuJoCo min-max normalizes the image over its
+            # own value range and applies its own row order, so an independent
+            # decode yields a different terrain. Building the pinned upstream
+            # scene from the asset dict this model already carries makes the
+            # enlarged field's cell values identical to upstream's.
+            upstream_model = mujoco.MjModel.from_xml_string(
+                g1_constants.FEET_ONLY_ROUGH_TERRAIN_XML.read_text(),
+                assets=self._model_assets,
+            )
+            if (int(upstream_model.hfield_nrow[0]), int(upstream_model.hfield_ncol[0])) != (
+                G1_ROUGH_UPSTREAM_CELLS,
+                G1_ROUGH_UPSTREAM_CELLS,
+            ):
+                raise RuntimeError("pinned upstream G1 rough field is not 256x256")
+            upstream_field = numpy.asarray(upstream_model.hfield_data).reshape(
+                G1_ROUGH_UPSTREAM_CELLS, G1_ROUGH_UPSTREAM_CELLS
+            )
+            model.hfield_data[:] = tiled_rough_hfield(upstream_field).ravel()
             # ``G1Env.__init__`` applied these before we replaced the field; the
             # model object is the same, so only the MJX copy must be refreshed.
             self._mjx_model = mjx.put_model(model, impl=self._config.impl)

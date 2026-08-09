@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import math
 from pathlib import Path
 
@@ -133,42 +132,31 @@ def test_packaged_rough_scene_declares_the_enlarged_field() -> None:
     assert 'name="knees_bent"' in scene
 
 
-def _synthetic_upstream_png(values: object) -> bytes:
-    import numpy as np
-    from PIL import Image
-
-    array = np.asarray(values, dtype="uint8")
-    buffer = io.BytesIO()
-    Image.fromarray(np.stack([array] * 3, axis=-1), mode="RGB").save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
 def test_tiling_repeats_the_upstream_field_without_resampling() -> None:
     import numpy as np
 
     rng = np.random.default_rng(0)
-    source = rng.integers(0, 256, size=(G1_ROUGH_UPSTREAM_CELLS, G1_ROUGH_UPSTREAM_CELLS))
-    tiled = tiled_rough_hfield(_synthetic_upstream_png(source))
+    source = rng.random((G1_ROUGH_UPSTREAM_CELLS, G1_ROUGH_UPSTREAM_CELLS))
+    tiled = tiled_rough_hfield(source)
 
     assert tiled.shape == (G1_ROUGH_CELLS, G1_ROUGH_CELLS)
-    assert tiled.min() >= 0.0 and tiled.max() <= 1.0
-    expected = source / 255.0
     for row in range(3):
         for column in range(3):
             block = tiled[
                 row * G1_ROUGH_UPSTREAM_CELLS : (row + 1) * G1_ROUGH_UPSTREAM_CELLS,
                 column * G1_ROUGH_UPSTREAM_CELLS : (column + 1) * G1_ROUGH_UPSTREAM_CELLS,
             ]
-            np.testing.assert_allclose(block, expected)
-    # Every value in the enlarged field came from the reviewed upstream asset.
-    assert set(np.unique(tiled).tolist()) <= set(np.unique(expected).tolist())
+            np.testing.assert_allclose(block, source)
+    # Every value in the enlarged field came from the reviewed upstream field:
+    # tiling never resamples, interpolates, or rescales.
+    assert set(np.unique(tiled).tolist()) == set(np.unique(source).tolist())
 
 
 def test_tiling_rejects_an_unexpected_upstream_field() -> None:
     import numpy as np
 
     with pytest.raises(RuntimeError, match="expected"):
-        tiled_rough_hfield(_synthetic_upstream_png(np.zeros((128, 128))))
+        tiled_rough_hfield(np.zeros((128, 128)))
 
 
 def test_elevation_amplitude_is_carried_by_the_scene_not_the_tiling() -> None:
