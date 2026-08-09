@@ -10,7 +10,16 @@ on:
     paths:
       - "sim2policy/**"
       - ".github/workflows/training-runtime-images.yml"
-  workflow_dispatch: {}
+  # Promotion is deliberate. Every main push still builds and publishes an
+  # immutable runtime, but only a dispatch with `promote: true` repoints the
+  # GitOps manifests at it — this is the gate that used to be the manual
+  # `saas_sb3_image_tag` edit plus `tofu apply`.
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "Repoint deploy/manifests/saas/runtime-images.env at this ref's runtimes"
+        type: boolean
+        default: false
 
 concurrency:
   group: training-runtime-images-${{ github.ref }}
@@ -165,7 +174,7 @@ jobs:
   # secret is no longer the source of truth for these three values.
   bump-runtime-images:
     needs: build-validate-push
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && inputs.promote
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -178,39 +187,63 @@ jobs:
         env:
           NEBIUS_REGISTRY: ${{ secrets.NEBIUS_REGISTRY }}
         run: |
+          # The bump commits to main, so promoting a ref that is not on main would
+          # publish a runtime nobody can trace back to the deployed history.
           git fetch origin main
-          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
-            echo "main advanced after this build started; the newer run owns the runtime bump"
-            exit 0
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::${GITHUB_SHA} is not an ancestor of origin/main; promote a merged commit"
+            exit 1
           fi
-          git checkout main
 
           env_file=deploy/manifests/saas/runtime-images.env
           sb3_ref="$NEBIUS_REGISTRY/sim2policy:sb3-${GITHUB_SHA}"
           mjx_ref="$NEBIUS_REGISTRY/sim2policy:mjx-${GITHUB_SHA}"
 
-          # Rewrite values in place; the leading comment block is left untouched.
-          sed -i \
-            -e "s|^SIM2POLICY_JOB_IMAGE=.*|SIM2POLICY_JOB_IMAGE=${sb3_ref}|" \
-            -e "s|^CUSTOM_ROBOT_SB3_IMAGE=.*|CUSTOM_ROBOT_SB3_IMAGE=${sb3_ref}|" \
-            -e "s|^SIM2POLICY_MJX_JOB_IMAGE=.*|SIM2POLICY_MJX_JOB_IMAGE=${mjx_ref}|" \
-            "$env_file"
+          # Rebase-and-retry rather than bail: the competing writer is usually the
+          # saas-image bot touching a different file, and bailing on that would
+          # silently drop the promotion the operator explicitly asked for.
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git checkout -B main origin/main
 
-          # Never push a reference the backend would reject at startup.
-          bash deploy/tests/assert-saas-runtime-images.sh
+            # Refuse to walk production backwards. If what is already deployed was
+            # built from a descendant of this ref, a newer promotion won.
+            deployed="$(sed -n 's|^SIM2POLICY_JOB_IMAGE=.*:sb3-\([0-9a-f]\{40\}\)$|\1|p' "$env_file")"
+            if [ -n "$deployed" ] && [ "$deployed" != "$GITHUB_SHA" ] \
+               && git merge-base --is-ancestor "$GITHUB_SHA" "$deployed" 2>/dev/null; then
+              echo "runtime-images.env already carries the newer ${deployed::12}; nothing to promote"
+              exit 0
+            fi
 
-          git add "$env_file"
-          if git diff --cached --quiet; then
-            echo "runtime images already point at ${GITHUB_SHA}"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "Deploy training runtimes ${GITHUB_SHA::12} [skip ci]"
-          git push origin HEAD:main
+            # Rewrite values in place; the leading comment block is left untouched.
+            sed -i \
+              -e "s|^SIM2POLICY_JOB_IMAGE=.*|SIM2POLICY_JOB_IMAGE=${sb3_ref}|" \
+              -e "s|^CUSTOM_ROBOT_SB3_IMAGE=.*|CUSTOM_ROBOT_SB3_IMAGE=${sb3_ref}|" \
+              -e "s|^SIM2POLICY_MJX_JOB_IMAGE=.*|SIM2POLICY_MJX_JOB_IMAGE=${mjx_ref}|" \
+              "$env_file"
 
-          {
-            echo "### GitOps runtime images bumped"
-            echo "- SB3: \`$sb3_ref\`"
-            echo "- MJX: \`$mjx_ref\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+            # Never push a reference the backend would reject at startup.
+            bash deploy/tests/assert-saas-runtime-images.sh
+
+            git add "$env_file"
+            if git diff --cached --quiet; then
+              echo "runtime images already point at ${GITHUB_SHA}"
+              exit 0
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Promote training runtimes ${GITHUB_SHA::12} [skip ci]"
+
+            if git push origin HEAD:main; then
+              {
+                echo "### GitOps runtime images promoted"
+                echo "- SB3: \`$sb3_ref\`"
+                echo "- MJX: \`$mjx_ref\`"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "push rejected (attempt ${attempt}/3); main moved, rebasing onto it"
+          done
+
+          echo "::error::could not land the runtime promotion after 3 attempts"
+          exit 1

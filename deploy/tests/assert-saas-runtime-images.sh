@@ -69,4 +69,25 @@ if grep -Eq 'value: .*/sim2policy:(sb3|mjx)-' "$deployment"; then
   fail "deployment.yaml must not hardcode a runtime image; use the ConfigMap reference"
 fi
 
+# --- Promotion workflow ---------------------------------------------------
+# The bump job runs with repository write access, so its guards are load-bearing.
+workflow="$repo_root/.github/workflows/training-runtime-images.yml"
+
+require() {
+  grep -Fq -- "$1" "$workflow" || fail "$2"
+}
+
+require "contents: write" "the runtime bump needs scoped repository write permission"
+require "needs: build-validate-push" \
+  "the bump must run once after both matrix legs so sb3 and mjx cannot race"
+require "github.event_name == 'workflow_dispatch' && inputs.promote" \
+  "promotion must be a deliberate dispatch, never an automatic main-push rollout"
+require 'git merge-base --is-ancestor "$GITHUB_SHA" origin/main' \
+  "the bump must refuse refs that are not merged to main"
+require "attempt in 1 2 3" \
+  "the bump must rebase and retry rather than drop a requested promotion"
+require "bash deploy/tests/assert-saas-runtime-images.sh" \
+  "the bump must revalidate the rewritten file before pushing"
+require "[skip ci]" "bot promotion commits must prevent recursive CI"
+
 echo "saas runtime image assertions passed"
