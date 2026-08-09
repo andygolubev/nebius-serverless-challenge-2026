@@ -639,19 +639,28 @@ class CustomRobotEnv(
             # lateral velocity and yaw rate — both derivatives.  A bias too small to be
             # worth correcting on any single step integrates over a 20 s episode into
             # metres of drift: measured runs walked the full horizon at the commanded
-            # speed and still ended 4-13 m off the line.  Scoring the offset itself
-            # closes that gap.  Bounded like the velocity term so that a policy far off
-            # course cannot be driven to give up walking to cut its losses.
+            # speed and still ended 4-13 m off the line.  Pricing the offset itself
+            # closes that gap.
+            #
+            # Charged as a cost that starts at zero on the line, not as a bonus that
+            # peaks there.  v7 paid a bonus, and a robot standing perfectly still
+            # collected all of it for free: staying put beat walking, so the policy
+            # stopped moving (measured mean velocity 0.0-0.29 against a 0.35 bar, with
+            # drift solved).  As a cost, holding the line is worth nothing on its own and
+            # forward velocity is the only term that pays.
+            #
+            # Deliberately not a Gaussian like the velocity term: exp(-(d/0.75)^2) is
+            # already flat to five decimal places by three metres out, so a policy that
+            # had drifted saw no gradient back towards the line and none distinguishing
+            # three metres off from twelve.  This form saturates polynomially — bounded
+            # in [0, 1], but with a pull home at any distance.
             lateral_tolerance = max(float(self.contract["lateral_tolerance"]), 1e-6)
             lateral_offset = abs(
                 float(self.data.qpos[self.root_qpos_adr + 1]) - self.initial_y
             )
-            # Deliberately not a Gaussian like the velocity term: exp(-(d/0.75)^2) is
-            # already flat to five decimal places by three metres out, so a policy that
-            # had drifted saw no gradient back towards the line and none distinguishing
-            # three metres off from twelve.  This form decays polynomially — bounded in
-            # [0, 1], but with a pull home at any distance.
-            lateral_offset_score = 1.0 / (1.0 + (lateral_offset / lateral_tolerance) ** 2)
+            lateral_offset_cost = 1.0 - 1.0 / (
+                1.0 + (lateral_offset / lateral_tolerance) ** 2
+            )
             terms = {
                 "alive": alive,
                 "forward_velocity": velocity_score,
@@ -659,7 +668,7 @@ class CustomRobotEnv(
                 # Holding a walking height is scored here as well as in stand-balance:
                 # without it the only floor under the body was the fall line itself.
                 "height": height_score,
-                "lateral_offset": lateral_offset_score,
+                "lateral_offset": lateral_offset_cost,
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
                 "action": action_cost,

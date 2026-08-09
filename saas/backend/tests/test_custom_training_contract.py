@@ -110,7 +110,7 @@ def test_input_documents_are_canonical_and_fingerprinted() -> None:
     assert setup_bytes.endswith(b"}") and not setup_bytes.endswith(b"\n")
     assert (
         manifest["fingerprint"]
-        == "676127d601d21b7e40261b5eb2a150745f1ff42537e71bd82a81277de740f16a"
+        == "0af05165e64a741621b8443da44db7395d418d54af3f0483492714f52ba2509b"
     )
     assert manifest["adapter_version"] == ADAPTER_VERSION
     assert manifest["reward_version"] == REWARD_VERSION

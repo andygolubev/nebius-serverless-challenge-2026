@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v7"
+REWARD_VERSION = "locomotion-rewards-v9"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
@@ -211,16 +211,25 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "success_min_velocity": 0.35,
         "success_max_lateral_drift": 1.5,
         "weights": {
-            "alive": 1.0,
-            "forward_velocity": 1.4,
+            # Halved from the balance tasks' 1.0.  Standing still collected
+            # alive + upright + height ~= 2.6 per step for free while walking added at
+            # most 1.4 on top, so a dead stop was a cheap, safe local optimum: measured
+            # v8 episodes split into walkers and robots that took a few steps and then
+            # stopped at exactly zero velocity for the rest of the horizon.  Surviving
+            # still has to pay something — it is what keeps the robot off the floor —
+            # just not enough to compete with the task.
+            "alive": 0.5,
+            # Raised with the same intent: forward motion should be where the reward is.
+            "forward_velocity": 2.0,
             "upright": 1.0,
             # v4 scored no body height at all while walking, so nothing opposed a policy
             # that crept lower and lower until it clipped the fall line: measured runs
             # stayed upright but fell in 20% of evaluation episodes.
             "height": 0.6,
-            # Weighted close to the forward-velocity term: holding the line is half of
-            # what this task asks for, and the two are not in conflict.
-            "lateral_offset": 1.2,
+            # A cost, not a bonus — see the reward term for why v7's bonus form taught
+            # the robot to stand still.  Kept below the forward-velocity weight so that
+            # walking off course still beats not walking at all.
+            "lateral_offset": -1.0,
             "lateral_velocity": -0.15,
             "yaw_rate": -0.05,
             "action": -0.01,
