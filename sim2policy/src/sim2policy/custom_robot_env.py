@@ -32,6 +32,14 @@ MAX_ABS_QVEL = 250.0
 MAX_ROOT_DISTANCE = 20.0
 FRAME_SKIP = 5
 SERVER_TIMESTEP = 0.004
+# Spherical placement of the tracking video camera around the robot's root body.  The
+# bearing and tilt keep the three-quarter view the static ``server_camera`` at
+# pos "4 -5 2.8" gave; the distance is pulled in from that camera's 7.07 m, which was
+# chosen to keep a departing robot in shot for as long as possible — a trade a tracking
+# camera does not have to make.  4.5 m fills the frame with the robot, not the arena.
+CAMERA_AZIMUTH_DEGREES = 128.7
+CAMERA_ELEVATION_DEGREES = -22.0
+CAMERA_DISTANCE = 4.5
 MAX_BODIES = 64
 MAX_JOINTS = 64
 MAX_GEOMS = 128
@@ -195,7 +203,17 @@ def compose_server_mjcf(robot_xml: str, setup: dict[str, Any]) -> str:
     ET.SubElement(
         server_world,
         "light",
-        {"name": "server_light", "pos": "0 -2 6", "dir": "0 0 -1", "diffuse": "0.8 0.8 0.8"},
+        # Directional rather than positional: a point light at a fixed spot lit a pool of
+        # floor around the spawn point, so a robot that walked out of that pool got
+        # steadily darker in the video.  A directional light does not attenuate, so the
+        # whole arena is lit the same wherever the robot ends up.
+        {
+            "name": "server_light",
+            "directional": "true",
+            "pos": "0 -2 6",
+            "dir": "0 0.3 -1",
+            "diffuse": "0.8 0.8 0.8",
+        },
     )
     ET.SubElement(
         server_world,
@@ -212,7 +230,13 @@ def compose_server_mjcf(robot_xml: str, setup: dict[str, Any]) -> str:
         {
             "name": "server_floor",
             "type": "plane",
-            "size": "12 12 0.1",
+            # Drawn extent only — a MuJoCo plane collides as an infinite half-space
+            # whatever its size, so this changes what the video shows and nothing about
+            # the physics.  12 m was wider than the static camera could see; a
+            # walk-forward policy at the commanded 0.8 m/s covers 16 m in one episode,
+            # so with a camera that follows the robot the old extent ran out mid-clip
+            # and left it walking over a black void.
+            "size": "30 30 0.1",
             "friction": "1.0 0.1 0.05",
             "rgba": "0.82 0.84 0.88 1",
         },
@@ -299,12 +323,22 @@ def compile_model(robot_xml: str, setup: dict[str, Any]) -> tuple[mujoco.MjModel
         or np.any(robot_inertia > MAX_BODY_INERTIA)
     ):
         raise CustomRobotCompatibilityError("compiled-mass-inertia-invalid")
+    # ``MAX_GEOM_SIZE`` bounds what a tenant may upload or place, so it is measured over
+    # every geom except the arena floor the server itself writes: that plane is drawn
+    # wide enough to stay under a walking robot for a full episode, which is a rendering
+    # decision the server owns rather than tenant data to be validated.
+    floor_geom = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, "server_floor")
+    tenant_geom_sizes = (
+        np.delete(model.geom_size, floor_geom, axis=0)
+        if floor_geom >= 0
+        else model.geom_size
+    )
     if (
         np.max(np.abs(model.qpos0)) > MAX_ABS_MODEL_POSITION
         or np.max(np.abs(model.body_pos)) > MAX_ABS_MODEL_POSITION
         or np.max(np.abs(model.jnt_pos)) > MAX_ABS_MODEL_POSITION
         or np.any(model.geom_size < 0)
-        or np.max(model.geom_size) > MAX_GEOM_SIZE
+        or (tenant_geom_sizes.size > 0 and np.max(tenant_geom_sizes) > MAX_GEOM_SIZE)
     ):
         raise CustomRobotCompatibilityError("compiled-geometry-out-of-bounds")
     if not np.all(np.asarray(model.actuator_ctrllimited, dtype=bool)):
@@ -356,6 +390,7 @@ class CustomRobotEnv(
         self.data = mujoco.MjData(self.model)
         self.render_mode = render_mode
         self._renderer: mujoco.Renderer | None = None
+        self._tracking_camera: Any = None
         self.task_id = str(setup["task_template_id"])
         if self.task_id not in TASK_CONTRACTS:
             raise CustomRobotCompatibilityError("task-unsupported")
@@ -584,6 +619,9 @@ class CustomRobotEnv(
                 "alive": alive,
                 "forward_velocity": velocity_score,
                 "upright": max(upright, -1.0),
+                # Holding a walking height is scored here as well as in stand-balance:
+                # without it the only floor under the body was the fall line itself.
+                "height": height_score,
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
                 "action": action_cost,
@@ -602,7 +640,6 @@ class CustomRobotEnv(
         success = self._success(
             upright=upright,
             height=height,
-            forward_velocity=float(linear[0]),
             lateral_drift=abs(y - self.initial_y),
             fallen=fallen,
         )
@@ -613,6 +650,7 @@ class CustomRobotEnv(
                 "root_height": height,
                 "upright": upright,
                 "forward_velocity": float(linear[0]),
+                "mean_forward_velocity": self.mean_forward_velocity,
                 "lateral_drift": abs(y - self.initial_y),
                 "forward_progress": x - self.initial_x,
                 "fallen": fallen,
@@ -634,12 +672,24 @@ class CustomRobotEnv(
         }
         return observation, reward, terminated, truncated, info
 
+    @property
+    def mean_forward_velocity(self) -> float:
+        """Average forward speed over the episode so far, in metres per second.
+
+        Taken from net root displacement rather than from a running average of the
+        per-step velocity, so a gait that rocks the root backwards and forwards within a
+        stride is scored on the ground it actually covered.
+        """
+        elapsed = self.steps * FRAME_SKIP * SERVER_TIMESTEP
+        if elapsed <= 0.0:
+            return 0.0
+        return (float(self.data.qpos[self.root_qpos_adr]) - self.initial_x) / elapsed
+
     def _success(
         self,
         *,
         upright: float,
         height: float,
-        forward_velocity: float,
         lateral_drift: float,
         fallen: bool,
     ) -> bool:
@@ -666,8 +716,20 @@ class CustomRobotEnv(
                 and height_ok
                 and root_speed <= float(self.contract["success_max_root_speed"])
             )
+        # walk-forward is scored over the episode, not at the instant the episode ends.
+        # v4 read the root's instantaneous forward velocity at the final step, but a
+        # legged gait's root velocity oscillates within every stride and passes near
+        # zero at each foot-strike, so even a robot averaging the commanded 0.8 m/s
+        # samples below the 0.35 bar at a large fraction of steps.  Requiring that
+        # coin-flip to land 20 times in a row made ``task_threshold_achieved``
+        # unreachable for any gait: the measured run walked for the full horizon in 16
+        # of 20 episodes and still scored 15%.  The episode-mean form below states the
+        # same intent — sustained forward travel in a straight line — and is stricter in
+        # the ways that matter, because it also requires the robot to survive to the
+        # horizon rather than to look good on one lucky timestep.
         return bool(
-            forward_velocity >= float(self.contract["success_min_velocity"])
+            self.steps >= int(self.contract["episode_steps"])
+            and self.mean_forward_velocity >= float(self.contract["success_min_velocity"])
             and lateral_drift <= float(self.contract["success_max_lateral_drift"])
         )
 
@@ -676,8 +738,28 @@ class CustomRobotEnv(
             return None
         if self._renderer is None:
             self._renderer = mujoco.Renderer(self.model, height=480, width=640)
-        self._renderer.update_scene(self.data, camera="server_camera")
+        self._renderer.update_scene(self.data, camera=self._camera())
         return np.asarray(self._renderer.render(), dtype=np.uint8)
+
+    def _camera(self) -> Any:
+        """A camera that tracks the robot instead of watching a fixed patch of floor.
+
+        ``server_camera`` is a static worldbody camera, so a walk-forward policy that
+        works simply leaves frame — the better the policy, the less of it is visible.
+        This keeps that camera's three-quarter view but locks it onto the root body, so
+        the robot stays centred for the whole clip.  Built here as a render-time
+        ``MjvCamera`` rather than as an MJCF tracking camera because which way the video
+        looks is a property of the recording, not of the scene the policy trains in.
+        """
+        if self._tracking_camera is None:
+            camera = mujoco.MjvCamera()
+            camera.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+            camera.trackbodyid = self.root_body_id
+            camera.azimuth = CAMERA_AZIMUTH_DEGREES
+            camera.elevation = CAMERA_ELEVATION_DEGREES
+            camera.distance = CAMERA_DISTANCE
+            self._tracking_camera = camera
+        return self._tracking_camera
 
     def close(self) -> None:
         if self._renderer is not None:

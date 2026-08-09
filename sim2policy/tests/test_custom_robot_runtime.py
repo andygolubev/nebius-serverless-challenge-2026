@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import mujoco
 import numpy as np
 import pytest
 
@@ -193,8 +194,11 @@ def test_custom_primitives_compose_and_recovery_reset_is_bounded(monkeypatch) ->
         def __init__(self, _model, *, height: int, width: int) -> None:
             self.shape = (height, width, 3)
 
-        def update_scene(self, _data, *, camera: str) -> None:
-            assert camera == "server_camera"
+        def update_scene(self, _data, *, camera) -> None:
+            # The video camera tracks the robot's root body rather than watching the
+            # fixed ``server_camera`` viewpoint, which a walking policy simply left.
+            assert camera.type == mujoco.mjtCamera.mjCAMERA_TRACKING
+            assert camera.trackbodyid == env.root_body_id
 
         def render(self):
             return np.zeros(self.shape, dtype=np.uint8)

@@ -16,8 +16,8 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v4"
-SCENE_VERSION = "custom-locomotion-scenes-v2"
+REWARD_VERSION = "locomotion-rewards-v5"
+SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
 
@@ -178,8 +178,14 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
     "walk-forward": {
         "version": REWARD_VERSION,
         "episode_steps": 1000,
-        "target_height_scale": 0.9,
-        "fall_height_scale": 0.42,
+        # v4 carried the same 0.9 scale that was measured wrong for stand-balance: it is
+        # taken off ``reference_height`` (0.4457 for the sample quadruped), so it asked
+        # for a 0.401 body height that a primitive robot cannot hold — the tallest
+        # posture it can sustain is ~0.29.  0.575 centres the height term on the posture
+        # the robot actually walks at.
+        "target_height_scale": 0.575,
+        # Lowered with the target so the band above the fall line stays wide.
+        "fall_height_scale": 0.35,
         "minimum_upright": 0.4,
         "settle_steps": 20,
         "target_velocity": 0.8,
@@ -192,7 +198,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "weights": {
             "alive": 1.0,
             "forward_velocity": 1.4,
-            "upright": 0.8,
+            "upright": 1.0,
+            # v4 scored no body height at all while walking, so nothing opposed a policy
+            # that crept lower and lower until it clipped the fall line: measured runs
+            # stayed upright but fell in 20% of evaluation episodes.
+            "height": 0.6,
             "lateral_velocity": -0.15,
             "yaw_rate": -0.05,
             "action": -0.01,
@@ -225,12 +235,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
 SCENE_CONTRACTS: dict[str, dict[str, Any]] = {
     "flat-arena": {
         "version": SCENE_VERSION,
-        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "floor": {"type": "plane", "size": [30.0, 30.0, 0.1]},
         "preset_objects": [],
     },
     "ramp-course": {
         "version": SCENE_VERSION,
-        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "floor": {"type": "plane", "size": [30.0, 30.0, 0.1]},
         "preset_objects": [
             {"object_type": "ramp", "x": 3.0, "y": 0.0, "z": 0.0,
              "yaw_degrees": 0.0, "width": 1.5, "depth": 3.0,
@@ -239,7 +249,7 @@ SCENE_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "hurdle-course": {
         "version": SCENE_VERSION,
-        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "floor": {"type": "plane", "size": [30.0, 30.0, 0.1]},
         "preset_objects": [
             {"object_type": "hurdle", "x": x, "y": 0.0, "z": 0.0,
              "yaw_degrees": 0.0, "width": 2.0, "depth": 0.15,
@@ -249,7 +259,7 @@ SCENE_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "step-course": {
         "version": SCENE_VERSION,
-        "floor": {"type": "plane", "size": [12.0, 12.0, 0.1]},
+        "floor": {"type": "plane", "size": [30.0, 30.0, 0.1]},
         "preset_objects": [
             {"object_type": "step", "x": x, "y": 0.0, "z": 0.0,
              "yaw_degrees": 0.0, "width": 2.0, "depth": 1.0,

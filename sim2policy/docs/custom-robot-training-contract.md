@@ -47,9 +47,12 @@ target. Each action is one value in `[-1, 1]`, clipped and mapped to the corresp
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v2` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v5` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
-velocity and penalizes lateral/yaw motion. Recover From Fall starts a quadruped from a bounded
+velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
+the robot survives the full horizon with an episode-mean forward velocity at or above
+`success_min_velocity` and lateral drift within bounds, rather than on the root velocity sampled at
+the final step. Recover From Fall starts a quadruped from a bounded
 side-fallen free-root pose and rewards upright/height recovery while bounding motion, action, and
 energy. Falling terminates balance/walk episodes but not recovery episodes; non-finite state,
 configured runaway position/velocity, and the fixed horizon remain universal bounds. Seeded resets,
