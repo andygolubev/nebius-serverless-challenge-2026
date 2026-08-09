@@ -15,8 +15,8 @@ from importlib import resources
 from typing import Any, cast
 
 SCHEMA_VERSION = 2
-ADAPTER_VERSION = "custom-robot-sb3-v1"
-REWARD_VERSION = "locomotion-rewards-v5"
+ADAPTER_VERSION = "custom-robot-sb3-v2"
+REWARD_VERSION = "locomotion-rewards-v7"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
@@ -144,6 +144,17 @@ OBSERVATION_BASE_FIELDS = (
     "root.angular_velocity_x",
     "root.angular_velocity_y",
     "root.angular_velocity_z",
+    # Where the robot is relative to the line it was asked to walk, and which way it is
+    # pointing.  Adapter v1 exposed neither: the gravity vector is invariant to yaw and
+    # the velocities are expressed in the root frame, so a policy could not perceive
+    # heading error or accumulated sideways displacement at all.  walk-forward success
+    # bounds exactly that displacement, and measured runs drifted 4-13 m off the line
+    # while walking at the commanded speed — unobservable, therefore unlearnable, no
+    # matter how the reward was shaped.  Present for every task; for the stationary
+    # tasks they simply sit near zero.
+    "root.lateral_offset",
+    "root.heading_cos",
+    "root.heading_sin",
 )
 
 TASK_CONTRACTS: dict[str, dict[str, Any]] = {
@@ -193,6 +204,10 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # ``target_velocity``.  v2 rewarded raw unbounded velocity, which paid more for
         # diving forward than for walking at the commanded speed.
         "velocity_tolerance": 0.5,
+        # Width of the Gaussian scoring lateral offset, set to half
+        # ``success_max_lateral_drift`` so the reward starts falling away well before the
+        # robot reaches the drift bound rather than at it.
+        "lateral_tolerance": 0.75,
         "success_min_velocity": 0.35,
         "success_max_lateral_drift": 1.5,
         "weights": {
@@ -203,6 +218,9 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # that crept lower and lower until it clipped the fall line: measured runs
             # stayed upright but fell in 20% of evaluation episodes.
             "height": 0.6,
+            # Weighted close to the forward-velocity term: holding the line is half of
+            # what this task asks for, and the two are not in conflict.
+            "lateral_offset": 1.2,
             "lateral_velocity": -0.15,
             "yaw_rate": -0.05,
             "action": -0.01,

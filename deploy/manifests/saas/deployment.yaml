@@ -43,7 +43,7 @@ spec:
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
               value: "16"
             - name: CUSTOM_ROBOT_SB3_IMAGE
-              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-d905e49136ee1aad3b214574e394c1024521ebb6
+              value: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy:sb3-5fd882b1548a7f7a3475db1cc1ec8c7f90fa1995
           envFrom:
             - secretRef:
                 name: saas-nebius

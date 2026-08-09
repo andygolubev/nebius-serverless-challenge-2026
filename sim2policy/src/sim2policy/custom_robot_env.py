@@ -30,6 +30,10 @@ MAX_NV = 128
 MAX_NU = 64
 MAX_ABS_QVEL = 250.0
 MAX_ROOT_DISTANCE = 20.0
+# Lateral offset is reported to the policy clipped to this many metres either side of
+# the start line.  Well past the drift bound the task cares about, so the observation
+# keeps useful resolution near the line without saturating for a robot on its way back.
+OBSERVED_LATERAL_OFFSET = 5.0
 FRAME_SKIP = 5
 SERVER_TIMESTEP = 0.004
 # Spherical placement of the tracking video camera around the robot's root body.  The
@@ -479,11 +483,27 @@ class CustomRobotEnv(
             if self.task_id == "walk-forward"
             else 0.0
         )
+        # Course state, in the frame the task is defined in.  Offset is clipped at the
+        # runaway bound and scaled into roughly [-1, 1] like the rest of the vector;
+        # heading is given as cos/sin so it stays continuous across the +/-pi wrap.
+        root_matrix = self.data.xmat[self.root_body_id].reshape(3, 3)
+        heading = math.atan2(float(root_matrix[1, 0]), float(root_matrix[0, 0]))
+        lateral_offset = float(self.data.qpos[self.root_qpos_adr + 1]) - self.initial_y
+        course = np.asarray(
+            [
+                np.clip(lateral_offset, -OBSERVED_LATERAL_OFFSET, OBSERVED_LATERAL_OFFSET)
+                / OBSERVED_LATERAL_OFFSET,
+                math.cos(heading),
+                math.sin(heading),
+            ],
+            dtype=float,
+        )
         observation = np.concatenate(
             [
                 np.asarray([height / self.reference_height], dtype=float),
                 gravity,
                 np.clip(velocities, -5.0, 5.0) / 5.0,
+                course,
                 normalized_positions,
                 normalized_velocities,
                 self.previous_action,
@@ -615,6 +635,23 @@ class CustomRobotEnv(
             velocity_score = math.exp(
                 -(((float(linear[0]) - target_velocity) / tolerance) ** 2)
             )
+            # Success bounds accumulated lateral *displacement*, but v5 priced only
+            # lateral velocity and yaw rate — both derivatives.  A bias too small to be
+            # worth correcting on any single step integrates over a 20 s episode into
+            # metres of drift: measured runs walked the full horizon at the commanded
+            # speed and still ended 4-13 m off the line.  Scoring the offset itself
+            # closes that gap.  Bounded like the velocity term so that a policy far off
+            # course cannot be driven to give up walking to cut its losses.
+            lateral_tolerance = max(float(self.contract["lateral_tolerance"]), 1e-6)
+            lateral_offset = abs(
+                float(self.data.qpos[self.root_qpos_adr + 1]) - self.initial_y
+            )
+            # Deliberately not a Gaussian like the velocity term: exp(-(d/0.75)^2) is
+            # already flat to five decimal places by three metres out, so a policy that
+            # had drifted saw no gradient back towards the line and none distinguishing
+            # three metres off from twelve.  This form decays polynomially — bounded in
+            # [0, 1], but with a pull home at any distance.
+            lateral_offset_score = 1.0 / (1.0 + (lateral_offset / lateral_tolerance) ** 2)
             terms = {
                 "alive": alive,
                 "forward_velocity": velocity_score,
@@ -622,6 +659,7 @@ class CustomRobotEnv(
                 # Holding a walking height is scored here as well as in stand-balance:
                 # without it the only floor under the body was the fall line itself.
                 "height": height_score,
+                "lateral_offset": lateral_offset_score,
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
                 "action": action_cost,

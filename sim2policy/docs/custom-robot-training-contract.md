@@ -41,13 +41,13 @@ executed in the SaaS API process.
 
 ## Observation, action, reward, and termination
 
-Adapter `custom-robot-sb3-v1` orders root height and gravity-vector orientation, root linear and
+Adapter `custom-robot-sb3-v2` orders root height and gravity-vector orientation, root linear and
 angular velocity, normalized actuated-joint position/velocity pairs, previous actions, and task
 target. Each action is one value in `[-1, 1]`, clipped and mapped to the corresponding verified
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v5` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v7` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above

@@ -91,7 +91,7 @@ variable "saas_mjx_image_tag" {
 variable "saas_sb3_image_tag" {
   description = "Immutable SB3 runtime tag accepted for production gallery and custom-robot jobs."
   type        = string
-  default     = "sb3-d905e49136ee1aad3b214574e394c1024521ebb6"
+  default     = "sb3-5fd882b1548a7f7a3475db1cc1ec8c7f90fa1995"
 
   validation {
     condition     = can(regex("^sb3-[0-9a-f]{40}$", var.saas_sb3_image_tag))
