@@ -93,7 +93,7 @@ before training rather than silently restarting the counter. With `jobs/submit.s
 | `halfcheetah_sb3.yaml`, `ant_sb3.yaml`, `hopper_sb3.yaml`, `walker2d_sb3.yaml`, `reacher_sb3.yaml` | SB3 | Classic MuJoCo baselines |
 | `*_gallery_sb3.yaml` | SB3 | Curated showcase workloads |
 | `go1_mjx.yaml` | MJX | `Go1JoystickFlatTerrain` quadruped |
-| `g1_mjx.yaml`, `g1_flat_mjx.yaml` | MJX | G1 humanoid joystick tasks |
+| `g1_flat_mjx.yaml` | MJX | `G1JoystickFlatTerrain` humanoid |
 | `g1_forward_flat_mjx.yaml`, `g1_forward_rough_mjx.yaml` | MJX | Fixed-forward G1 curriculum phases |
 | `training_presets.yaml` | — | Demo API allowlist |
 | `showcase_training_matrix.yaml` | — | Curated campaign contract |

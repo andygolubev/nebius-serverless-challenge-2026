@@ -78,7 +78,7 @@ def test_rejects_incompatible_mjx_batch_geometry() -> None:
 
 
 def test_g1_uses_pinned_playground_tuned_profile() -> None:
-    config = load_config(ROOT / "configs/g1_mjx.yaml")
+    config = load_config(ROOT / "configs/g1_forward_rough_mjx.yaml")
 
     assert config.training.total_steps == 450_000_000
     assert config.training.n_envs == 8192
@@ -121,7 +121,7 @@ def test_rejects_unsupported_mjx_playground_overrides(
 ) -> None:
     with pytest.raises(ConfigError, match=message):
         load_config(
-            ROOT / "configs/g1_mjx.yaml",
+            ROOT / "configs/g1_forward_rough_mjx.yaml",
             {
                 "training.hyperparameters": {
                     "impl": "jax",

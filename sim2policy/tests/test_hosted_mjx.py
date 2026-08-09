@@ -43,7 +43,7 @@ def test_resume_is_passed_to_training_only() -> None:
 def test_remote_resume_can_name_a_distinct_source_run() -> None:
     train, _finalize = build_commands(
         [
-            "--config", "configs/g1_mjx.yaml", "--run-id", "rough-run",
+            "--config", "configs/g1_forward_rough_mjx.yaml", "--run-id", "rough-run",
             "--resume", "remote", "--resume-run-id", "flat-run",
         ]
     )

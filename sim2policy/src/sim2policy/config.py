@@ -9,6 +9,8 @@ from typing import Any, Literal, TypeVar, cast
 
 import yaml
 
+from .locomotion_scene import SceneExtentError, check_scene_extent
+
 Backend = Literal["sb3", "mjx"]
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SAFE_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$")
@@ -241,6 +243,24 @@ def _validate(config: RunConfig) -> None:
                 raise ConfigError(
                     "MJX batch_size multiplied by num_minibatches must be divisible by n_envs"
                 )
+        episode_length = config.training.hyperparameters.get("episode_length")
+        if episode_length is not None:
+            if (
+                not isinstance(episode_length, int)
+                or isinstance(episode_length, bool)
+                or episode_length <= 0
+            ):
+                raise ConfigError("MJX episode_length must be a positive integer")
+            # A finite height field has an edge and nothing beyond it, so a task
+            # that walks past the boundary can never complete its horizon.
+            try:
+                check_scene_extent(
+                    config.environment,
+                    target_velocity=config.success.target_velocity,
+                    episode_length=episode_length,
+                )
+            except SceneExtentError as exc:
+                raise ConfigError(str(exc)) from exc
     if config.storage.mode == "s3" and not config.storage.bucket:
         raise ConfigError("S3 storage mode requires bucket")
     validate_prefix(config.storage.prefix)

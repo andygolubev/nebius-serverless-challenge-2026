@@ -80,8 +80,8 @@ def _build_command(args: argparse.Namespace) -> list[str]:
         return [
             "python", "-m", "sim2policy.hosted_g1_curriculum",
             "--matrix", "configs/showcase_training_matrix.yaml",
-            "--flat-config", "configs/g1_flat_mjx.yaml",
-            "--rough-config", "configs/g1_mjx.yaml",
+            "--flat-config", "configs/g1_forward_flat_mjx.yaml",
+            "--rough-config", "configs/g1_forward_rough_mjx.yaml",
             "--run-id", args.run_id,
             "--image-digest", args.image_digest,
             *storage,

@@ -1,3 +1,21 @@
+<!--
+  Server-owned G1 rough-terrain scene.
+
+  A copy of mujoco-playground 0.2.0
+  `_src/locomotion/g1/xmls/scene_mjx_feetonly_rough_terrain.xml`, identical except
+  for the `hfield` line. Upstream declares `file="assets/hfield.png" size="10 10 .05 1.0"`
+  -- a finite 20 m x 20 m patch with no floor beyond it. The robot spawns dead centre,
+  so the nearest edge is 10 m away, while a 1,000-step episode at 0.02 s commanded at
+  0.8 m/s implies 16 m of travel. The acceptance gate was unreachable by any policy.
+
+  This declares the field by `nrow`/`ncol` with no asset file; the data is filled at
+  registration by tiling the upstream 256x256 asset 3x3, preserving the upstream
+  7.8125 cm/cell resolution and 0.05 m elevation amplitude exactly. Per-step terrain
+  difficulty is unchanged -- only the extent grows. See
+  `sim2policy.g1_forward_env.register_g1_forward_environments`.
+
+  Every other element below is upstream, unmodified.
+-->
 <mujoco model="g1 feet only rough terrain scene">
   <include file="g1_mjx_feetonly.xml"/>
 
