@@ -42,8 +42,11 @@ executed in the SaaS API process.
 ## Observation, action, reward, and termination
 
 Adapter `custom-robot-sb3-v2` orders root height and gravity-vector orientation, root linear and
-angular velocity, normalized actuated-joint position/velocity pairs, previous actions, and task
-target. Each action is one value in `[-1, 1]`, clipped and mapped to the corresponding verified
+angular velocity, signed lateral offset from the start line and heading as a cos/sin pair,
+normalized actuated-joint position/velocity pairs, previous actions, and task target. The offset and
+heading fields are new in v2: the gravity vector is invariant to yaw and the velocities are in the
+root frame, so a v1 policy could not observe heading error or accumulated sideways displacement —
+the very quantity `walk-forward` success bounds. Each action is one value in `[-1, 1]`, clipped and mapped to the corresponding verified
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 

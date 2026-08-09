@@ -2,7 +2,7 @@
   "compiled": {"nq": 15, "nv": 14, "nu": 8, "body_count": 9},
   "failure_phase": null,
   "failure_reason": null,
-  "fingerprint": "95413452bbc3dd2e846c0007fee4a08bf44445a0d8dcf87b165db55765dcc34b",
+  "fingerprint": "676127d601d21b7e40261b5eb2a150745f1ff42537e71bd82a81277de740f16a",
   "phases": [{"name": "compile", "status": "passed", "duration_seconds": 0.1}],
   "preparation_id": "preparation-fixture",
   "report_sha256": "3333333333333333333333333333333333333333333333333333333333333333",

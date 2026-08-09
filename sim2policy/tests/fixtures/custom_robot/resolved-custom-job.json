@@ -7,7 +7,7 @@
   "backend": "sb3",
   "job_kind": "custom-robot",
   "preparation": {
-    "fingerprint": "95413452bbc3dd2e846c0007fee4a08bf44445a0d8dcf87b165db55765dcc34b",
+    "fingerprint": "676127d601d21b7e40261b5eb2a150745f1ff42537e71bd82a81277de740f16a",
     "id": "preparation-fixture"
   },
   "profile": "custom-ppo-quick",
