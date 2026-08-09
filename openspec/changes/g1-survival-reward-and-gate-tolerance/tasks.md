@@ -8,7 +8,7 @@
       pinned `tracking_sigma` and `tracking_lin_vel` scale
 - [x] 1.3 Set `reward_config.scales.alive: 0.25` and `discounting: 0.99` in
       `configs/g1_forward_flat_mjx.yaml` and `configs/g1_forward_rough_mjx.yaml`
-- [ ] 1.4 Confirm the override actually reaches the environment: assert the constructed
+- [x] 1.4 Confirm the override actually reaches the environment: assert the constructed
       `G1ForwardFlatTerrain` / `G1ForwardRoughTerrain` report `reward_config.scales.alive == 0.25`
       (MJX-gated, runs on the builder)
 
