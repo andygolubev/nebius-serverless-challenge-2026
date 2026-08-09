@@ -12,11 +12,11 @@ resources:
 - middleware-redirect-https.yaml
 
 configMapGenerator:
-- name: saas-runtime-images
-  envs:
+- envs:
   - runtime-images.env
+  name: saas-runtime-images
 
 images:
 - name: sim2policy-saas
   newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
-  newTag: 74e59c88e6da
+  newTag: b3f92c139a9c
