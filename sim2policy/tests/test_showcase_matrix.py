@@ -27,7 +27,7 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
     assert recovery["full"]["rough_effective_steps"] == 250_511_360
     assert recovery["authorization"] == {
         "mode": "user_reviewed_survival_v1",
-        "campaign_id": "gallery-g1-survival-20260810-01",
+        "campaign_id": "gallery-g1-survival-20260810-02",
         "allowed_jobs": 1,
         "retries_allowed": 0,
         "extensions_allowed": False,
@@ -38,6 +38,8 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
         "superseded_result_job_id": "aijob-e00pc60w55v89z6t5v",
         "superseded_rough08_campaign_id": "gallery-g1-rough08-full-20260803-01",
         "superseded_rough08_job_id": "aijob-e00qpv3wgtaz2apxff",
+        "superseded_survival01_campaign_id": "gallery-g1-survival-20260810-01",
+        "superseded_survival01_job_id": "aijob-e00crn7bp2rsrefhvf",
         "pilot_required": False,
     }
     assert (
@@ -58,7 +60,11 @@ def test_reviewed_matrix_is_normalized_and_stable() -> None:
             "source_run_id: gallery-g1-20260801-16-flat",
         ),
         ("mode: user_reviewed_survival_v1", "mode: generic-direct-full"),
-        ("campaign_id: gallery-g1-survival-20260810-01", "campaign_id: another-campaign"),
+        ("campaign_id: gallery-g1-survival-20260810-02", "campaign_id: another-campaign"),
+        (
+            "superseded_survival01_job_id: aijob-e00crn7bp2rsrefhvf",
+            "superseded_survival01_job_id: aijob-e00crn7bp2rsrefhvg",
+        ),
         ("allowed_jobs: 1", "allowed_jobs: 2"),
         ("retries_allowed: 0", "retries_allowed: 1"),
         ("rough_effective_steps: 250511360", "rough_effective_steps: 250000000"),

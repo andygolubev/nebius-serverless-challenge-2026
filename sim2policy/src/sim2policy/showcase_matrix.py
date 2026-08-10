@@ -210,10 +210,10 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         if curriculum.get("candidate_every_steps") != cadence or curriculum.get("pushes_enabled") is not False:
             raise MatrixError("G1 curriculum cadence or push setting is invalid")
         authorization = _mapping(curriculum.get("authorization"), "examples.g1.curriculum.authorization")
-        _only(authorization, {"mode", "campaign_id", "allowed_jobs", "retries_allowed", "extensions_allowed", "runtime_overrides_allowed", "superseded_sweep_run_id", "superseded_sweep_job_id", "superseded_result_campaign_id", "superseded_result_job_id", "superseded_rough08_campaign_id", "superseded_rough08_job_id", "pilot_required"}, "examples.g1.curriculum.authorization")
+        _only(authorization, {"mode", "campaign_id", "allowed_jobs", "retries_allowed", "extensions_allowed", "runtime_overrides_allowed", "superseded_sweep_run_id", "superseded_sweep_job_id", "superseded_result_campaign_id", "superseded_result_job_id", "superseded_rough08_campaign_id", "superseded_rough08_job_id", "superseded_survival01_campaign_id", "superseded_survival01_job_id", "pilot_required"}, "examples.g1.curriculum.authorization")
         if authorization != {
             "mode": "user_reviewed_survival_v1",
-            "campaign_id": "gallery-g1-survival-20260810-01",
+            "campaign_id": "gallery-g1-survival-20260810-02",
             "allowed_jobs": 1,
             "retries_allowed": 0,
             "extensions_allowed": False,
@@ -226,6 +226,12 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
             # is retained as superseded, never reused.
             "superseded_rough08_campaign_id": "gallery-g1-rough08-full-20260803-01",
             "superseded_rough08_job_id": "aijob-e00qpv3wgtaz2apxff",
+            # The -01 attempt reached the end of training and then raised in
+            # acceptance accounting, before any selection evidence was written.
+            # A finalization recovery needs `report/g1-finalization-input.json`,
+            # which is persisted after that point and therefore never existed.
+            "superseded_survival01_campaign_id": "gallery-g1-survival-20260810-01",
+            "superseded_survival01_job_id": "aijob-e00crn7bp2rsrefhvf",
             "pilot_required": False,
         }:
             raise MatrixError("G1 survival authorization contract is invalid")

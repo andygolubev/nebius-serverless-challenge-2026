@@ -112,7 +112,7 @@ examples:
         # gates, and reward all changed, so the rough-0.8 authorization below is
         # superseded rather than reused.
         mode: user_reviewed_survival_v1
-        campaign_id: gallery-g1-survival-20260810-01
+        campaign_id: gallery-g1-survival-20260810-02
         allowed_jobs: 1
         retries_allowed: 0
         extensions_allowed: false
@@ -123,6 +123,13 @@ examples:
         superseded_result_job_id: aijob-e00pc60w55v89z6t5v
         superseded_rough08_campaign_id: gallery-g1-rough08-full-20260803-01
         superseded_rough08_job_id: aijob-e00qpv3wgtaz2apxff
+        # The -01 attempt trained both phases to completion and passed the flat
+        # gate, then died in acceptance accounting before any selection evidence
+        # was persisted. Its checkpoints are durable but its provenance is not,
+        # and provenance cannot be reconstructed after the fact, so -01 is
+        # superseded and re-authorized once rather than recovered.
+        superseded_survival01_campaign_id: gallery-g1-survival-20260810-01
+        superseded_survival01_job_id: aijob-e00crn7bp2rsrefhvf
         pilot_required: false
       diagnostic:
         source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat
