@@ -268,7 +268,7 @@ attestations, immutable images, infrastructure outputs, registry/artifact access
 redacted command, timeout,
 expected durable prefix, and absence of unintended active campaign compute. After terminal evidence
 is durable it SHALL stop or delete every chargeable VM and audit jobs, instances, disks, public IPs,
-temporary security rules, and builder state. Provider history, SaaS rows, and S3 evidence SHALL be
+and temporary security rules. Provider history, SaaS rows, and S3 evidence SHALL be
 retained under the current policy.
 
 #### Scenario: Preflight finds an active unrelated resource

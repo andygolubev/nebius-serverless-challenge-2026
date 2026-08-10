@@ -50,28 +50,26 @@ to keep or revoke the server-side UI session after the operation.
 ## Nebius build and GPU workflow
 
 **Always stop or delete every VM once its task is done.** Do not leave GPU or CPU instances
-running after the work that needed them completes — stop the CPU builder when its cached disk is
-still useful, and delete instances you no longer need so they stop incurring cost.
+running after the work that needed them completes, so they stop incurring cost.
 
-Use separate machines for image construction and GPU execution:
+Images are built in CI; VMs are for GPU execution and orchestration only:
 
-- Build SB3 and MJX images on a reusable `cpu-d3` VM in `eu-north1`, normally
-  `8vcpu-32gb` or `16vcpu-64gb` with a 300–500 GiB managed SSD. Use Docker BuildKit, preserve its
-  layer cache between iterations, and push the finished image to the project registry. Do not spend
-  GPU time compiling or packaging containers.
-- Tag every pushed image with the Git commit SHA (or another immutable revision) and submit that
-  exact tag or digest. Never replace a tag used by a running job. Obtain registry and artifact
-  settings from the existing OpenTofu outputs under `sim2policy/infra/nebius`; do not copy secrets
-  into commands, documentation, images, or the implementation log.
+- **Build SB3 and MJX images in GitHub Actions, never on a VM.** Pushing a commit that touches
+  `sim2policy/**` runs the `training-runtime-images` workflow, which matrixes both targets and
+  pushes immutable `sb3-<sha>` / `mjx-<sha>` tags to the project registry. Promotion to the GitOps
+  deployment is a separate `workflow_dispatch` with `promote: true`; a campaign never needs it,
+  because it pins by digest. Do not spend GPU — or any VM — time compiling or packaging containers.
+- Submit that exact immutable tag or digest. Never replace a tag used by a running job. Obtain
+  registry and artifact settings from the existing OpenTofu outputs under `sim2policy/infra/nebius`;
+  do not copy secrets into commands, documentation, images, or the implementation log.
 - Use the single-GPU H100 `gpu-h100-sxm` / `1gpu-16vcpu-200gb` preset only for MJX/JAX accelerator
   smoke tests, profiling, and Track A training. SB3 PPO is primarily CPU-bound here; use CPU or the
   cheaper validated L40S path for Track B instead of H100.
 - Run gates in increasing cost order: local tests, image health/import checks, a short GPU smoke
   job with an explicit timeout, bounded training, then a full run. Confirm CUDA/JAX discovery and
   durable artifact upload before starting full training.
-- Keep the CPU builder stopped when inactive if its cached disk is still useful. Stop or delete the
-  H100 immediately after the job and artifact checks finish. Audit instances, disks, public IPs,
-  temporary security rules, and failed AI jobs after each cloud session.
-- The builder may push a new immutable image while a GPU job runs an older digest. Record image
-  digest, non-secret VM/job identifiers, commands, results, cleanup, and the next safe action in
+- Stop or delete the H100 immediately after the job and artifact checks finish. Audit instances,
+  disks, public IPs, temporary security rules, and failed AI jobs after each cloud session.
+- CI may push a new immutable image while a GPU job runs an older digest. Record image digest,
+  non-secret VM/job identifiers, commands, results, cleanup, and the next safe action in
   `IMPLEMENTATION_LOG.MD`.

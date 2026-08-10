@@ -272,3 +272,9 @@ saas.db-wal
 # Showcase campaign state: produced on the Nebius orchestration VM, holds live
 # campaign/journal/evidence records, and is deliberately never committed.
 .showcase-campaigns/
+
+# Salvaged from the showcase builder VM before it was deleted: campaign state
+# and evidence, the runner environment (MysteryBox selectors, access key IDs),
+# work-in-progress patches, and a bundle of branches that were on no remote.
+# Kept locally so the VM can be destroyed without losing provenance.
+.builder-harvest/

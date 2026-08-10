@@ -10,7 +10,7 @@
       `configs/g1_forward_flat_mjx.yaml` and `configs/g1_forward_rough_mjx.yaml`
 - [x] 1.4 Confirm the override actually reaches the environment: assert the constructed
       `G1ForwardFlatTerrain` / `G1ForwardRoughTerrain` report `reward_config.scales.alive == 0.25`
-      (MJX-gated, runs on the builder)
+      (MJX-gated, runs where the MJX runtime is available)
 
 ## 2. Gate tolerance and statistics
 

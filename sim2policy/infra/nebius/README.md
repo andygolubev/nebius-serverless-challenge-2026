@@ -173,7 +173,7 @@ Custom uploaded-robot execution is additive and enabled only with the pinned imm
 The reconciled contract keeps `CUSTOM_ROBOT_TRAINING_ENABLED=true`, the same immutable
 `CUSTOM_ROBOT_SB3_IMAGE` used by the public SB3 gallery, one active
 preparation/training job per tenant, eight daily starts, and bounded report finalization. When
-changing this revision, build the generic SB3 target once on the CPU builder, publish an immutable
+changing this revision, let GitHub Actions build the generic SB3 target and publish its immutable
 `sim2policy:sb3-<git-sha>` tag or digest, update `saas_sb3_image_tag`, and rerun the frozen `cpu-d3`
 profile gates before rollout. Missing or mutable image identity fails startup while enabled.
 Disabling the flag blocks new Prepare/Start requests but does not stop reconciliation or authorized

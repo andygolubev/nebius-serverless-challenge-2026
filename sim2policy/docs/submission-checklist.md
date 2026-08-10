@@ -43,8 +43,8 @@ Durable run prefix:
 
 1. Provision the registry, bucket, and artifact identity with OpenTofu in
    `sim2policy/infra/nebius/`.
-2. Build the `mjx` Docker target on a disposable CPU VM, push it, record its digest, and remove the
-   builder. Do not build on H100 time.
+2. Push the revision so GitHub Actions builds and pushes the `mjx` Docker target, then record the
+   immutable digest it reports. Do not build on VM or H100 time.
 3. Submit `sim2policy/jobs/submit.sh` with `configs/go1_mjx.yaml`, run ID
    `go1-mjx-full-20260704`, the immutable digest above, the H100 platform/preset, the configured
    subnet, a bounded timeout, and MysteryBox-backed S3 credentials.

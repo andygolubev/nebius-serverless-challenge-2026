@@ -238,8 +238,8 @@ advance to the same image content. Untrusted pull-request contexts receive no re
 Concurrency cancellation drops superseded revisions, and manual dispatch exists for recovery after a
 credential or registry outage.
 
-Container images are built on CPU-only builders and consumed by separate ephemeral AI Jobs, keeping
-Docker compilation and registry upload off costly accelerator time.
+Container images are built in GitHub Actions and consumed by separate ephemeral AI Jobs, keeping
+Docker compilation and registry upload off costly accelerator time and off any long-lived VM.
 
 # Control plane: the SaaS front door
 
@@ -839,8 +839,8 @@ terminal, it submits nothing further and records a blocker.
 Nebius-executed quality-gate attestations, immutable images, infrastructure outputs,
 registry/artifact access, quota, the exact redacted command, timeout, expected durable prefix, and
 the absence of unintended active campaign compute. After terminal evidence is durable it stops or
-deletes every chargeable VM and audits jobs, instances, disks, public IPs, temporary security rules,
-and builder state. An unaccounted chargeable resource stops submission for human reconciliation
+deletes every chargeable VM and audits jobs, instances, disks, public IPs, and temporary security
+rules. An unaccounted chargeable resource stops submission for human reconciliation
 rather than assuming ownership; unprovable cleanup blocks promotion and subsequent submissions.
 Provider history, SaaS rows, and S3 evidence are retained.
 
