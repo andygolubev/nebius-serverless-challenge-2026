@@ -2,8 +2,11 @@ from __future__ import annotations
 
 # ruff: noqa: E501, I001
 
+from pathlib import Path
+
 from sim2policy.checkpoint import CheckpointInventory
 from sim2policy.checkpoint_selection import (
+    ACCEPTANCE_DESIGN_FIELDS,
     EvaluationEvidence,
     SelectionError,
     acceptance_from_aggregate,
@@ -134,3 +137,38 @@ def test_acceptance_still_rejects_a_genuinely_unknown_criterion() -> None:
         assert "unknown acceptance criterion" in str(exc)
     else:  # pragma: no cover - the raise is the contract
         raise AssertionError("an unknown acceptance criterion must be rejected")
+
+
+def test_every_shipped_acceptance_criterion_is_scorable() -> None:
+    """Drive the real matrix's criteria through the real function.
+
+    The bounded smoke runs a single training phase, not the curriculum, so it
+    never reaches acceptance and cannot catch an unscorable criterion. The
+    hardcoded regression above only covers `assumed_reliability`; this covers
+    whatever the matrix actually ships, so the next gate-design field added to
+    it fails here in milliseconds instead of after hours of paid training.
+    """
+    from sim2policy.showcase_matrix import load_matrix
+
+    matrix = load_matrix(Path(__file__).resolve().parents[1] / "configs" / "showcase_training_matrix.yaml")
+    aggregate = {
+        "mean_reward": 1e9,
+        "std_reward": 0.0,
+        "mean_episode_length": 1e9,
+        "mean_velocity": 1e9,
+        "min_velocity": 1e9,
+        "no_fall_count": 1_000_000,
+    }
+    for name, card in matrix.examples.items():
+        for level in ("hard", "preferred"):
+            criteria = card["acceptance"][level]
+            # Only the locomotion cards declare an episode count; the classic
+            # control cards accept on reward alone.
+            episodes = int(criteria.get("episodes", 20))
+            # Every criterion must either be scored or be a declared design
+            # field; an aggregate this generous fails only on a real defect.
+            results = acceptance_from_aggregate(aggregate, episodes, criteria)
+            scored = set(results)
+            declared = set(criteria) - ACCEPTANCE_DESIGN_FIELDS
+            assert scored == declared, f"{name}.{level} scored {scored}, expected {declared}"
+            assert all(results.values()), f"{name}.{level} failed on a maximal aggregate"
