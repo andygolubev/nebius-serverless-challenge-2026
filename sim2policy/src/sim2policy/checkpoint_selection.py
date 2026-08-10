@@ -18,6 +18,11 @@ class SelectionError(ValueError):
     pass
 
 
+#: Acceptance fields that describe how a gate was *designed* rather than what a
+#: run must measure. They are validated by the campaign matrix and carried in the
+#: contract for review, but they are not criteria a run can pass or fail.
+ACCEPTANCE_DESIGN_FIELDS = frozenset({"assumed_reliability"})
+
 Role = Literal["selection", "final"]
 
 
@@ -238,6 +243,13 @@ def acceptance_from_aggregate(
 ) -> dict[str, bool]:
     results: dict[str, bool] = {}
     for name, target in criteria.items():
+        if name in ACCEPTANCE_DESIGN_FIELDS:
+            # Gate-design metadata, not a measurement. `assumed_reliability`
+            # declares the per-episode reliability the gate was sized against so
+            # the matrix can refuse an unclearable bar; nothing in a run's
+            # aggregate can confirm or deny it, and treating it as a criterion
+            # crashed a completed campaign at its final step.
+            continue
         if name == "episodes":
             results[name] = episode_count == int(target)
         elif name == "required_horizons":

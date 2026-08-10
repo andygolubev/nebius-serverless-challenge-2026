@@ -95,3 +95,42 @@ def test_acceptance_from_aggregate_evaluates_hard_and_preferred_criteria() -> No
     )
     assert all(hard.values())
     assert preferred["mean_velocity"] is False
+
+
+def test_acceptance_ignores_gate_design_metadata() -> None:
+    """`assumed_reliability` sizes the gate; it is not something a run measures.
+
+    Treating it as a criterion raised SelectionError at the final acceptance step
+    and failed campaign gallery-g1-survival-20260810-01 after its training had
+    already completed and its checkpoints had been published.
+    """
+    aggregate = {
+        "episodes": 20,
+        "mean_reward": 36.5,
+        "mean_episode_length": 1000.0,
+        "mean_velocity": 0.8,
+        "min_velocity": 0.5,
+        "no_fall_count": 19,
+    }
+    results = acceptance_from_aggregate(
+        aggregate,
+        20,
+        {
+            "episodes": 20,
+            "required_horizons": 18,
+            "assumed_reliability": 0.95,
+            "min_velocity": 0.4,
+        },
+    )
+    assert "assumed_reliability" not in results
+    assert results == {"episodes": True, "required_horizons": True, "min_velocity": True}
+    assert all(results.values())
+
+
+def test_acceptance_still_rejects_a_genuinely_unknown_criterion() -> None:
+    try:
+        acceptance_from_aggregate({"no_fall_count": 20}, 20, {"invented_metric": 1})
+    except SelectionError as exc:
+        assert "unknown acceptance criterion" in str(exc)
+    else:  # pragma: no cover - the raise is the contract
+        raise AssertionError("an unknown acceptance criterion must be rejected")
