@@ -53,9 +53,18 @@
 
 ## 6. Reading the result
 
-- [ ] 6.1 On the approved run, stop at the flat gate and compute the observed per-episode survival
+- [x] 6.1 On the approved run, stop at the flat gate and compute the observed per-episode survival
       rate from the flat selection evidence
-- [ ] 6.2 Compare against the 0.80 baseline and record it in `IMPLEMENTATION_LOG.MD`; if it has not
+      — `gallery-g1-survival-20260810-02` / `aijob-e00x87jgqn8ng9c44c`: 8/10 full horizons, 8/10
+      no-fall, `min_velocity` 0.9145 m/s, gate `passed: false` (needed 9/10). Rough never funded.
+- [x] 6.2 Compare against the 0.80 baseline and record it in `IMPLEMENTATION_LOG.MD`; if it has not
       moved, the survival-reward hypothesis is wrong and rough training should not be funded
+      — observed 0.80, exactly the baseline: **it did not move**, so rough was not funded. Recorded.
+      Velocity did improve markedly (0.9145 m/s minimum vs a 0.40 floor), so the `alive` bonus did
+      not produce the stand-still failure it risked; only the survival half is unconfirmed.
 - [ ] 6.3 If it moved but fell short, evaluate `termination = 0.0` (T1's full shape) as the next
       single-variable change rather than adding training budget
+      — **not triggered**: 6.2's precondition ("if it moved") is unmet. See the open question in
+      `IMPLEMENTATION_LOG.MD` — 10 episodes give a Wilson 95% interval of [0.49, 0.94], so "did not
+      move" is 4.0x more likely than p=0.95 but is not proven; deciding between a confirmatory
+      re-sample and a different single-variable change is a human call.
