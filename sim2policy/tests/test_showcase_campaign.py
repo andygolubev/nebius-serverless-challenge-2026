@@ -399,7 +399,7 @@ def campaign(tmp_path: Path):
 
 @pytest.fixture()
 def g1_campaign(tmp_path: Path):
-    return _campaign_fixture(tmp_path, "gallery-g1-rough08-full-20260803-01")
+    return _campaign_fixture(tmp_path, "gallery-g1-survival-20260810-01")
 
 
 # -- init and idempotency ---------------------------------------------------
@@ -484,7 +484,7 @@ def test_plan_is_reviewable_and_names_everything_the_runbook_requires(campaign) 
 def test_g1_plan_declares_both_exact_phase_evidence_prefixes(g1_campaign) -> None:
     build, *_ = g1_campaign
     plan = build().build_plan("g1", 0)
-    run_id = "showcase-gallery-g1-rough08-full-20260803-01-g1-s0"
+    run_id = "showcase-gallery-g1-survival-20260810-01-g1-s0"
     assert plan["run_id"] == run_id
     assert plan["evidence_run_ids"] == [f"{run_id}-rough", f"{run_id}-flat"]
     assert plan["durable_prefix"] == f"sim2policy/{run_id}-rough/"
@@ -497,8 +497,8 @@ def test_g1_plan_declares_both_exact_phase_evidence_prefixes(g1_campaign) -> Non
     assert recovery["pilot"]["effective_steps"] == 46_202_880
     assert recovery["full"]["timeout_minutes"] == 300
     assert recovery["full"]["rough_effective_steps"] == 250_511_360
-    assert recovery["authorization"]["mode"] == "user_reviewed_rough_08_full_v2"
-    assert recovery["authorization"]["campaign_id"] == "gallery-g1-rough08-full-20260803-01"
+    assert recovery["authorization"]["mode"] == "user_reviewed_survival_v1"
+    assert recovery["authorization"]["campaign_id"] == "gallery-g1-survival-20260810-01"
     assert recovery["authorization"]["allowed_jobs"] == 1
     assert recovery["authorization"]["retries_allowed"] == 0
     assert recovery["authorization"]["source_revision"] == "git:" + "a" * 40
@@ -731,7 +731,7 @@ def test_verify_recovers_complete_g1_rough_evidence_after_provider_failure(g1_ca
     retraining or accepting the rejected policy.
     """
     build, store, matrix = g1_campaign
-    job_run_id = "showcase-gallery-g1-rough08-full-20260803-01-g1-s0"
+    job_run_id = "showcase-gallery-g1-survival-20260810-01-g1-s0"
     evidence_run_id = f"{job_run_id}-rough"
     instance = build(
         provider=FakeProvider(states=["FAILED"]),

@@ -210,10 +210,10 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
         if curriculum.get("candidate_every_steps") != cadence or curriculum.get("pushes_enabled") is not False:
             raise MatrixError("G1 curriculum cadence or push setting is invalid")
         authorization = _mapping(curriculum.get("authorization"), "examples.g1.curriculum.authorization")
-        _only(authorization, {"mode", "campaign_id", "allowed_jobs", "retries_allowed", "extensions_allowed", "runtime_overrides_allowed", "superseded_sweep_run_id", "superseded_sweep_job_id", "superseded_result_campaign_id", "superseded_result_job_id", "pilot_required"}, "examples.g1.curriculum.authorization")
+        _only(authorization, {"mode", "campaign_id", "allowed_jobs", "retries_allowed", "extensions_allowed", "runtime_overrides_allowed", "superseded_sweep_run_id", "superseded_sweep_job_id", "superseded_result_campaign_id", "superseded_result_job_id", "superseded_rough08_campaign_id", "superseded_rough08_job_id", "pilot_required"}, "examples.g1.curriculum.authorization")
         if authorization != {
-            "mode": "user_reviewed_rough_08_full_v2",
-            "campaign_id": "gallery-g1-rough08-full-20260803-01",
+            "mode": "user_reviewed_survival_v1",
+            "campaign_id": "gallery-g1-survival-20260810-01",
             "allowed_jobs": 1,
             "retries_allowed": 0,
             "extensions_allowed": False,
@@ -222,9 +222,13 @@ def _validate_card(name: str, card: Any) -> dict[str, Any]:
             "superseded_sweep_job_id": "aijob-e00c8fwyh15gy7qggk",
             "superseded_result_campaign_id": "gallery-g1-direct-full-20260803-01",
             "superseded_result_job_id": "aijob-e00pc60w55v89z6t5v",
+            # The rough-0.8 authorization spent its single job on 2026-08-03 and
+            # is retained as superseded, never reused.
+            "superseded_rough08_campaign_id": "gallery-g1-rough08-full-20260803-01",
+            "superseded_rough08_job_id": "aijob-e00qpv3wgtaz2apxff",
             "pilot_required": False,
         }:
-            raise MatrixError("G1 rough-0.8 authorization contract is invalid")
+            raise MatrixError("G1 survival authorization contract is invalid")
         diagnostic = _mapping(curriculum.get("diagnostic"), "examples.g1.curriculum.diagnostic")
         _only(diagnostic, {"source_run_id", "source_environment", "environments", "episodes_per_seed", "flat_required_horizons", "min_velocity", "ranking"}, "examples.g1.curriculum.diagnostic")
         if (

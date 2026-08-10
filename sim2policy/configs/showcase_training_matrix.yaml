@@ -105,8 +105,14 @@ examples:
       candidate_every_steps: 25000000
       pushes_enabled: false
       authorization:
-        mode: user_reviewed_rough_08_full_v2
-        campaign_id: gallery-g1-rough08-full-20260803-01
+        # Operator-authorized 2026-08-10, after three findings the prior contract
+        # could not have survived: the rough scene was too small for its own gate,
+        # the flat gate demanded 10/10 from a policy measured at ~0.80 per-episode
+        # reliability, and the reward paid nothing for staying upright. Scene,
+        # gates, and reward all changed, so the rough-0.8 authorization below is
+        # superseded rather than reused.
+        mode: user_reviewed_survival_v1
+        campaign_id: gallery-g1-survival-20260810-01
         allowed_jobs: 1
         retries_allowed: 0
         extensions_allowed: false
@@ -115,6 +121,8 @@ examples:
         superseded_sweep_job_id: aijob-e00c8fwyh15gy7qggk
         superseded_result_campaign_id: gallery-g1-direct-full-20260803-01
         superseded_result_job_id: aijob-e00pc60w55v89z6t5v
+        superseded_rough08_campaign_id: gallery-g1-rough08-full-20260803-01
+        superseded_rough08_job_id: aijob-e00qpv3wgtaz2apxff
         pilot_required: false
       diagnostic:
         source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat
