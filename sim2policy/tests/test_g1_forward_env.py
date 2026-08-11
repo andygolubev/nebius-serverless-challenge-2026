@@ -151,8 +151,12 @@ def test_fixed_forward_configs_pin_command_target_and_disable_pushes() -> None:
         assert config.environment == environment
         assert config.success.target_velocity == command[0]
         assert forward_command(environment) == command
+        # Both phases must declare the same reward: rough resumes the flat
+        # checkpoint, so a divergence here would have the resumed policy
+        # optimizing a different objective than it was selected under.
         assert config.training.hyperparameters["playground_config_overrides"] == {
             "push_config.enable": False,
             "reward_config.scales.alive": 0.25,
+            "reward_config.scales.termination": 0.0,
         }
         assert config.seed == 0

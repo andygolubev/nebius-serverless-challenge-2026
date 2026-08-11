@@ -62,9 +62,13 @@
       — observed 0.80, exactly the baseline: **it did not move**, so rough was not funded. Recorded.
       Velocity did improve markedly (0.9145 m/s minimum vs a 0.40 floor), so the `alive` bonus did
       not produce the stand-still failure it risked; only the survival half is unconfirmed.
-- [ ] 6.3 If it moved but fell short, evaluate `termination = 0.0` (T1's full shape) as the next
+- [x] 6.3 If it moved but fell short, evaluate `termination = 0.0` (T1's full shape) as the next
       single-variable change rather than adding training budget
-      — **not triggered**: 6.2's precondition ("if it moved") is unmet. See the open question in
-      `IMPLEMENTATION_LOG.MD` — 10 episodes give a Wilson 95% interval of [0.49, 0.94], so "did not
-      move" is 4.0x more likely than p=0.95 but is not proven; deciding between a confirmatory
-      re-sample and a different single-variable change is a human call.
+      — **Implemented, with the precondition explicitly waived.** This task's stated trigger ("if it
+      moved but fell short") was **not** met: survival did not move at all. The operator authorized
+      proceeding to `termination = 0.0` regardless, on a fixed $18 budget. That is a defensible call
+      — 10 episodes cannot distinguish 0.80 from a modest gain (Wilson 95% [0.49, 0.94]), and
+      `termination` is the only remaining scale on which pinned G1 differs from T1 — but it is a
+      **waiver, not a satisfied precondition**, and is recorded as such so the next reader does not
+      infer that survival improved in `-02`. Still one variable: -100.0 -> 0.0, nothing else changed.
+      Authorized as campaign `gallery-g1-survival-20260811-01`.

@@ -36,6 +36,10 @@ TRACKING_LIN_VEL_SCALE = 1.0
 # humanoid in the same pinned package -- ships with.
 UPSTREAM_ALIVE_SCALE = 0.0
 T1_ALIVE_SCALE = 0.25
+# The other half of T1's shape.  Pinned G1 applies a one-off -100.0 on
+# termination; T1 applies nothing and carries survival entirely on ``alive``.
+UPSTREAM_TERMINATION_SCALE = -100.0
+T1_TERMINATION_SCALE = 0.0
 # Walking must out-pay standing by at least this much, so surviving can never
 # become a cheaper policy than the declared task.
 MIN_WALK_TO_STAND_RATIO = 3.0
@@ -80,4 +84,32 @@ def check_survival_reward(alive: float, *, target_velocity: float) -> None:
             f"better than standing still at {target_velocity:g} m/s, below the "
             f"required {MIN_WALK_TO_STAND_RATIO:g}x margin. A survival reward this "
             "large makes standing still a cheap local optimum."
+        )
+
+
+def check_termination_penalty(termination: float) -> None:
+    """Reject a termination scale that is not a penalty.
+
+    Unlike ``alive``, the danger here is one-sided.  The scale multiplies the
+    termination indicator, so a positive value pays the robot to fall over --
+    the exact behaviour the gate measures -- and would be indistinguishable in
+    the config from the intended "no penalty" value of 0.0.  How *negative* it
+    may be is deliberately not bounded: the reviewed range spans upstream G1's
+    -100.0 and T1's 0.0, and the pathology documented in this module's header is
+    not the magnitude but the discount horizon it is invisible behind, which is
+    governed by ``discounting`` rather than by this scale.
+    """
+    if not isinstance(termination, (int, float)) or isinstance(termination, bool):
+        raise SurvivalRewardError(
+            "MJX reward_config.scales.termination must be a number"
+        )
+    if math.isnan(termination) or math.isinf(termination):
+        raise SurvivalRewardError(
+            "MJX reward_config.scales.termination must be finite"
+        )
+    if termination > 0.0:
+        raise SurvivalRewardError(
+            f"reward_config.scales.termination {termination:g} is positive, which "
+            "pays the robot to terminate. It must be zero (T1's shape) or negative "
+            f"(pinned G1 ships {UPSTREAM_TERMINATION_SCALE:g})."
         )

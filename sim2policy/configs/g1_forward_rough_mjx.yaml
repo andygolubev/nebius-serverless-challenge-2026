@@ -12,6 +12,10 @@ training:
       # Pinned G1 pays nothing to stay upright; T1, the other humanoid in the
       # same pinned package, ships 0.25. Walking still out-pays standing 3.8x.
       reward_config.scales.alive: 0.25
+      # Matches the flat phase. Rough resumes the flat checkpoint, so the two
+      # configs must agree on the reward or the resumed policy is optimizing a
+      # different objective than the one it was selected under.
+      reward_config.scales.termination: 0.0
     num_eval_envs: 128
     num_evals: 20
     batch_size: 256

@@ -12,6 +12,14 @@ training:
       # Pinned G1 pays nothing to stay upright; T1, the other humanoid in the
       # same pinned package, ships 0.25. Walking still out-pays standing 3.8x.
       reward_config.scales.alive: 0.25
+      # Campaign gallery-g1-survival-20260810-02 ran with alive 0.25 alone and
+      # measured 8/10 horizons -- unchanged from the 0.80 baseline -- while
+      # velocity improved to 0.91 m/s. Survival was the half that did not move,
+      # so this completes T1's shape: it is the other scale T1 differs on, and
+      # the single variable task 6.3 pre-registered as the next one to try.
+      # Pinned G1's -100.0 is a one-off arriving at a 2 s lookahead (discounting
+      # 0.99 at 50 Hz); T1 carries survival on `alive` and penalizes nothing.
+      reward_config.scales.termination: 0.0
     num_eval_envs: 128
     num_evals: 20
     batch_size: 256

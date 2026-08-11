@@ -9,14 +9,22 @@ from typing import Any, Literal, TypeVar, cast
 
 import yaml
 
-from .locomotion_reward import SurvivalRewardError, check_survival_reward
+from .locomotion_reward import (
+    SurvivalRewardError,
+    check_survival_reward,
+    check_termination_penalty,
+)
 from .locomotion_scene import SceneExtentError, check_scene_extent
 
 Backend = Literal["sb3", "mjx"]
 # The closed allowlist of pinned-Playground settings a run config may tune.
 # Everything else about the environment stays server-owned and unreachable.
 _MJX_PLAYGROUND_OVERRIDES = frozenset(
-    {"push_config.enable", "reward_config.scales.alive"}
+    {
+        "push_config.enable",
+        "reward_config.scales.alive",
+        "reward_config.scales.termination",
+    }
 )
 RUN_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 SAFE_PREFIX_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$")
@@ -240,6 +248,15 @@ def _validate(config: RunConfig) -> None:
                     check_survival_reward(
                         alive, target_velocity=config.success.target_velocity
                     )
+                except SurvivalRewardError as exc:
+                    raise ConfigError(str(exc)) from exc
+            termination = playground_overrides.get(
+                "reward_config.scales.termination"
+            )
+            if termination is not None:
+                # A positive value here would pay the robot to fall over.
+                try:
+                    check_termination_penalty(termination)
                 except SurvivalRewardError as exc:
                     raise ConfigError(str(exc)) from exc
         batch_size = config.training.hyperparameters.get("batch_size")

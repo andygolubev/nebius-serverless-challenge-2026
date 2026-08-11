@@ -208,7 +208,18 @@ def test_config_rejects_a_survival_reward_that_outcompetes_the_task() -> None:
         )
 
 
-def test_reward_editing_beyond_the_one_reviewed_scale_stays_closed() -> None:
+@pytest.mark.parametrize(
+    "scale",
+    [
+        # The scale that defines the task. Editing it would let a run inflate
+        # the very velocity the acceptance gate measures, so it must stay shut
+        # even though `alive` and `termination` are now open.
+        "reward_config.scales.tracking_lin_vel",
+        "reward_config.scales.orientation",
+        "reward_config.scales.feet_air_time",
+    ],
+)
+def test_reward_editing_beyond_the_reviewed_scales_stays_closed(scale: str) -> None:
     with pytest.raises(ConfigError, match="unsupported MJX Playground"):
         load_config(
             ROOT / "configs/g1_forward_rough_mjx.yaml",
@@ -217,7 +228,7 @@ def test_reward_editing_beyond_the_one_reviewed_scale_stays_closed() -> None:
                     "impl": "jax",
                     "playground_config_overrides": {
                         "push_config.enable": False,
-                        "reward_config.scales.termination": 0.0,
+                        scale: 1.0,
                     },
                 }
             },

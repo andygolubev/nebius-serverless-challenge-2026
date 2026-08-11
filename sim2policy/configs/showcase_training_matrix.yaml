@@ -112,7 +112,7 @@ examples:
         # gates, and reward all changed, so the rough-0.8 authorization below is
         # superseded rather than reused.
         mode: user_reviewed_survival_v1
-        campaign_id: gallery-g1-survival-20260810-02
+        campaign_id: gallery-g1-survival-20260811-01
         allowed_jobs: 1
         retries_allowed: 0
         extensions_allowed: false
@@ -130,6 +130,16 @@ examples:
         # superseded and re-authorized once rather than recovered.
         superseded_survival01_campaign_id: gallery-g1-survival-20260810-01
         superseded_survival01_job_id: aijob-e00crn7bp2rsrefhvf
+        # The -02 attempt ran cleanly and answered the question it was funded to
+        # answer: alive 0.25 alone lifted velocity (0.9145 m/s minimum, against a
+        # 0.40 floor) but left per-episode survival at 8/10 -- the 0.80 baseline,
+        # unmoved -- so it stopped at the flat gate and never funded rough. This
+        # authorization changes exactly one further variable, the one task 6.3
+        # pre-registered: reward_config.scales.termination -100.0 -> 0.0, which
+        # completes T1's reward shape. -02 is superseded, not retried; re-running
+        # the same reward would only re-roll the same gate.
+        superseded_survival02_campaign_id: gallery-g1-survival-20260810-02
+        superseded_survival02_job_id: aijob-e00x87jgqn8ng9c44c
         pilot_required: false
       diagnostic:
         source_run_id: showcase-gallery-g1-20260801-16-g1-s0-flat

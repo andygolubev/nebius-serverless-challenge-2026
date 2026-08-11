@@ -89,6 +89,7 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
         "playground_config_overrides": {
             "push_config.enable": False,
             "reward_config.scales.alive": 0.25,
+            "reward_config.scales.termination": 0.0,
         },
         "num_eval_envs": 128,
         "num_evals": 20,
@@ -118,6 +119,20 @@ def test_g1_uses_pinned_playground_tuned_profile() -> None:
         # Supported now, but 1.0 leaves walking only 1.9x better than standing.
         ({"push_config.enable": False, "reward_config.scales.alive": 1.0}, "margin"),
         ({"push_config.enable": False, "reward_config.scales.alive": -1.0}, "non-negative"),
+        # A positive termination scale pays the robot to fall over, which is the
+        # exact behaviour the gate measures; zero and negative are both allowed.
+        (
+            {"push_config.enable": False, "reward_config.scales.termination": 1.0},
+            "pays the robot to terminate",
+        ),
+        (
+            {"push_config.enable": False, "reward_config.scales.termination": float("inf")},
+            "must be finite",
+        ),
+        (
+            {"push_config.enable": False, "reward_config.scales.termination": "0.0"},
+            "must be a number",
+        ),
         ({"reward_config.scales.gait": 1.0}, "unsupported MJX Playground"),
         ([], "must be a mapping"),
     ],
@@ -135,6 +150,32 @@ def test_rejects_unsupported_mjx_playground_overrides(
                 }
             },
         )
+
+
+@pytest.mark.parametrize("termination", [0.0, -100.0, -2.5])
+def test_accepts_zero_and_negative_termination_scales(termination: float) -> None:
+    """T1's 0.0 and pinned G1's -100.0 must both remain expressible.
+
+    The guard is one-sided on purpose: how negative the penalty may be is a
+    reviewed modelling choice, so bounding it here would have blocked the
+    upstream default the campaign is measured against.
+    """
+    config = load_config(
+        ROOT / "configs/g1_forward_rough_mjx.yaml",
+        {
+            "training.hyperparameters": {
+                "impl": "jax",
+                "episode_length": 1000,
+                "playground_config_overrides": {
+                    "push_config.enable": False,
+                    "reward_config.scales.alive": 0.25,
+                    "reward_config.scales.termination": termination,
+                },
+            }
+        },
+    )
+    overrides = config.training.hyperparameters["playground_config_overrides"]
+    assert overrides["reward_config.scales.termination"] == termination
 
 
 @pytest.mark.parametrize("target", [0.0, -1.0, 0.4])
