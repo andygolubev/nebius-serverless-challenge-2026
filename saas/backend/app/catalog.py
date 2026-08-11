@@ -254,10 +254,10 @@ GALLERY_EXAMPLES: dict[str, GalleryExample] = {
             "Command-following humanoid steps over rough terrain.",
             "g1",
             "ppo-mjx",
-            "NVIDIA L40S candidate",
-            25_000_000,
-            "Acceptance measurement pending",
-            "Acceptance measurement pending",
+            "NVIDIA H100",
+            450_000_000,
+            "Observed about 4 h 7 min end to end",
+            "About $6.80 training runtime · about $7.80 end to end",
             "velocity ≥ 0.4 m/s without falling",
             "Forward velocity",
             "g1-rough-v1",
@@ -381,7 +381,7 @@ SHOWCASE_RUNS: dict[str, str] = {
     "halfcheetah-sprint": "showcase-gallery-hc-20260801-11-halfcheetah-s7",
     "hopper-balance": "showcase-gallery-result-20260730-07-hopper-s7",
     "walker2d-stride": "showcase-gallery-w2d-20260801-13-walker2d-s42",
-    "g1-rough-terrain": "showcase-gallery-g1-20260801-16-g1-s0-rough",
+    "g1-rough-terrain": "showcase-gallery-g1-survival-20260811-01-g1-s0-rough",
     "reacher-target": "showcase-gallery-result-20260730-07-reacher-s42",
 }
 
