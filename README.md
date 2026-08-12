@@ -28,22 +28,27 @@ Each training job leaves behind a durable, reproducible result in object storage
 🧠 **A trained checkpoint** · 🎬 **Rollout video** (wobbling → walking) · 📊 **Deterministic
 evaluation** · 📦 **A policy bundle** with config, versions, and checksums
 
-## Seven policies. $4.35.
+## Seven policies. $3.84.
 
 Every number below is read live from the deployed gallery — observed on the job itself, not estimated.
 
 | Run | Backend | Steps | Duration | Cost | Result |
 | --- | --- | --: | --: | --: | --- |
-| **Go1 Walker** | MJX · H100 | 200,000,000 | 16m 48s | **$0.83** | ✅ velocity 0.97 ≥ 0.5 |
-| G1 Rough Terrain | MJX · H100 | 348,651,520 | 2h 05m | $3.24 | ⚠️ published as a recording, criterion not met |
-| Walker2D Stride | SB3 · CPU | 5,000,000 | 29m 30s | $0.10 | ✅ reward 5,314 ≥ 1,800 |
+| **Go1 Walker** | MJX · H100 | 200,000,000 | 16m 47s | **$0.83** | ✅ velocity 0.97 ≥ 0.5 |
+| G1 Rough Terrain | MJX · H100 | 250,511,360 | 1h 45m | $2.73 | ✅ velocity 0.74 ≥ 0.4, 20/20 no falls |
+| Walker2D Stride | SB3 · CPU | 5,000,000 | 29m 32s | $0.10 | ✅ reward 5,314 ≥ 1,800 |
 | Hopper Balance | SB3 · CPU | 5,000,000 | 21m 00s | $0.07 | ✅ reward 3,632 ≥ 1,000 |
-| Ant Explorer | SB3 · CPU | 3,000,000 | 21m 36s | $0.07 | ✅ reward 2,975 ≥ 1,000 |
-| HalfCheetah Sprint | SB3 · CPU | 3,000,000 | 12m 42s | $0.04 | ✅ reward 3,332 ≥ 1,500 |
-| Reacher Target | SB3 · CPU | 1,000,000 | 2m 54s | **$0.01** | ✅ reward −5.6 ≥ −10 |
+| Ant Explorer | SB3 · CPU | 3,000,000 | 21m 33s | $0.07 | ✅ reward 2,975 ≥ 1,000 |
+| HalfCheetah Sprint | SB3 · CPU | 3,000,000 | 12m 41s | $0.04 | ✅ reward 3,332 ≥ 1,500 |
+| Reacher Target | SB3 · CPU | 1,000,000 | 2m 52s | **$0.01** | ✅ reward −5.6 ≥ −10 |
 
-Real GPU reinforcement learning at coffee-money prices — and the one run that missed its bar is
-published saying so, rather than quietly dropped.
+Real GPU reinforcement learning at coffee-money prices, and every run now clears its own bar.
+
+G1's row is the rough-terrain phase, which is what the gallery publishes. It is the second half of a
+two-phase curriculum: a flat phase trains 199,229,440 steps first and must pass a 9-of-10 survival
+gate before rough training is funded at all. Counting both phases, the full job was 450M steps in
+4h 07m. The gate is there so a bad hypothesis costs one flat hour instead of a full run — and it
+did exactly that once (see below).
 
 ## Pick an example, press go
 
@@ -58,6 +63,30 @@ Success criterion, primary metric, observed duration and cost, the rollout video
 evaluation, and a one-click policy bundle — all bound to the exact acceptance revision.
 
 <img src="docs/images/run-detail.jpg" alt="Go1 Walker result page: KPIs, rollout video, and evaluation" width="900">
+
+### The G1 humanoid, and what the gates were for
+
+The hardest run in the gallery was also the one that stayed red the longest, and the honest version
+of that story is worth more than the green checkmark:
+
+- **It was published failing.** For a while the G1 card read *"published as a recording, criterion
+  not met."* Leaving it visible cost nothing and kept the gallery's claim true.
+- **Two of the failures were never the policy's fault.** Its rough scene was a 20 m × 20 m height
+  field, but a 1,000-step horizon at the commanded velocity needs 16 m from a random spawn — the
+  robot ran out of world before it ran out of horizon. And the gates demanded 10 perfect episodes to
+  proceed and 20 more to publish, from a policy that survived ~80% of them — 10.7% and 1.2%, so
+  about 0.1% of clearing both. More training could not have fixed either. The scene became a
+  server-owned 60 m one; the gates became 9-of-10 and 18-of-20.
+- **The real bug was one reward scale.** Pinned G1 pays nothing for staying upright and applies a
+  one-off `termination = -100`. Turning on `alive = 0.25` alone made it walk faster (0.91 m/s) but
+  survival stayed at exactly 8/10. Setting `termination = 0.0` as well — completing the shape that
+  T1, the other humanoid in the same pinned package, already ships — took the flat gate from 8/10 to
+  **10/10** and rough acceptance to **20/20 full horizons, zero falls**. The penalty was not merely
+  useless; at a ~2 s discount horizon it was noise the critic could not attribute, and it interfered
+  with the dense survival signal instead of helping.
+
+The diagnostic run that isolated the first half stopped at the flat gate after 54 minutes and never
+funded rough training. That is the gate working: **$1.39 to reject a hypothesis instead of $6.37.**
 
 ## Bring your own robot
 
