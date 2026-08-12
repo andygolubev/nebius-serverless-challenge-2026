@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v9` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v10` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -61,6 +61,19 @@ energy. Falling terminates balance/walk episodes but not recovery episodes; non-
 configured runaway position/velocity, and the fixed horizon remain universal bounds. Seeded resets,
 thresholds, coefficients, and evaluation rules are recorded in resolved configuration; users cannot
 edit them.
+
+Every height threshold — the reward target, the fall line, and the success band — is a multiple of
+`reference_height`, which is sampled once per reset at the end of a short zero-control settle. The
+settle exists because the authored spawn height is not the height the model rests at, and deriving
+the fall line from the spawn height terminated episodes during the drop. v10 shortened it from 20
+control steps to 5. Contact is reached in about five; every step beyond that is a robot standing
+under no torque, so for anything that does not balance passively the settle stops measuring a
+resting pose and starts sampling a fall. Because the sample scales every threshold, that made the
+success band a per-episode random variable — measured spread across the twenty evaluation seeds was
+0.2908 m (quadruped) and 0.3503 m (biped) at 20 steps against 0.0009 m at 5 — and it left the
+low-sample episodes starting from a stationary but half-collapsed pose, since `qvel` is zeroed
+afterwards. A five-step settle reports the resting pose for both shipped robot types, which is what
+lets one `target_height_scale` serve a 0.55 m quadruped and a 0.92 m biped.
 
 ## Profiles and fingerprint
 

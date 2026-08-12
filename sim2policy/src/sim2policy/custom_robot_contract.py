@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v9"
+REWARD_VERSION = "locomotion-rewards-v10"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
@@ -173,7 +173,19 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
-        "settle_steps": 20,
+        # The settle exists to let the model rest on the floor, because the authored
+        # spawn height is not the resting height.  Contact is reached in about five
+        # steps; every step after that is a robot standing under *zero torque*, which
+        # for anything that does not balance passively is not settling but toppling.
+        # Because ``reference_height`` is sampled at the end of the settle and every
+        # threshold in this contract scales off it, that turned the success band into a
+        # per-episode random variable.  Measured spread over the twenty evaluation
+        # seeds: 0.0009 m at five steps against 0.2908 m (quadruped) and 0.3503 m
+        # (biped) at twenty.  Worse, the low-reference episodes are the ones that
+        # started already half-toppled -- ``qvel`` is zeroed afterwards, so the policy
+        # inherits a stationary but collapsed pose it was never trained to leave.  That
+        # was the whole of the biped's 25% fall rate.
+        "settle_steps": 5,
         "success_upright": 0.85,
         "success_height_tolerance": 0.25,
         "success_max_root_speed": 0.5,
@@ -198,7 +210,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,
-        "settle_steps": 20,
+        # Same five-step settle as stand-balance, and for the same reason: a reference
+        # sampled off a toppling robot randomises the height reward's target and the
+        # fall line together.  It mattered most here for the biped, whose resting
+        # pelvis is 0.93 -- a twenty-step settle read it as low as 0.58, aiming the
+        # height term at half the robot's stance and pointing its gradient at the floor.
+        "settle_steps": 5,
         "target_velocity": 0.8,
         # Width of the Gaussian used to score forward velocity against
         # ``target_velocity``.  v2 rewarded raw unbounded velocity, which paid more for
