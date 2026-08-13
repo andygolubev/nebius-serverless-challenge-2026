@@ -19,4 +19,4 @@ configMapGenerator:
 images:
 - name: sim2policy-saas
   newName: cr.eu-north1.nebius.cloud/e00gkhk5kcqp6fej6g/sim2policy-saas
-  newTag: 6f87468fad9f
+  newTag: 08d992b8ab15
