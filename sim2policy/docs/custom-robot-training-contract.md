@@ -62,6 +62,25 @@ configured runaway position/velocity, and the fixed horizon remain universal bou
 thresholds, coefficients, and evaluation rules are recorded in resolved configuration; users cannot
 edit them.
 
+`task_threshold_achieved` is `success_rate >= 0.9`, and the bar travels with the metrics as
+`task_success_rate_threshold`. It was every episode until v11, which is not a sound rule for a
+twenty-seed sample of a stochastic rollout: at a per-episode success rate of 0.95 an all-or-nothing
+gate reports failure about two runs in three, and even a policy losing one episode in a hundred is
+marked failing 18% of the time. Two runs of the same revision measured that directly — a quadruped
+scoring 20/20 and passing, a biped scoring 19/20 and being reported below threshold on the strength
+of one initial pose. The measured `success_rate` is always reported next to the boolean.
+
+**Recover From Fall cannot currently be completed by the sample quadruped**, and this is a property
+of the robot rather than of the thresholds. The reset rolls the body 1.2–1.45 rad about world X,
+while all eight of that model's actuators are `axis="0 1 0"` — pitch only. A body-Y torque has a
+world-X component of exactly zero at every roll angle, so there is no actuator authority about the
+axis the robot must rotate, and at 69–83° of roll the leg swing plane is 0.93–0.99 vertical, so
+swinging the legs yaws the body instead of righting it. Measured runs score 0.000 at every
+checkpoint through the full budget and never reach even `minimum_upright`. Its height scales are
+separately mis-set — `target_height_scale` 0.9 asks for 0.495 against a measured standing posture of
+0.313–0.321 — but correcting them does not make the task learnable and is not the fix. Tipping about
+pitch rather than roll is the change a pitch-only quadruped could act on.
+
 Every height threshold — the reward target, the fall line, and the success band — is a multiple of
 `reference_height`, which is sampled once per reset at the end of a short zero-control settle. The
 settle exists because the authored spawn height is not the height the model rests at, and deriving
