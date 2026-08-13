@@ -29,6 +29,7 @@ from sim2policy.custom_robot_contract import (
     REWARD_VERSION,
     SCENE_VERSION,
     SCHEMA_VERSION,
+    TASK_SUCCESS_RATE_THRESHOLD,
     TRAINING_PROFILE,
     TRAINING_PROFILE_VERSION,
     PreparationProfile,
@@ -461,15 +462,20 @@ def _evaluate_policy(
         finally:
             env.close()
     rewards = [float(item["reward"]) for item in episodes]
+    success_rate = float(np.mean([bool(item["success"]) for item in episodes]))
     return {
         "episodes": episodes,
         "aggregate": {
             "episodes": len(episodes),
             "mean_reward": float(np.mean(rewards)),
             "std_reward": float(np.std(rewards)),
-            "success_rate": float(np.mean([bool(item["success"]) for item in episodes])),
+            "success_rate": success_rate,
             "fall_rate": float(np.mean([bool(item["fallen"]) for item in episodes])),
-            "task_threshold_achieved": bool(all(item["success"] for item in episodes)),
+            # A rate against a stated bar, not `all()`. Evaluation is a twenty-seed sample
+            # of a stochastic rollout, so requiring every episode measured luck as much as
+            # the policy -- see TASK_SUCCESS_RATE_THRESHOLD for the measured case.
+            "task_threshold_achieved": bool(success_rate >= TASK_SUCCESS_RATE_THRESHOLD),
+            "task_success_rate_threshold": TASK_SUCCESS_RATE_THRESHOLD,
         },
     }
 

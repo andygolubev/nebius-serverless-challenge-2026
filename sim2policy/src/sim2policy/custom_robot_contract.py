@@ -16,10 +16,23 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v10"
+REWARD_VERSION = "locomotion-rewards-v11"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
+
+# Fraction of evaluation episodes that must succeed for ``task_threshold_achieved``.
+#
+# v10 and earlier required *every* episode.  Evaluation is a twenty-seed sample of a
+# stochastic rollout, so an all-or-nothing gate scores luck rather than the policy: at a
+# per-episode success rate of 0.95 it reports failure about two runs in three, and even a
+# policy that fails one episode in a hundred is badged red 18% of the time.  Measured on
+# Nebius, the biped scored 19/20 -- nineteen near-identical episodes at height 0.523-0.545
+# and upright 0.995-1.000, one seed tipping at step 134 -- and was reported as below
+# threshold.  0.9 is the same tolerance the G1 showcase gates already moved to for exactly
+# this reason, and it passes 92.5% of the time at 0.95 while still failing a genuinely
+# unreliable policy: 12% of episodes lost is still a red badge.
+TASK_SUCCESS_RATE_THRESHOLD = 0.9
 
 SUPPORTED_ROBOT_TYPES = ("biped", "quadruped")
 SUPPORTED_TASKS = ("stand-balance", "walk-forward", "recover-from-fall")
@@ -256,6 +269,24 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
     "recover-from-fall": {
         "version": REWARD_VERSION,
         "episode_steps": 1000,
+        # DO NOT chase these numbers: this task is blocked on morphology, not thresholds.
+        #
+        # The reset rolls the body about world X, but the sample quadruped's eight
+        # actuators are all ``axis="0 1 0"`` -- pitch only.  A body-Y torque has a world-X
+        # component of exactly zero at every roll angle, so the robot has no actuator
+        # authority about the one axis it must rotate; at a 69-83 degree roll the leg
+        # swing plane is 0.93-0.99 vertical, so swinging the legs yaws the body instead of
+        # righting it.  Measured: success 0.000 at every checkpoint through 3M, and
+        # ``fall_rate`` 1.0 throughout -- it never once reached even ``minimum_upright``
+        # 0.45, let alone ``success_upright`` 0.8.
+        #
+        # The height scales below are separately suspect -- 0.9 asks for 0.495 while the
+        # same robot's converged standing policy holds 0.313-0.321, so the success bar of
+        # 0.4125 also sits above its stance -- but rescaling them was measured and does
+        # *not* make the task learnable, and it makes the height term pay 0.97 for lying
+        # at the spawn pose.  They are left as they were until the reset is fixed: tipping
+        # about pitch rather than roll is the change a pitch-only quadruped could act on,
+        # and that needs its own verification.
         "target_height_scale": 0.9,
         "fall_height_scale": 0.45,
         "minimum_upright": 0.45,

@@ -14,6 +14,7 @@ from sim2policy.custom_robot_contract import (
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
     SCHEMA_VERSION,
+    TASK_SUCCESS_RATE_THRESHOLD,
     TRAINING_PROFILE,
     canonical_json,
     preparation_fingerprint,
@@ -23,6 +24,7 @@ from sim2policy.custom_robot_io import validate_documents
 from sim2policy.custom_robot_job import (
     PhaseTimeout,
     Publisher,
+    _evaluate_policy,
     bounded_phase,
     build_policy_bundle,
     inspect_policy_bundle,
@@ -32,6 +34,38 @@ from sim2policy.custom_robot_job import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+class _ScriptedEnv:
+    """Minimal environment that succeeds or fails on command.
+
+    ``_evaluate_policy`` only reads the horizon, the per-step ``task_metrics``, and the
+    termination flags, so scripting those is enough to drive the aggregate rule without
+    paying for physics.
+    """
+
+    contract = {"episode_steps": 3}
+    _outcomes: list[bool] = []
+    _index = 0
+
+    def __init__(self, *args, **kwargs) -> None:
+        self.success = type(self)._outcomes[type(self)._index % len(type(self)._outcomes)]
+        type(self)._index += 1
+
+    def reset(self, seed=None):
+        return None, {}
+
+    def step(self, action):
+        metrics = {"success": self.success, "fallen": not self.success}
+        return None, 1.0, False, False, {"task_metrics": metrics}
+
+    def close(self) -> None:
+        return None
+
+
+class _StubModel:
+    def predict(self, observation, deterministic=True):
+        return None, None
 
 
 def _documents(
@@ -272,3 +306,35 @@ def test_entrypoint_sanitizes_input_failure_without_traceback(
     assert main() == 2
     stderr = capsys.readouterr().err
     assert stderr == "custom robot prepare failed: runtime-gate-failed\n"
+
+
+@pytest.mark.parametrize(
+    ("successes", "expected"),
+    [
+        # The measured Nebius case: nineteen near-identical episodes and one seed that
+        # tipped. Under the old `all()` rule this reported failure for a 95% policy.
+        (19, True),
+        (20, True),
+        (18, True),
+        # 0.85 is below the stated bar, so a genuinely unreliable policy still fails.
+        (17, False),
+        (10, False),
+        (0, False),
+    ],
+)
+def test_task_threshold_is_a_rate_against_a_stated_bar(
+    monkeypatch: pytest.MonkeyPatch, successes: int, expected: bool
+) -> None:
+    outcomes = [True] * successes + [False] * (20 - successes)
+    _ScriptedEnv._outcomes = outcomes
+    _ScriptedEnv._index = 0
+    monkeypatch.setattr("sim2policy.custom_robot_job.CustomRobotEnv", _ScriptedEnv)
+
+    profile = replace(TRAINING_PROFILE, evaluation_episodes=20)
+    evaluation = _evaluate_policy(_StubModel(), _documents(), profile)
+    aggregate = evaluation["aggregate"]
+
+    assert aggregate["success_rate"] == pytest.approx(successes / 20)
+    assert aggregate["task_threshold_achieved"] is expected
+    # The bar travels with the metrics so a reader can see what was applied.
+    assert aggregate["task_success_rate_threshold"] == TASK_SUCCESS_RATE_THRESHOLD
