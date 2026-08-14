@@ -35,6 +35,7 @@ from sim2policy.custom_robot_contract import (
     PreparationProfile,
     TrainingProfile,
     canonical_json,
+    evaluation_seeds,
     sha256_bytes,
     validate_safe_id,
 )
@@ -432,8 +433,9 @@ def _evaluate_policy(
 ) -> dict[str, Any]:
     normalize = normalize or (lambda observation: observation)
     episodes: list[dict[str, Any]] = []
+    seeds = evaluation_seeds(profile.evaluation_seeds, profile.evaluation_episodes)
     for index in range(profile.evaluation_episodes):
-        seed = profile.evaluation_seeds[index % len(profile.evaluation_seeds)] + index
+        seed = seeds[index]
         env = CustomRobotEnv(documents.robot_xml, documents.setup)
         try:
             observation, _ = env.reset(seed=seed)

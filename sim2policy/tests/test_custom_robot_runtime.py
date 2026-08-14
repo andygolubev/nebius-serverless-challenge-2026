@@ -37,6 +37,21 @@ def _robot(name: str = "sample-biped.xml") -> bytes:
     return (SAMPLES / name).read_bytes()
 
 
+def _setup(task: str, scene: str = "flat-arena", robot_name: str = "sample-biped.xml", **extra):
+    """A setup document of the shape ``validate_setup`` accepts.
+
+    ``robot_type`` is part of that shape and the runtime reads it — the height target is
+    stated per morphology — so tests that build a setup inline have to carry it too.
+    """
+    return {
+        "robot_type": "quadruped" if "quadruped" in robot_name else "biped",
+        "task_template_id": task,
+        "scene_preset_id": scene,
+        "objects": [],
+        **extra,
+    }
+
+
 def _documents(
     *,
     robot_name: str = "sample-biped.xml",
@@ -96,7 +111,7 @@ def _documents(
 def test_canonical_matrix_compiles_and_steps(robot_name: str, task: str, scene: str) -> None:
     env = CustomRobotEnv(
         _robot(robot_name).decode(),
-        {"task_template_id": task, "scene_preset_id": scene, "objects": []},
+        _setup(task, scene, robot_name),
     )
     first, _ = env.reset(seed=19)
     second, _ = env.reset(seed=19)
@@ -128,11 +143,11 @@ def test_server_owns_world_settings_and_action_mapping() -> None:
             '<option timestep="0.5" gravity="0 0 99"/>',
         )
     )
-    setup = {
-        "task_template_id": "stand-balance",
-        "scene_preset_id": "ramp-course",
-        "objects": SCENE_CONTRACTS["ramp-course"]["preset_objects"],
-    }
+    setup = _setup(
+        "stand-balance",
+        "ramp-course",
+        objects=SCENE_CONTRACTS["ramp-course"]["preset_objects"],
+    )
     composed = compose_server_mjcf(xml, setup)
     assert 'gravity="0 0 -9.81"' in composed
     assert 'timestep="0.004"' in composed
@@ -147,11 +162,7 @@ def test_server_owns_world_settings_and_action_mapping() -> None:
 
 @pytest.mark.parametrize("scene", ["hurdle-course", "step-course"])
 def test_server_composes_every_preset_terrain(scene: str) -> None:
-    setup = {
-        "task_template_id": "walk-forward",
-        "scene_preset_id": scene,
-        "objects": SCENE_CONTRACTS[scene]["preset_objects"],
-    }
+    setup = _setup("walk-forward", scene, objects=SCENE_CONTRACTS[scene]["preset_objects"])
     composed = compose_server_mjcf(_robot().decode(), setup)
     assert composed.count("server_object_") == 3
     env = CustomRobotEnv(_robot().decode(), setup)
@@ -170,11 +181,9 @@ def test_custom_primitives_compose_and_recovery_reset_is_bounded(monkeypatch) ->
              ("hurdle", 2.0, 0.15, 0.35), ("step", 2.0, 1.0, 0.2))
         )
     ]
-    setup = {
-        "task_template_id": "recover-from-fall",
-        "scene_preset_id": "flat-arena",
-        "objects": objects,
-    }
+    setup = _setup(
+        "recover-from-fall", robot_name="sample-quadruped.xml", objects=objects
+    )
     composed = compose_server_mjcf(_robot("sample-quadruped.xml").decode(), setup)
     assert all(
         f"server_object_{index}_{item['object_type']}" in composed
@@ -214,7 +223,7 @@ def test_custom_primitives_compose_and_recovery_reset_is_bounded(monkeypatch) ->
 def test_vector_factory_uses_seeded_generic_environments() -> None:
     vector = make_vectorized_env(
         _robot().decode(),
-        {"task_template_id": "walk-forward", "scene_preset_id": "flat-arena", "objects": []},
+        _setup("walk-forward"),
         seed=7,
         n_envs=2,
     )
@@ -236,14 +245,14 @@ def test_rejects_unsupported_tenant_world_features(addition: str, reason: str) -
     with pytest.raises(CustomRobotCompatibilityError, match=reason):
         compose_server_mjcf(
             xml,
-            {"task_template_id": "stand-balance", "scene_preset_id": "flat-arena", "objects": []},
+            _setup("stand-balance"),
         )
 
 
 def test_non_finite_action_fails_closed() -> None:
     env = CustomRobotEnv(
         _robot().decode(),
-        {"task_template_id": "stand-balance", "scene_preset_id": "flat-arena", "objects": []},
+        _setup("stand-balance"),
     )
     env.reset(seed=7)
     with pytest.raises(CustomRobotCompatibilityError, match="action-non-finite"):
@@ -254,7 +263,7 @@ def test_non_finite_action_fails_closed() -> None:
 def test_runaway_state_terminates_with_stable_reason() -> None:
     env = CustomRobotEnv(
         _robot().decode(),
-        {"task_template_id": "stand-balance", "scene_preset_id": "flat-arena", "objects": []},
+        _setup("stand-balance"),
     )
     env.reset(seed=7)
     env.data.qvel[env.root_dof_adr] = 251.0
@@ -377,3 +386,58 @@ def test_s3_loader_derives_prefix_only_from_opaque_identity() -> None:
     ]
     with pytest.raises(ValueError, match="unsafe"):
         input_prefix("../tenant", "preparation")
+
+
+@pytest.mark.parametrize(
+    ("robot_name", "height_fraction", "expected", "why"),
+    [
+        # Fractions are of ``reference_height``, so these are the numbers the measured
+        # runs reported.  The bar is 0.8 of the task's target, which differs by
+        # morphology -- 0.46 of reference for the quadruped, 0.72 for the biped -- and
+        # that difference is the point of the two 0.58 rows below.
+        #
+        # The biped crouch that prompted this check: it crossed the arena at 58% of its
+        # standing height, folded onto one knee, and scored 20/20 under the old
+        # criterion.
+        ("sample-biped.xml", 0.58, False, "the crouch that was certified as a gait"),
+        ("sample-biped.xml", 0.71, False, "still short of an upright biped stance"),
+        ("sample-biped.xml", 0.82, True, "the upright gait, at 0.98 of target"),
+        # The same 58% is a normal stance for the quadruped, which stands bent-legged at
+        # ~53% by nature.  A floor stated against reference height rather than target
+        # would fail this row and make the task unreachable.
+        ("sample-quadruped.xml", 0.58, True, "a normal quadruped gait"),
+        ("sample-quadruped.xml", 0.54, True, "the measured quadruped gait"),
+        ("sample-quadruped.xml", 0.45, False, "the crawl seen at an unreachable target"),
+    ],
+)
+def test_walk_forward_success_requires_a_standing_posture(
+    monkeypatch: pytest.MonkeyPatch,
+    robot_name: str,
+    height_fraction: float,
+    expected: bool,
+    why: str,
+) -> None:
+    """A rollout that travels folded down is not walking, however fast it goes.
+
+    Velocity and drift are both satisfied here; only the posture differs, so this fails
+    if the height term is ever dropped from the criterion.
+    """
+    env = CustomRobotEnv(
+        _robot(robot_name).decode(), _setup("walk-forward", robot_name=robot_name)
+    )
+    env.reset(seed=11)
+    env.steps = int(env.contract["episode_steps"])
+    # A read-only property on the class, so it is patched there rather than per instance.
+    monkeypatch.setattr(CustomRobotEnv, "mean_forward_velocity", property(lambda _: 0.8))
+    try:
+        assert (
+            env._success(
+                upright=0.99,
+                height=env.reference_height * height_fraction,
+                lateral_drift=0.05,
+                fallen=False,
+            )
+            is expected
+        ), why
+    finally:
+        env.close()

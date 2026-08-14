@@ -12,12 +12,15 @@ from sim2policy.custom_robot_contract import (
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
     SCHEMA_VERSION,
+    TASK_ROBOT_TYPES,
     TRAINING_PROFILE,
     TRAINING_PROFILE_VERSION,
     contract_summary,
+    evaluation_seeds,
     load_json_schema,
     preparation_fingerprint,
     profile_payloads,
+    target_height_scale,
     validate_safe_id,
 )
 
@@ -137,6 +140,54 @@ def test_profiles_are_fixed_and_bounded() -> None:
     assert TRAINING_PROFILE.timeout_seconds <= 10_800
     assert TRAINING_PROFILE.normalize_observations is True
     assert TRAINING_PROFILE.publish_best_checkpoint is True
+
+
+def test_evaluation_scores_as_many_distinct_seeds_as_it_reports_episodes() -> None:
+    """Twenty reported episodes must be twenty different initial conditions.
+
+    The previous rule collided at the shipped profile — base 37 at index 2 and base 23 at
+    index 16 both produced seed 39 — so one initial condition was scored twice and the
+    gate was computed over nineteen.  A measured biped run failed on that seed and lost
+    two of twenty rather than one of nineteen.
+    """
+    for seeds, episodes in (
+        (TRAINING_PROFILE.evaluation_seeds, TRAINING_PROFILE.evaluation_episodes),
+        (
+            TRAINING_PROFILE.progress_evaluation_seeds,
+            TRAINING_PROFILE.progress_evaluation_episodes,
+        ),
+    ):
+        drawn = evaluation_seeds(seeds, episodes)
+        assert len(drawn) == episodes
+        assert len(set(drawn)) == episodes, drawn
+        # Deterministic, and the first family is still the declared base seeds.
+        assert drawn == evaluation_seeds(seeds, episodes)
+        assert drawn[: len(seeds)] == tuple(seeds)[: len(drawn)]
+
+    # Far more episodes than base seeds still cannot collide.
+    many = evaluation_seeds((11, 23, 37, 53, 71), 500)
+    assert len(set(many)) == 500
+    with pytest.raises(ValueError, match="distinct"):
+        evaluation_seeds((7, 7), 4)
+    with pytest.raises(ValueError, match="stride"):
+        evaluation_seeds((7, 5000), 4)
+
+
+def test_every_task_states_a_height_target_for_every_robot_type_it_accepts() -> None:
+    """A morphology added without a measured target must fail here, not in training.
+
+    ``target_height_scale`` is per robot type for the locomotion tasks because the
+    quadruped walks at 0.54 of its spawn height and the biped at 0.88; falling back to
+    another morphology's number produces a target the robot cannot reach, and the height
+    reward's Gaussian is narrow enough that an unreachable target reads as no gradient
+    at all rather than as a hard task.
+    """
+    for task, robot_types in TASK_ROBOT_TYPES.items():
+        for robot_type in robot_types:
+            scale = target_height_scale(task, robot_type)
+            assert 0.0 < scale <= 1.0, (task, robot_type, scale)
+    with pytest.raises(KeyError, match="no target_height_scale"):
+        target_height_scale("walk-forward", "hexapod")
 
 
 def test_contract_summary_contains_complete_builder_matrix() -> None:

@@ -23,6 +23,7 @@ from sim2policy.custom_robot_contract import (
     TASK_CONTRACTS,
     canonical_json,
     sha256_bytes,
+    target_height_scale,
 )
 
 MAX_NQ = 128
@@ -400,6 +401,9 @@ class CustomRobotEnv(
             raise CustomRobotCompatibilityError("task-unsupported")
         self.scene_id = str(setup["scene_preset_id"])
         self.contract = TASK_CONTRACTS[self.task_id]
+        # Resolved once here rather than at each use: the contract may state this per
+        # robot type, and nothing downstream should have to know that.
+        self.target_height_scale = target_height_scale(self.task_id, str(setup["robot_type"]))
         free_joint = int(np.where(self.model.jnt_type == mujoco.mjtJoint.mjJNT_FREE)[0][0])
         self.root_body_id = int(self.model.jnt_bodyid[free_joint])
         self.root_qpos_adr = int(self.model.jnt_qposadr[free_joint])
@@ -605,7 +609,7 @@ class CustomRobotEnv(
         fall_terminates = fallen and self.task_id != "recover-from-fall"
         terminated = (not finite) or runaway or fall_terminates
         truncated = self.steps >= int(self.contract["episode_steps"])
-        target_height = self.reference_height * float(self.contract["target_height_scale"])
+        target_height = self.reference_height * self.target_height_scale
         height_score = math.exp(
             -(((height - target_height) / max(target_height * 0.25, 0.05)) ** 2)
         )
@@ -743,7 +747,7 @@ class CustomRobotEnv(
         if fallen:
             return False
         if self.task_id in {"stand-balance", "recover-from-fall"}:
-            target = self.reference_height * float(self.contract["target_height_scale"])
+            target = self.reference_height * self.target_height_scale
             root_speed = float(
                 np.linalg.norm(self.data.qvel[self.root_dof_adr : self.root_dof_adr + 3])
             )
@@ -774,10 +778,21 @@ class CustomRobotEnv(
         # same intent — sustained forward travel in a straight line — and is stricter in
         # the ways that matter, because it also requires the robot to survive to the
         # horizon rather than to look good on one lucky timestep.
+        #
+        # The height term is new in v12 and closes the gap that let a crouch be certified
+        # as walking.  Until then this criterion was survive + velocity + drift with no
+        # posture requirement at all, so a policy that travelled at 54-58% of its standing
+        # height -- knees folded, torso low -- scored 20/20 and was reported as a clean
+        # gait.  Nothing in the metrics contradicted it: the termination floor sits far
+        # below that, and ``stand-balance`` is the only task that ever checked posture.
+        # The bar is deliberately well under the height the reward asks for, so it rejects
+        # a crawl without dictating a gait's natural knee bend.
+        target = self.reference_height * self.target_height_scale
         return bool(
             self.steps >= int(self.contract["episode_steps"])
             and self.mean_forward_velocity >= float(self.contract["success_min_velocity"])
             and lateral_drift <= float(self.contract["success_max_lateral_drift"])
+            and height >= target * float(self.contract["success_min_height_of_target"])
         )
 
     def render(self) -> Any:

@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v11` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v12` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -62,6 +62,16 @@ configured runaway position/velocity, and the fixed horizon remain universal bou
 thresholds, coefficients, and evaluation rules are recorded in resolved configuration; users cannot
 edit them.
 
+Walk Forward also requires a posture: the body must be at or above `success_min_height_of_target`
+(0.8) of the height the task's reward asked for. Until v12 the criterion was survive + velocity +
+drift and nothing else, so a policy that crossed the arena folded onto one knee at 58% of its
+standing height scored 20/20 and was reported as a clean gait — the termination floor sits far below
+a crouch, and Stand Balance was the only task that ever checked height. The bar is a fraction of the
+*target* rather than of `reference_height` so that it needs no per-morphology table of its own: 0.8
+of reference would pass the biped and fail the quadruped outright, which walks at 0.54 of its spawn
+height by nature. Measured fraction of target reached at the shipped targets is 0.97 (biped) and
+0.88 (quadruped) against a 0.50 crawl.
+
 `task_threshold_achieved` is `success_rate >= 0.9`, and the bar travels with the metrics as
 `task_success_rate_threshold`. It was every episode until v11, which is not a sound rule for a
 twenty-seed sample of a stochastic rollout: at a per-episode success rate of 0.95 an all-or-nothing
@@ -69,6 +79,14 @@ gate reports failure about two runs in three, and even a policy losing one episo
 marked failing 18% of the time. Two runs of the same revision measured that directly — a quadruped
 scoring 20/20 and passing, a biped scoring 19/20 and being reported below threshold on the strength
 of one initial pose. The measured `success_rate` is always reported next to the boolean.
+
+Those twenty episodes must be twenty *distinct* initial conditions, which they were not before v12.
+The seed rule was `base[index % len(base)] + index`, which collides whenever two base seeds differ
+by a multiple of the number of base seeds; at the shipped profile base 37 at index 2 and base 23 at
+index 16 both produce seed 39. The gate therefore sampled nineteen conditions and counted one twice
+— and in a measured biped run that duplicated seed was the failing one, scoring the policy 0.90
+instead of the 18/19 it earned. `evaluation_seeds()` now spaces the families by a stride larger than
+any base seed, and rejects duplicate or oversized base seeds rather than silently colliding.
 
 **Recover From Fall cannot currently be completed by the sample quadruped**, and this is a property
 of the robot rather than of the thresholds. The reset rolls the body 1.2–1.45 rad about world X,
@@ -91,8 +109,34 @@ resting pose and starts sampling a fall. Because the sample scales every thresho
 success band a per-episode random variable — measured spread across the twenty evaluation seeds was
 0.2908 m (quadruped) and 0.3503 m (biped) at 20 steps against 0.0009 m at 5 — and it left the
 low-sample episodes starting from a stationary but half-collapsed pose, since `qvel` is zeroed
-afterwards. A five-step settle reports the resting pose for both shipped robot types, which is what
-lets one `target_height_scale` serve a 0.55 m quadruped and a 0.92 m biped.
+afterwards. A five-step settle reports the resting pose for both shipped robot types.
+
+That resting pose is not the same *kind* of pose for both, which is why `target_height_scale` is
+stated per robot type for the two locomotion tasks. The biped's spawn pose is already a standing
+pose and a trained policy keeps 88% of it; the quadruped spawns with its legs extended beneath it
+and walks bent-legged at ~54%, which is normal for the shape rather than a crouch. A single scale
+was measured both ways at the production profile and each choice broke one robot. The shipped
+rows are the published-checkpoint scores over twenty distinct seeds; the rejected rows are noted
+where they came from a different harness.
+
+| robot | scale | asks for | stand | walk | posture |
+| --- | --- | --- | --- | --- | --- |
+| **quadruped** | **0.575** | 0.339 | **20/20**, h 0.314 | **20/20**, h 0.298 | bent-leg stance and stride |
+| quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95 final-policy, h 0.264 | crawling at 45% of reference |
+| biped | 0.575 | 0.537 | 0.95 in production, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
+| **biped** | **0.900** | 0.840 | **18/20**, h 0.807–0.840 | **20/20**, h 0.811 | upright torso, extended stride |
+| biped | 0.800 | 0.747 | 20/20, h 0.694 | not measured | squat: knees folded, torso pitched back |
+
+The quadruped-at-0.9 stand row scored 0.0 at *every* checkpoint from 500k to 3M, so best-checkpoint
+selection cannot rescue it. The biped-at-0.8 row is the reason the biped's 18/20 is left alone: the
+extra two episodes are bought with a crouch.
+
+The quadruped gets *worse* when asked for more, because the height term is a Gaussian of width
+`target * 0.25`: at a target the robot cannot reach the term is flat, so nothing opposes trading
+height for velocity and the policy settles into a crawl. An unreachable target therefore reads as
+no gradient rather than as a hard task, which is the failure mode the per-type table exists to
+prevent. `target_height_scale(task, robot_type)` resolves it, and raises for a robot type the task
+accepts but has no measured target for.
 
 ## Profiles and fingerprint
 

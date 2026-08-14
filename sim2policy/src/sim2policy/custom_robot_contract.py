@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v11"
+REWARD_VERSION = "locomotion-rewards-v12"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
@@ -174,15 +174,36 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
     "stand-balance": {
         "version": REWARD_VERSION,
         "episode_steps": 1000,
-        # v3 scaled the target off ``reference_height``, which is sampled after only
-        # ``settle_steps`` of zero control — while a primitive robot is still dropping.
-        # For the sample quadruped that reads 0.4457, putting the success band at
-        # [0.301, 0.501]; the tallest posture it can actually hold is ~0.29, so every
-        # run scored success_rate 0 no matter how long it trained. Measured locally at
-        # the production profile (16 envs, VecNormalize, 256x256): baseline 0.10 vs
-        # 0.90 here, both converging to h~0.27 — the ceiling is the robot's geometry,
-        # not the training budget. 0.575 centres the band on that reachable height.
-        "target_height_scale": 0.575,
+        # How tall to stand, as a fraction of ``reference_height``.
+        #
+        # Per robot type, because ``reference_height`` does not mean the same thing for
+        # both.  It is the height the robot rests at under zero control, and how much of
+        # that a robot can still use once it has to hold itself up depends on its
+        # morphology: the biped's spawn pose is already a standing pose and it keeps 88%
+        # of it, while the quadruped spawns with its legs extended beneath it and adopts
+        # a bent-leg stance at ~53% — normal for the shape, not a crouch.
+        #
+        # A single scale was tried both ways and each choice broke one robot.  Measured
+        # at the production profile (16 envs, VecNormalize, 256x256, 3M steps):
+        #
+        #   robot       scale   asks for   reaches   stand   walk
+        #   quadruped   0.575     0.339     0.318    20/20   17-20/20
+        #   quadruped   0.900     0.530     0.264     0/20   19/20 crawling
+        #   biped       0.575     0.537     0.539    19/20   20/20 crouched
+        #   biped       0.900     0.840     0.822    (below) 20/20 upright
+        #
+        # The quadruped gets *worse* when asked for more, which is the height term's
+        # Gaussian going flat: its width is target*0.25, so at an unreachable target the
+        # gradient vanishes and the policy drops height to buy velocity instead.
+        #
+        # The biped stands at 18/20 here, which clears the 0.9 rate but only just, so 0.8
+        # was measured as a candidate: it scores a clean 20/20 with zero falls, and it
+        # crouches -- height 0.694 against 0.807-0.840, upright 0.970 against 0.999,
+        # knees folded and torso pitched back.  Standing on near-straight legs is an
+        # inverted pendulum with little recovery authority, so the two lost episodes buy
+        # a posture that is actually standing.  That is the trade this contract takes;
+        # do not "fix" the 18/20 by lowering this number without looking at the render.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.575},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -214,12 +235,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
     "walk-forward": {
         "version": REWARD_VERSION,
         "episode_steps": 1000,
-        # v4 carried the same 0.9 scale that was measured wrong for stand-balance: it is
-        # taken off ``reference_height`` (0.4457 for the sample quadruped), so it asked
-        # for a 0.401 body height that a primitive robot cannot hold — the tallest
-        # posture it can sustain is ~0.29.  0.575 centres the height term on the posture
-        # the robot actually walks at.
-        "target_height_scale": 0.575,
+        # Same per-morphology targets as stand-balance, and set from the same
+        # measurements — see the table there.  Walking is where a mis-set target is most
+        # visible: at 0.575 the biped crossed the arena folded onto one knee at 58% of
+        # its stance and every metric called it a clean gait.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.575},
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,
@@ -240,6 +260,24 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "lateral_tolerance": 0.75,
         "success_min_velocity": 0.35,
         "success_max_lateral_drift": 1.5,
+        # Minimum body height for a rollout to count as walking, as a fraction of the
+        # height this task's reward asked for — not of ``reference_height``, so it needs
+        # no per-morphology table of its own and stays meaningful for any target.
+        #
+        # Without it the criterion was survive + velocity + drift and nothing else, so a
+        # policy that crossed the arena folded down scored 20/20 and was reported as a
+        # gait.  A floor stated against ``reference_height`` would have been the same
+        # mistake one level down: 0.7 of it passes the biped and fails the quadruped
+        # outright, which walks at 0.54 of its spawn height by nature.
+        #
+        # Measured fraction of target reached at the shipped targets: biped 0.97
+        # (height 0.811 of 0.840), quadruped 0.88 (0.298 of 0.339); the crawl that
+        # prompted this check reached 0.50.  0.8 clears both gaits -- every one of the
+        # forty evaluation episodes across the two robots is above it -- and still
+        # rejects the crawl.  The quadruped's 8 points of headroom is the tighter of the
+        # two and is what to re-measure if this bar is ever raised: the point is to
+        # reject a crawl, not to legislate how much a walking robot may bend its knees.
+        "success_min_height_of_target": 0.8,
         "weights": {
             # Halved from the balance tasks' 1.0.  Standing still collected
             # alive + upright + height ~= 2.6 per step for free while walking added at
@@ -306,6 +344,56 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         },
     },
 }
+
+
+# Spacing between the seed families the evaluation draws from.  Larger than any base seed
+# so families cannot overlap; see ``evaluation_seeds``.
+EVALUATION_SEED_STRIDE = 1000
+
+
+def evaluation_seeds(base_seeds: tuple[int, ...], episodes: int) -> tuple[int, ...]:
+    """The distinct initial conditions an evaluation scores, in order.
+
+    The rule was ``base[index % len(base)] + index``, which collides whenever two base
+    seeds differ by a multiple of the number of base seeds.  It does for the shipped
+    twenty-episode profile: base 37 at index 2 and base 23 at index 16 both give 39, so
+    the gate sampled nineteen initial conditions and counted one of them twice.  That is
+    not a rounding detail — a measured biped run failed on exactly that seed and was
+    scored 0.90 instead of the 18/19 = 0.947 it actually achieved, which is the
+    difference between sitting on the threshold and clearing it.
+
+    Walking the families apart by a stride larger than any base seed keeps the intent
+    (one deterministic family per base seed) while making collisions impossible.
+    """
+    if episodes < 0:
+        raise ValueError("episodes must not be negative")
+    if not base_seeds:
+        raise ValueError("at least one base seed is required")
+    if len(set(base_seeds)) != len(base_seeds):
+        raise ValueError("base seeds must be distinct")
+    if max(base_seeds) >= EVALUATION_SEED_STRIDE:
+        raise ValueError("base seeds must be smaller than the family stride")
+    count = len(base_seeds)
+    return tuple(
+        base_seeds[index % count] + (index // count) * EVALUATION_SEED_STRIDE
+        for index in range(episodes)
+    )
+
+
+def target_height_scale(task_id: str, robot_type: str) -> float:
+    """Resolve ``target_height_scale``, which may be stated per robot type.
+
+    A plain number applies to every robot type the task accepts; a mapping states one
+    value per type and must cover all of them, so a robot type added to
+    ``TASK_ROBOT_TYPES`` without a measured target fails loudly here rather than
+    silently training against another morphology's number.
+    """
+    scale = TASK_CONTRACTS[task_id]["target_height_scale"]
+    if not isinstance(scale, dict):
+        return float(scale)
+    if robot_type not in scale:
+        raise KeyError(f"{task_id} has no target_height_scale for robot type {robot_type!r}")
+    return float(scale[robot_type])
 
 SCENE_CONTRACTS: dict[str, dict[str, Any]] = {
     "flat-arena": {
