@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v17` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v18` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -162,10 +162,11 @@ seeds, and the rejected rows are noted where they came from a different harness.
 | --- | --- | --- | --- | --- | --- |
 | quadruped | 0.575 | 0.339 | 20/20, h 0.314 | 20/20, h 0.313–0.319 | **kneeling — shins on the floor** |
 | quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95, h 0.264 | crawling at 45% of reference |
-| **quadruped** | **0.850** | 0.501 | *v17, being measured* | *v17, being measured* | knees clear of the floor |
+| quadruped | 0.850 | 0.501 | 17/20, h 0.286–0.394 | 9/20, 45% falls | **on its feet**, but reaching |
+| **quadruped** | **0.620 / 0.550** | 0.365 / 0.324 | *v18, being measured* | *v18, being measured* | on its feet |
 | biped | 0.575 | 0.537 | 0.95, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
 | biped | 0.800 | 0.747 | 20/20, h 0.694 | not measured | squat: knees folded, torso pitched back |
-| **biped** | **0.850** | 0.794 | **20/20**, h 0.776–0.786 | **20/20**, h 0.782–0.851 | upright torso, extended stride |
+| **biped** | **0.850** | 0.794 | **20/20**, h 0.776–0.786 | **18/20**, h 0.300–0.902 | upright torso, extended stride |
 | biped | 0.900 | 0.840 | 17/20, h 0.741–0.798 | 20/20 | upright, but three falls at steps 108–185 |
 
 Both 0.575 rows are the same failure wearing different numbers: 0.34 m is a kneel for the quadruped
@@ -173,10 +174,28 @@ and 0.54 m is one knee down for the biped, and both scored 20/20 on walk. The sc
 are worth exactly what the posture column is worth — which is why v17 measures posture directly
 rather than inferring it from the score.
 
-The quadruped-at-0.9 stand row scored 0.0 at *every* checkpoint from 500k to 3M, so best-checkpoint
-selection cannot rescue it. That row was taken under the v13 reward, which had neither a
-ground-contact cost nor success-first checkpoint ranking; whether 0.9 is genuinely out of reach or
-was simply losing to a cheaper local optimum is the question v17's 0.85 row settles.
+**The quadruped's 0.85 row is the one to read carefully, because it separates the two changes.** The
+posture fix worked: eighteen of twenty stand-balance episodes spent under 0.3% of their steps
+touching the ground with anything but a foot, against the 0.55–0.64 a kneeling robot reads, and the
+render shows the body carried on the four leg tips. The height ask did not: the robot held
+0.286–0.394 against 0.501, one episode was rejected purely for standing at 0.360, and the walk cell
+fell in nine of twenty trying to carry a gait that tall. So the target came down to what the robot
+demonstrably holds — 0.62 standing, 0.55 walking, the latter lower because this robot walks in a
+crouch.
+
+That lands the quadruped's target back near v16's 0.575, and it is worth being explicit about why
+that is not a circle. **v16 stood at 0.314 on its knees; v18 stands at ~0.35 on its feet.** The
+height barely moved because the height was never what was wrong — a quadruped kneels at very nearly
+the height it stands at, and the two are separated only by what is carrying it.
+
+The quadruped-at-0.9 stand row scored 0.0 at *every* checkpoint from 500k to 3M under the v13
+reward. The 0.85 row settles what that meant: with a ground-contact cost and success-first
+checkpoint ranking in place, the same robot reaches 17/20 at a nearly-as-high target, so the earlier
+collapse was losing to a cheaper local optimum rather than hitting a physical ceiling. Actuator
+torque is not the ceiling either — holding the tall stance needs 15.7 N·m of the 45 N·m available,
+*less* than the 25.2 N·m the crouch needs. What the robot runs out of is balance authority: all
+eight of its joints are pitch-only, so it cannot correct roll except through differential leg
+extension, which is weakest when the legs are straight.
 
 The biped's 0.85 is the interesting row, and the rule it illustrates is *ask for a height the robot
 can actually hold*. At 0.90 the policy strains for 0.840 and only ever reaches 0.741–0.798, and the

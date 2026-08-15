@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v17"
+REWARD_VERSION = "locomotion-rewards-v18"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -236,7 +236,22 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # for the shape, not a crouch", which was wrong; it was measuring the pose the
         # target had asked for.  See ``success_max_unsupported_contact`` for the check
         # that now states the posture instead of hoping height implies it.
-        "target_height_scale": {"biped": 0.85, "quadruped": 0.85},
+        #
+        # v17 first tried 0.85 here, on the reasoning that both robots should stand at
+        # the same fraction of their resting height.  Measured on Nebius that scored
+        # 17/20: the robot did get off its knees -- eighteen of twenty episodes spent
+        # under 0.3% of their steps touching the ground with anything but a foot -- but
+        # it held 0.286-0.394 against an ask of 0.501, and one episode was rejected for
+        # standing at 0.360 rather than for anything wrong with its posture.
+        #
+        # 0.62 asks for 0.365, which is inside the band the robot demonstrably holds
+        # (every one of those twenty heights falls in the resulting 0.274-0.456 success
+        # window).  It is the same rule the biped's 0.85 came from: ask for a height the
+        # robot can actually hold.  That the number lands near v16's 0.575 is the point
+        # worth remembering -- the height was never what was wrong.  A quadruped on its
+        # feet and a quadruped on its knees stand at almost the same height, and only
+        # ``success_max_unsupported_contact`` can tell them apart.
+        "target_height_scale": {"biped": 0.85, "quadruped": 0.62},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -289,8 +304,16 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # its stance and every metric called it a clean gait.  The quadruped was doing the
         # same thing at the same number and it took a render to see it — dragging itself
         # forward on its shins with its knees on the floor, at the exact height the reward
-        # asked for.  Raised to match stand-balance for the reason set out there.
-        "target_height_scale": {"biped": 0.9, "quadruped": 0.85},
+        # asked for.
+        #
+        # Lower than the quadruped's stand-balance target rather than equal to it, which
+        # is what the measurement says and also what you would expect: this robot walks
+        # in a crouch.  At 0.85 the walk cell fell in nine of twenty episodes -- the
+        # height term was paying it to carry a tall gait it cannot balance, and the
+        # surviving episodes had dropped to ~0.30 anyway.  0.55 asks for 0.324, which is
+        # where the episodes that survived actually walked, and puts the posture floor
+        # (0.8 of target) at 0.259 so a working gait has room to bob without tripping it.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.55},
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,

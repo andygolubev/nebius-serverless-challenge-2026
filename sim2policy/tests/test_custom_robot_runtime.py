@@ -392,23 +392,18 @@ def test_s3_loader_derives_prefix_only_from_opaque_identity() -> None:
     ("robot_name", "height_fraction", "expected", "why"),
     [
         # Fractions are of ``reference_height``, so these are the numbers the measured
-        # runs reported.  The bar is 0.8 of the task's target, which still differs by
-        # morphology -- 0.68 of reference for the quadruped, 0.72 for the biped -- which
-        # is what the two 0.70 rows below are for.
+        # runs reported.  The bar is 0.8 of the task's target, which differs by
+        # morphology -- 0.44 of reference for the quadruped, 0.72 for the biped -- which
+        # is what the two 0.50 rows below are for.
         #
         # The biped crouch that prompted this check: it crossed the arena at 58% of its
         # standing height, folded onto one knee, and scored 20/20 under the old
         # criterion.
         ("sample-biped.xml", 0.58, False, "the crouch that was certified as a gait"),
-        ("sample-biped.xml", 0.70, False, "clears the quadruped's bar, not the biped's"),
+        ("sample-biped.xml", 0.50, False, "clears the quadruped's bar, not the biped's"),
         ("sample-biped.xml", 0.82, True, "the upright gait, at 0.91 of target"),
-        ("sample-quadruped.xml", 0.70, True, "a quadruped gait with its knees off the floor"),
-        # 0.58 of reference is 0.34 m, and the quadruped's knees sit 0.28 m below its
-        # torso: this row is the robot on its knees.  It read True until v17, because the
-        # bar is stated against a target that was itself set to 0.575 -- the criterion
-        # moved with the mistake it was supposed to catch.
-        ("sample-quadruped.xml", 0.58, False, "the kneeling posture v16 shipped"),
-        ("sample-quadruped.xml", 0.45, False, "the crawl seen at an unreachable target"),
+        ("sample-quadruped.xml", 0.50, True, "a normal quadruped gait, at 0.29 m"),
+        ("sample-quadruped.xml", 0.35, False, "dragging along at 0.21 m"),
     ],
 )
 def test_walk_forward_success_requires_a_standing_posture(
@@ -420,8 +415,14 @@ def test_walk_forward_success_requires_a_standing_posture(
 ) -> None:
     """A rollout that travels folded down is not walking, however fast it goes.
 
-    Velocity and drift are both satisfied here; only the posture differs, so this fails
-    if the height term is ever dropped from the criterion.
+    Velocity and drift are both satisfied here; only the height differs, so this fails if
+    the height term is ever dropped from the criterion.
+
+    Note what this bar does *not* catch, which
+    ``test_height_floor_alone_cannot_reject_a_kneeling_quadruped`` pins directly: a
+    quadruped kneels at very nearly the height it walks at, so no floor stated in metres
+    separates the two for that morphology.  ``success_max_unsupported_contact`` is what
+    does.
     """
     env = CustomRobotEnv(
         _robot(robot_name).decode(), _setup("walk-forward", robot_name=robot_name)
@@ -441,6 +442,46 @@ def test_walk_forward_success_requires_a_standing_posture(
             )
             is expected
         ), why
+    finally:
+        env.close()
+
+
+def test_height_floor_alone_cannot_reject_a_kneeling_quadruped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The reason ``ground_contact`` exists, stated as an assertion rather than a comment.
+
+    The sample quadruped's shipped policy knelt at 0.314 m and its measured standing
+    policy holds 0.286-0.394 m.  Those overlap, so *any* height floor low enough to pass
+    the gait it can actually walk is also low enough to pass the kneel — including this
+    one.  A future change that lowers the target further is not making the check weaker,
+    because the check was never doing this job.
+    """
+    env = CustomRobotEnv(
+        _robot("sample-quadruped.xml").decode(),
+        _setup("walk-forward", robot_name="sample-quadruped.xml"),
+    )
+    try:
+        env.reset(seed=11)
+        env.steps = int(env.contract["episode_steps"])
+        # A kneeling quadruped travels: the measured v16 policy dragged itself across the
+        # arena at 0.80 m/s, which is why every other criterion here is satisfied.
+        monkeypatch.setattr(CustomRobotEnv, "mean_forward_velocity", property(lambda _: 0.8))
+        kneeling = 0.314
+        floor = (
+            env.reference_height
+            * env.target_height_scale
+            * float(env.contract["success_min_height_of_target"])
+        )
+        assert kneeling > floor, "if this ever inverts, re-read the docstring before relying on it"
+        assert env._success(
+            upright=0.99, height=kneeling, lateral_drift=0.05, fallen=False,
+            unsupported_contact_rate=0.0,
+        ), "height and velocity alone certify the kneel"
+        assert not env._success(
+            upright=0.99, height=kneeling, lateral_drift=0.05, fallen=False,
+            unsupported_contact_rate=0.6,
+        ), "what it was standing on is the only thing that rejects it"
     finally:
         env.close()
 

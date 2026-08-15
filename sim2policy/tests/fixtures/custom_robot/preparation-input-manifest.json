@@ -1,9 +1,9 @@
 {
   "adapter_version": "custom-robot-sb3-v2",
-  "fingerprint": "3b41590d5aeb6a43ce2543b6d0bba0ec86d43d8ddcb9aae7f0e53b339a608df7",
+  "fingerprint": "69b3ff01831b95bc95ae1d4353b95fca983a0c57ba0c3c09296d41d2efdb164d",
   "preparation_id": "preparation-fixture",
   "preparation_profile_version": "custom-prepare-v1",
-  "reward_version": "locomotion-rewards-v17",
+  "reward_version": "locomotion-rewards-v18",
   "robot": {
     "id": "robot-fixture",
     "path": "robot.xml",
