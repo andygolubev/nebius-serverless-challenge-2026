@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v13"
+REWARD_VERSION = "locomotion-rewards-v14"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -301,18 +301,26 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # that crept lower and lower until it clipped the fall line: measured runs
             # stayed upright but fell in 20% of evaluation episodes.
             #
-            # Doubled in v13.  At 0.6 the tall gait was worth too little to be worth
-            # reaching for: the height term pays 0.6 * 0.19 = 0.11/step at the crouch the
-            # biped settles into (0.571) against 0.6 * 0.98 = 0.59/step at the gait it
-            # should have (0.811), so the whole upright posture was a ~13% reward
-            # improvement bought by raising the torso mid-stride with a fall penalty if
-            # it goes wrong.  The measured Nebius run never took that trade -- success
-            # 0.000 at all twelve checkpoints while reward climbed 178 -> 3493 -- and the
-            # local run only found it at the very last checkpoint.  1.2 makes the gap
-            # 0.23 against 1.18/step.  Kept below ``forward_velocity`` so the task is
-            # still to walk: a robot that stands tall and stops fails
-            # ``success_min_velocity`` regardless.
-            "height": 1.2,
+            # Raised twice, from 0.6, because the tall gait was not worth reaching for.
+            # At 0.6 the height term paid 0.11/step at the crouch the biped settled into
+            # (0.571) against 0.59/step at the gait it should have, so the whole upright
+            # posture was a ~13% reward improvement bought by raising the torso mid-stride
+            # with a fall penalty if it goes wrong.  The Nebius run never took that trade:
+            # success 0.000 at all twelve checkpoints while reward climbed 178 -> 3493.
+            #
+            # 1.2 moved it most of the way -- height 0.571 -> 0.720 and success 0.00 ->
+            # 0.65 -- but left the distribution straddling the success floor of 0.672:
+            # thirteen episodes landed at 0.683-0.822 and seven at 0.609-0.652, with every
+            # episode surviving the full horizon, zero falls, velocity 0.75-0.79 and drift
+            # under 0.15.  Height was the only thing separating pass from fail.
+            #
+            # 2.0 because that measurement also shows the trade-off has not started to
+            # bite: the 0.822 episodes held the same 0.76 velocity as the 0.61 ones, so
+            # buying height is not yet costing speed.  Now equal to ``forward_velocity``
+            # rather than below it, which is the point past which this should not go
+            # without re-measuring -- a robot that stands tall and stops still fails
+            # ``success_min_velocity``, but the reward would no longer prefer walking.
+            "height": 2.0,
             # A cost, not a bonus — see the reward term for why v7's bonus form taught
             # the robot to stand still.  Kept below the forward-velocity weight so that
             # walking off course still beats not walking at all.
