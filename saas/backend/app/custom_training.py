@@ -17,7 +17,7 @@ from .models import PreparationAttempt, PreparationSummary, RobotAsset, RobotSet
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v15"
+REWARD_VERSION = "locomotion-rewards-v16"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"

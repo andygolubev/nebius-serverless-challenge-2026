@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v15"
+REWARD_VERSION = "locomotion-rewards-v16"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -203,14 +203,29 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # Gaussian going flat: its width is target*0.25, so at an unreachable target the
         # gradient vanishes and the policy drops height to buy velocity instead.
         #
-        # The biped stands at 18/20 here, which clears the 0.9 rate but only just, so 0.8
-        # was measured as a candidate: it scores a clean 20/20 with zero falls, and it
-        # crouches -- height 0.694 against 0.807-0.840, upright 0.970 against 0.999,
-        # knees folded and torso pitched back.  Standing on near-straight legs is an
-        # inverted pendulum with little recovery authority, so the two lost episodes buy
-        # a posture that is actually standing.  That is the trade this contract takes;
-        # do not "fix" the 18/20 by lowering this number without looking at the render.
-        "target_height_scale": {"biped": 0.9, "quadruped": 0.575},
+        # The biped's 0.85 is measured, not split-the-difference.  Three values were run
+        # to convergence on Nebius, and what matters is the gap between what each asks for
+        # and what the policy actually holds:
+        #
+        #   scale   asks for   holds          result
+        #   0.80      0.747     0.694         20/20, but a squat: upright 0.970, knees
+        #                                     folded, torso pitched back
+        #   0.90      0.840     0.741-0.798   17/20, upright 1.000, three falls at steps
+        #                                     108-185
+        #   0.85      0.794     (this)        asks for a height inside the band the 0.90
+        #                                     policy already holds
+        #
+        # At 0.90 the robot strains for 0.840 and never reaches it, and standing on
+        # near-straight legs is an inverted pendulum with little recovery authority -- the
+        # three lost episodes are falls, not posture failures.  0.85 asks for what the
+        # policy demonstrably already holds, so the height term stops competing with
+        # balance.  It should not reproduce the 0.80 squat either: that ask was 0.747 and
+        # the policy settled 7% under it at 0.694, whereas 0.794 sits inside the measured
+        # 0.741-0.798 band.
+        #
+        # Check the render before moving this again.  0.80 scores better and looks worse,
+        # which is the whole reason this task has a posture requirement at all.
+        "target_height_scale": {"biped": 0.85, "quadruped": 0.575},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
