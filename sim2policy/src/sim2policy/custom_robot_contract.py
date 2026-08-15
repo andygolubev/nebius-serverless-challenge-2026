@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v14"
+REWARD_VERSION = "locomotion-rewards-v15"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -314,13 +314,21 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # episode surviving the full horizon, zero falls, velocity 0.75-0.79 and drift
             # under 0.15.  Height was the only thing separating pass from fail.
             #
-            # 2.0 because that measurement also shows the trade-off has not started to
-            # bite: the 0.822 episodes held the same 0.76 velocity as the 0.61 ones, so
-            # buying height is not yet costing speed.  Now equal to ``forward_velocity``
-            # rather than below it, which is the point past which this should not go
-            # without re-measuring -- a robot that stands tall and stops still fails
-            # ``success_min_velocity``, but the reward would no longer prefer walking.
-            "height": 2.0,
+            # 2.0 was measured and overshoots: the biped stood at 0.867 and stopped dead,
+            # velocity 0.01, success 0.00.  It fails the velocity bound instead of the
+            # posture floor.  1.5 bisects the bracket -- 1.2 walks at 0.720 with its worst
+            # episode 0.063 short of the floor, 2.0 freezes -- and sits nearer the end
+            # known to produce a gait.
+            #
+            # The trap is specific to the biped, and the quadruped shows why: it walks at
+            # 0.314 and stands at 0.314, so no height weight can pay it to stop, and it
+            # scored 0.95 at both 1.2 and 2.0.  The biped walks at ~0.72 but stands at
+            # ~0.87, so every increase in this weight raises the payoff for freezing.
+            # Note the reward still *prefers* walking at 2.0 -- a stationary robot loses
+            # about 1.8/step on the velocity term against the ~0.5/step it gains on height
+            # -- so this is PPO converging to the easy behaviour first, not the reward
+            # ranking them wrongly.  Raising this further will not fix that; it deepens it.
+            "height": 1.5,
             # A cost, not a bonus — see the reward term for why v7's bonus form taught
             # the robot to stand still.  Kept below the forward-velocity weight so that
             # walking off course still beats not walking at all.
