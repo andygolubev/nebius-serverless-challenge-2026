@@ -392,21 +392,22 @@ def test_s3_loader_derives_prefix_only_from_opaque_identity() -> None:
     ("robot_name", "height_fraction", "expected", "why"),
     [
         # Fractions are of ``reference_height``, so these are the numbers the measured
-        # runs reported.  The bar is 0.8 of the task's target, which differs by
-        # morphology -- 0.46 of reference for the quadruped, 0.72 for the biped -- and
-        # that difference is the point of the two 0.58 rows below.
+        # runs reported.  The bar is 0.8 of the task's target, which still differs by
+        # morphology -- 0.68 of reference for the quadruped, 0.72 for the biped -- which
+        # is what the two 0.70 rows below are for.
         #
         # The biped crouch that prompted this check: it crossed the arena at 58% of its
         # standing height, folded onto one knee, and scored 20/20 under the old
         # criterion.
         ("sample-biped.xml", 0.58, False, "the crouch that was certified as a gait"),
-        ("sample-biped.xml", 0.71, False, "still short of an upright biped stance"),
-        ("sample-biped.xml", 0.82, True, "the upright gait, at 0.98 of target"),
-        # The same 58% is a normal stance for the quadruped, which stands bent-legged at
-        # ~53% by nature.  A floor stated against reference height rather than target
-        # would fail this row and make the task unreachable.
-        ("sample-quadruped.xml", 0.58, True, "a normal quadruped gait"),
-        ("sample-quadruped.xml", 0.54, True, "the measured quadruped gait"),
+        ("sample-biped.xml", 0.70, False, "clears the quadruped's bar, not the biped's"),
+        ("sample-biped.xml", 0.82, True, "the upright gait, at 0.91 of target"),
+        ("sample-quadruped.xml", 0.70, True, "a quadruped gait with its knees off the floor"),
+        # 0.58 of reference is 0.34 m, and the quadruped's knees sit 0.28 m below its
+        # torso: this row is the robot on its knees.  It read True until v17, because the
+        # bar is stated against a target that was itself set to 0.575 -- the criterion
+        # moved with the mistake it was supposed to catch.
+        ("sample-quadruped.xml", 0.58, False, "the kneeling posture v16 shipped"),
         ("sample-quadruped.xml", 0.45, False, "the crawl seen at an unreachable target"),
     ],
 )
@@ -436,8 +437,77 @@ def test_walk_forward_success_requires_a_standing_posture(
                 height=env.reference_height * height_fraction,
                 lateral_drift=0.05,
                 fallen=False,
+                unsupported_contact_rate=0.0,
             )
             is expected
         ), why
+    finally:
+        env.close()
+
+
+@pytest.mark.parametrize("robot_name", ["sample-quadruped.xml", "sample-biped.xml"])
+def test_support_geoms_are_the_ones_the_robot_settles_onto(robot_name: str) -> None:
+    """"Foot" is measured, not declared, and both sample robots must resolve to all of theirs.
+
+    The quadruped is the case that matters: settling it through ``reset`` returns two of
+    its four shin tips, because the reset's joint noise drops it onto a diagonal pair.
+    Half a support set would make ordinary standing read as unsupported contact, so this
+    pins the noise-free probe rather than the reset.
+    """
+    env = CustomRobotEnv(
+        _robot(robot_name).decode(), _setup("stand-balance", robot_name=robot_name)
+    )
+    try:
+        names = sorted(
+            mujoco.mj_id2name(env.model, mujoco.mjtObj.mjOBJ_GEOM, geom)
+            for geom in env.support_geoms
+        )
+        assert names == (
+            [
+                "front_left_lower_geom",
+                "front_right_lower_geom",
+                "rear_left_lower_geom",
+                "rear_right_lower_geom",
+            ]
+            if "quadruped" in robot_name
+            else ["left_foot_geom", "right_foot_geom"]
+        )
+    finally:
+        env.close()
+
+
+def test_kneeling_is_scored_as_unsupported_contact() -> None:
+    """The posture the user reported: knees on the floor, shins flat, torso level.
+
+    Driven here by holding the knees at full flexion, which is what the v16 policy
+    converged to.  Every instantaneous signal in the contract is happy with it -- upright
+    reads 1.00 and the body is at the height v16 asked for -- so this asserts on the term
+    that is not: something other than a foot is carrying the robot.
+    """
+    env = CustomRobotEnv(
+        _robot("sample-quadruped.xml").decode(),
+        _setup("stand-balance", robot_name="sample-quadruped.xml"),
+    )
+    try:
+        env.reset(seed=11)
+        names = [
+            mujoco.mj_id2name(env.model, mujoco.mjtObj.mjOBJ_JOINT, int(joint_id))
+            for joint_id in env.actuated_joint_ids
+        ]
+        folded = np.asarray(
+            [0.0 if "hip" in str(name) else -2.0 for name in names], dtype=float
+        )
+        info: dict = {}
+        for _ in range(250):
+            error = folded - env.data.qpos[env.joint_qpos_adrs]
+            damping = 0.6 * env.data.qvel[env.joint_dof_adrs]
+            action = np.clip(6.0 * error - damping, -1.0, 1.0).astype(np.float32)
+            _, _, terminated, truncated, info = env.step(action)
+            if terminated or truncated:
+                break
+        metrics = info["task_metrics"]
+        assert metrics["upright"] > 0.95, "the torso stays level, which is why upright missed this"
+        assert metrics["unsupported_contact_rate"] > 0.5
+        assert not metrics["success"]
     finally:
         env.close()

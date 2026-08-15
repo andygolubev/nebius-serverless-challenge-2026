@@ -12,6 +12,7 @@ from sim2policy.custom_robot_contract import (
     PREPARATION_PROFILE_VERSION,
     REWARD_VERSION,
     SCHEMA_VERSION,
+    TASK_CONTRACTS,
     TASK_ROBOT_TYPES,
     TRAINING_PROFILE,
     TRAINING_PROFILE_VERSION,
@@ -188,6 +189,25 @@ def test_every_task_states_a_height_target_for_every_robot_type_it_accepts() -> 
             assert 0.0 < scale <= 1.0, (task, robot_type, scale)
     with pytest.raises(KeyError, match="no target_height_scale"):
         target_height_scale("walk-forward", "hexapod")
+
+
+def test_standing_tasks_bound_ground_contact_as_well_as_height() -> None:
+    """Posture has to be stated, not inferred from a height.
+
+    Height was the only posture signal through v16, and it cannot separate standing from
+    kneeling for a robot whose legs fold beneath it: the quadruped's knees sit 0.28 m
+    below its torso and the target was 0.339 m, so the shipped policy met it on its
+    knees and every metric agreed.  Both locomotion tasks must therefore bound what is
+    touching the ground.  ``recover-from-fall`` is excluded on purpose — it resets the
+    robot onto its side, so non-foot contact there is the task, not a failure.
+    """
+    for task in ("stand-balance", "walk-forward"):
+        contract = TASK_CONTRACTS[task]
+        assert 0.0 < float(contract["success_max_unsupported_contact"]) < 0.5, task
+        assert float(contract["weights"]["ground_contact"]) < 0.0, task
+    recovery = TASK_CONTRACTS["recover-from-fall"]
+    assert "success_max_unsupported_contact" not in recovery
+    assert float(recovery["weights"]["ground_contact"]) == 0.0
 
 
 def test_contract_summary_contains_complete_builder_matrix() -> None:

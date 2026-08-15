@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v16` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v17` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -71,6 +71,26 @@ a crouch, and Stand Balance was the only task that ever checked height. The bar 
 of reference would pass the biped and fail the quadruped outright, which walks at 0.54 of its spawn
 height by nature. Measured fraction of target reached at the shipped targets is 0.93–1.01 (biped)
 and 0.92–0.94 (quadruped) against a 0.50 crawl.
+
+That posture floor is a height, and v17 exists because a height cannot describe a posture on its
+own. Both locomotion tasks now also bound **what is holding the robot up**: the fraction of the
+episode spent touching the ground with anything that is not a foot must stay at or below
+`success_max_unsupported_contact` (0.1), and the same signal is priced in the reward at
+`ground_contact` −1.0. "Foot" is measured rather than declared — `CustomRobotEnv` settles the model
+from its authored pose under zero control once at construction and records whatever it comes to rest
+on, which resolves to the quadruped's four shin tips and the biped's two foot boxes. Anything else
+reaching the ground later is the robot resting on a part of itself that is not a foot. Contact is
+counted against every world-owned geom, not just the arena floor, so it means the same thing on a
+ramp or a step; `recover-from-fall` is exempt, because it resets the robot onto its side and
+non-foot contact there is the task rather than a failure.
+
+The rate is deliberately not a prohibition, and it is measured over the episode rather than sampled
+at the end. A stride may brush a shin without being carried by it, and the failure being rejected is
+nowhere near the bound: driving the sample quadruped onto its knees reads 0.55–0.64, while its
+*instantaneous* contact set at the final step is sometimes nothing but feet. The bound also cannot
+fire on a working biped — swept across 1,713 joint configurations with the pelvis at or above 0.70 m,
+the closest any non-foot geom comes to the floor is +1.5 cm (the shin cap, which sits directly above
+the foot box).
 
 Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
 gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at
@@ -127,23 +147,36 @@ afterwards. A five-step settle reports the resting pose for both shipped robot t
 
 That resting pose is not the same *kind* of pose for both, which is why `target_height_scale` is
 stated per robot type for the two locomotion tasks. The biped's spawn pose is already a standing
-pose and a trained policy keeps 88% of it; the quadruped spawns with its legs extended beneath it
-and walks bent-legged at ~54%, which is normal for the shape rather than a crouch. A single scale
-was measured both ways at the production profile and each choice broke one robot. The shipped
-rows are the published-checkpoint scores over twenty distinct seeds; the rejected rows are noted
-where they came from a different harness.
+pose and a trained policy keeps 85–90% of it. The quadruped spawns with its legs extended beneath it
+and v16 asked it for 57.5% of that — a number this document defended as "normal for the shape rather
+than a crouch", and which was neither. Its legs reach 0.59 m and its knees hang 0.28 m below the
+torso, so 0.339 m is six centimetres above its own knee joints: at that height standing and kneeling
+are the same measurement, and the shipped policy met the target to within a centimetre by folding
+its legs and lying on its shins. Nothing in the contract disagreed, because height was the only
+thing describing posture and height was exactly what it had been told to produce. It took watching
+the render to see it. A single scale was measured both ways at the production profile and each
+choice broke one robot; the shipped rows below are published-checkpoint scores over twenty distinct
+seeds, and the rejected rows are noted where they came from a different harness.
 
 | robot | scale | asks for | stand | walk | posture |
 | --- | --- | --- | --- | --- | --- |
-| **quadruped** | **0.575** | 0.339 | **20/20**, h 0.314 | **20/20**, h 0.313–0.319 | bent-leg stance and stride |
+| quadruped | 0.575 | 0.339 | 20/20, h 0.314 | 20/20, h 0.313–0.319 | **kneeling — shins on the floor** |
 | quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95, h 0.264 | crawling at 45% of reference |
+| **quadruped** | **0.850** | 0.501 | *v17, being measured* | *v17, being measured* | knees clear of the floor |
 | biped | 0.575 | 0.537 | 0.95, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
 | biped | 0.800 | 0.747 | 20/20, h 0.694 | not measured | squat: knees folded, torso pitched back |
 | **biped** | **0.850** | 0.794 | **20/20**, h 0.776–0.786 | **20/20**, h 0.782–0.851 | upright torso, extended stride |
 | biped | 0.900 | 0.840 | 17/20, h 0.741–0.798 | 20/20 | upright, but three falls at steps 108–185 |
 
+Both 0.575 rows are the same failure wearing different numbers: 0.34 m is a kneel for the quadruped
+and 0.54 m is one knee down for the biped, and both scored 20/20 on walk. The scores in this table
+are worth exactly what the posture column is worth — which is why v17 measures posture directly
+rather than inferring it from the score.
+
 The quadruped-at-0.9 stand row scored 0.0 at *every* checkpoint from 500k to 3M, so best-checkpoint
-selection cannot rescue it.
+selection cannot rescue it. That row was taken under the v13 reward, which had neither a
+ground-contact cost nor success-first checkpoint ranking; whether 0.9 is genuinely out of reach or
+was simply losing to a cheaper local optimum is the question v17's 0.85 row settles.
 
 The biped's 0.85 is the interesting row, and the rule it illustrates is *ask for a height the robot
 can actually hold*. At 0.90 the policy strains for 0.840 and only ever reaches 0.741–0.798, and the
@@ -154,12 +187,21 @@ twenty episodes — a 1 cm spread, taller on average than the 0.90 policy, with 
 further to 0.80 also scores 20/20 and buys it with a squat, which is what the posture requirement
 exists to reject.
 
-The quadruped gets *worse* when asked for more, because the height term is a Gaussian of width
-`target * 0.25`: at a target the robot cannot reach the term is flat, so nothing opposes trading
-height for velocity and the policy settles into a crawl. An unreachable target therefore reads as
-no gradient rather than as a hard task, which is the failure mode the per-type table exists to
-prevent. `target_height_scale(task, robot_type)` resolves it, and raises for a robot type the task
-accepts but has no measured target for.
+The quadruped got *worse* when asked for more, and the standing account of that was the height
+term's Gaussian: its width is `target * 0.25`, so at a target the robot cannot reach the term goes
+flat and nothing opposes trading height away. The gradient does weaken — at the kneeling height the
+term pulls 6.4/m towards a 0.339 target and 1.7/m towards a 0.530 one — but flatness is only half of
+it, and the smaller half. The other half is that kneeling was a *good* place to sit: it collects
+`alive` and `upright` almost in full, it is far more stable than balancing on four point feet with
+no roll actuation, and until v17 nothing charged for it. A shaping term cannot out-bid a local
+optimum that is both cheaper and safer, which is the same lesson the walk-forward height weight
+taught at 2.0. `ground_contact` removes the optimum rather than trying to outweigh it.
+
+`target_height_scale(task, robot_type)` resolves the per-type table, and raises for a robot type
+the task accepts but has no measured target for. **When setting one, check it against the robot's
+own geometry before the score:** the sample quadruped's legs reach 0.59 m and its knees sit 0.28 m
+down, so anything below about 0.40 m is a target only a kneeling robot can hit, and no success rate
+computed against it means what it appears to mean.
 
 ## Profiles and fingerprint
 

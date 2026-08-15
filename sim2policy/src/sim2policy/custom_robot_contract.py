@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v16"
+REWARD_VERSION = "locomotion-rewards-v17"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -225,7 +225,18 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         #
         # Check the render before moving this again.  0.80 scores better and looks worse,
         # which is the whole reason this task has a posture requirement at all.
-        "target_height_scale": {"biped": 0.85, "quadruped": 0.575},
+        #
+        # v17 raises the quadruped from 0.575 after watching the render: it was standing
+        # on its knees, and 0.575 is why.  The sample quadruped's legs reach 0.59 m and
+        # its knees sit 0.28 m below the torso, so a target of 0.339 is six centimetres
+        # above its own knee joints.  Meeting it by folding the legs and resting the shins
+        # on the floor is not the policy gaming the reward -- at that height, kneeling and
+        # standing are the same number, and the shipped policy held it to within a
+        # centimetre.  The table above reads "adopts a bent-leg stance at ~53% -- normal
+        # for the shape, not a crouch", which was wrong; it was measuring the pose the
+        # target had asked for.  See ``success_max_unsupported_contact`` for the check
+        # that now states the posture instead of hoping height implies it.
+        "target_height_scale": {"biped": 0.85, "quadruped": 0.85},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -245,11 +256,26 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "success_upright": 0.85,
         "success_height_tolerance": 0.25,
         "success_max_root_speed": 0.5,
+        # Fraction of the episode the robot may spend touching the ground with anything
+        # that is not a foot, where "foot" is whatever it settles onto from its authored
+        # pose (``CustomRobotEnv._measure_support_geoms``).
+        #
+        # Every posture check before this one was a height, and height cannot tell
+        # standing from kneeling for a robot whose legs fold under it -- which is how a
+        # quadruped propped on its shins scored 20/20 for eight versions.  A rate rather
+        # than a prohibition because a stride may brush a shin without being carried by
+        # it; the failure being rejected sits at 1.0, not near this bound.
+        "success_max_unsupported_contact": 0.1,
         "weights": {
             "alive": 1.0,
             "upright": 1.5,
             "height": 1.0,
             "root_motion": -0.08,
+            # Priced as well as gated, because a gate the policy cannot feel is not a
+            # gradient: kneeling collects alive + upright almost in full and is far more
+            # stable than standing, so without a cost it stays the better bet whatever the
+            # height target says.  At 1.0 it takes back most of what the posture is worth.
+            "ground_contact": -1.0,
             "action": -0.01,
             "energy": -0.0005,
         },
@@ -260,8 +286,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # Same per-morphology targets as stand-balance, and set from the same
         # measurements — see the table there.  Walking is where a mis-set target is most
         # visible: at 0.575 the biped crossed the arena folded onto one knee at 58% of
-        # its stance and every metric called it a clean gait.
-        "target_height_scale": {"biped": 0.9, "quadruped": 0.575},
+        # its stance and every metric called it a clean gait.  The quadruped was doing the
+        # same thing at the same number and it took a render to see it — dragging itself
+        # forward on its shins with its knees on the floor, at the exact height the reward
+        # asked for.  Raised to match stand-balance for the reason set out there.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.85},
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,
@@ -300,6 +329,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # two and is what to re-measure if this bar is ever raised: the point is to
         # reject a crawl, not to legislate how much a walking robot may bend its knees.
         "success_min_height_of_target": 0.8,
+        # Same bound and same reasoning as stand-balance, and it is the one criterion here
+        # a crawl cannot satisfy: the height floor above is stated against the target, so
+        # lowering the target moved the floor with it and a shin-dragging gait stayed
+        # certified.  What holds the robot up does not scale with anything.
+        "success_max_unsupported_contact": 0.1,
         "weights": {
             # Halved from the balance tasks' 1.0.  Standing still collected
             # alive + upright + height ~= 2.6 per step for free while walking added at
@@ -350,6 +384,10 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             "lateral_offset": -1.0,
             "lateral_velocity": -0.15,
             "yaw_rate": -0.05,
+            # Matched to stand-balance rather than scaled to this task's larger weights:
+            # the cost of dragging yourself along the floor should not depend on which
+            # task is asking, and 1.0 is already a fifth of everything else on offer here.
+            "ground_contact": -1.0,
             "action": -0.01,
             "energy": -0.0005,
         },
@@ -389,6 +427,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             "upright": 1.8,
             "height": 1.2,
             "root_motion": -0.04,
+            # Zero, and deliberately so: this task resets the robot onto its side, so
+            # non-foot ground contact is the starting condition rather than a failure.
+            # Pricing it would charge the policy for the pose the task handed it.  There
+            # is no ``success_max_unsupported_contact`` here for the same reason.
+            "ground_contact": 0.0,
             "action": -0.01,
             "energy": -0.0005,
         },

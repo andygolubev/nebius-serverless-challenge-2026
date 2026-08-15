@@ -45,6 +45,11 @@ SERVER_TIMESTEP = 0.004
 CAMERA_AZIMUTH_DEGREES = 128.7
 CAMERA_ELEVATION_DEGREES = -22.0
 CAMERA_DISTANCE = 4.5
+# Zero-control settling used to learn which geoms hold the robot up.  Sampled once per
+# model from the authored pose with no reset noise, so the answer is a property of the
+# robot rather than of an episode: the same probe run through ``reset`` reported two of
+# the quadruped's four feet, because the joint noise lands it on a diagonal pair first.
+SUPPORT_SETTLE_STEPS = 5
 MAX_BODIES = 64
 MAX_JOINTS = 64
 MAX_GEOMS = 128
@@ -428,6 +433,15 @@ class CustomRobotEnv(
         self.reference_height = self.initial_height
         self.previous_action = np.zeros(self.model.nu, dtype=np.float32)
         self.steps = 0
+        # Geoms the world owns: the arena floor and any scene objects, all of them
+        # children of the worldbody.  Everything else in the model belongs to the robot,
+        # so a contact between the two sets is the robot touching the ground — true for
+        # a ramp or a step as much as for the floor, and it needs no name matching.
+        self.world_geoms = frozenset(
+            index for index in range(self.model.ngeom) if int(self.model.geom_bodyid[index]) == 0
+        )
+        self.support_geoms = self._measure_support_geoms()
+        self.unsupported_steps = 0
         self.initial_x = float(self.initial_qpos[self.root_qpos_adr])
         self.initial_y = float(self.initial_qpos[self.root_qpos_adr + 1])
         self.action_space = spaces.Box(-1.0, 1.0, shape=(self.model.nu,), dtype=np.float32)
@@ -465,6 +479,43 @@ class CustomRobotEnv(
             observation_sha256=sha256_bytes(canonical_json(list(observation))),
             action_sha256=sha256_bytes(canonical_json(list(actions))),
         )
+
+    def _grounded_geoms(self, data: Any) -> set[int]:
+        """Robot geoms currently in contact with the floor or a scene object."""
+        grounded: set[int] = set()
+        for index in range(data.ncon):
+            contact = data.contact[index]
+            first, second = int(contact.geom1), int(contact.geom2)
+            if (first in self.world_geoms) == (second in self.world_geoms):
+                continue
+            grounded.add(second if first in self.world_geoms else first)
+        return grounded
+
+    def _measure_support_geoms(self) -> frozenset[int]:
+        """The geoms the robot rests on when it settles from its authored pose.
+
+        This is the definition of "feet" the runtime uses, and it needs no per-morphology
+        table: whatever a robot ends up standing on when it is dropped and left alone is
+        what it is built to stand on.  Measured on the two sample robots it returns the
+        four shin tips and the two foot boxes, which is the intended answer for both.
+
+        Anything *else* reaching the ground later is the robot resting on a part of itself
+        that is not a foot.  The sample quadruped's legs are 0.59 m long but v16 asked it
+        to stand at 0.34, which is 0.06 above its own knees, so it met the target by
+        folding onto them and lying on its shins — and every metric in the contract called
+        that success, because height was the only thing describing posture and 0.34 was
+        exactly the height being asked for.
+
+        Run on a private ``MjData`` from ``qpos0`` rather than through ``reset``: the reset
+        noise lands the quadruped on a diagonal pair of feet, which would leave the other
+        two outside the support set and make normal standing read as unsupported.
+        """
+        data = mujoco.MjData(self.model)
+        data.qpos[:] = self.model.qpos0
+        mujoco.mj_forward(self.model, data)
+        for _ in range(SUPPORT_SETTLE_STEPS * FRAME_SKIP):
+            mujoco.mj_step(self.model, data)
+        return frozenset(self._grounded_geoms(data))
 
     def _root_features(self) -> tuple[float, float, np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         root_matrix = self.data.xmat[self.root_body_id].reshape(3, 3)
@@ -558,6 +609,7 @@ class CustomRobotEnv(
             )
         self.previous_action[:] = 0
         self.steps = 0
+        self.unsupported_steps = 0
         mujoco.mj_forward(self.model, self.data)
         # Let the model settle onto the floor under zero control before the episode
         # starts.  ``initial_height`` is the height the author wrote into the MJCF, not
@@ -615,6 +667,14 @@ class CustomRobotEnv(
         )
         action_cost = float(np.mean(np.square(np.asarray(action, dtype=float))))
         energy = float(np.mean(np.abs(controls * self.data.qvel[self.joint_dof_adrs])))
+        # Is the robot carrying its weight on its feet, or resting on something else?
+        # Height alone cannot answer that: a target low enough is met just as well by
+        # kneeling, and for a robot whose legs fold under it the two are the same number.
+        unsupported_contact = (
+            1.0 if self._grounded_geoms(self.data) - self.support_geoms else 0.0
+        )
+        self.unsupported_steps += int(unsupported_contact)
+        unsupported_contact_rate = self.unsupported_steps / max(self.steps, 1)
         terms: dict[str, float]
         # Paid for every step the robot has not terminated.  Without it the only signal
         # against falling is the -1.0 terminal penalty, which a step of forward motion
@@ -627,6 +687,7 @@ class CustomRobotEnv(
                 "upright": max(upright, -1.0),
                 "height": height_score,
                 "root_motion": root_motion,
+                "ground_contact": unsupported_contact,
                 "action": action_cost,
                 "energy": energy,
             }
@@ -675,6 +736,7 @@ class CustomRobotEnv(
                 "lateral_offset": lateral_offset_cost,
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
+                "ground_contact": unsupported_contact,
                 "action": action_cost,
                 "energy": energy,
             }
@@ -693,6 +755,7 @@ class CustomRobotEnv(
             height=height,
             lateral_drift=abs(y - self.initial_y),
             fallen=fallen,
+            unsupported_contact_rate=unsupported_contact_rate,
         )
         info = {
             "task": self.task_id,
@@ -704,6 +767,7 @@ class CustomRobotEnv(
                 "mean_forward_velocity": self.mean_forward_velocity,
                 "lateral_drift": abs(y - self.initial_y),
                 "forward_progress": x - self.initial_x,
+                "unsupported_contact_rate": unsupported_contact_rate,
                 "fallen": fallen,
                 "non_finite": not finite,
                 "runaway": runaway,
@@ -743,8 +807,17 @@ class CustomRobotEnv(
         height: float,
         lateral_drift: float,
         fallen: bool,
+        unsupported_contact_rate: float,
     ) -> bool:
         if fallen:
+            return False
+        # Standing tasks are scored on posture, and a robot propped on its knees is not
+        # standing however tall the number says it is.  Stated as a rate rather than a
+        # prohibition because a gait may brush the ground with a shin in a stride without
+        # being supported by it; ``recover-from-fall`` is exempt because it resets into a
+        # deliberately fallen pose and starts the episode with nothing else touching.
+        bound = self.contract.get("success_max_unsupported_contact")
+        if bound is not None and unsupported_contact_rate > float(bound):
             return False
         if self.task_id in {"stand-balance", "recover-from-fall"}:
             target = self.reference_height * self.target_height_scale
