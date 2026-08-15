@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v20"
+REWARD_VERSION = "locomotion-rewards-v21"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -262,7 +262,19 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # the 0.90 signature exactly, one notch down.  0.82 asks 0.766, the middle of
         # that band.  It should not reach the 0.80 squat, which asked 0.747 and settled
         # 7% under it at 0.694.
-        "target_height_scale": {"biped": 0.82, "quadruped": 0.62},
+        # The quadruped moves 0.62 -> 0.80 in v21, and the reason is joint headroom rather
+        # than height.  At 0.62 it asks for 0.365 m, which for legs of 2 x 0.28 m means
+        # folding the hips to 53.2 degrees against a 55 degree stop: 1.8 degrees of travel
+        # left on one side.  Twenty of twenty episodes held it dead still, so it scored
+        # perfectly while standing at the edge of its own range, which is both what "stands
+        # very weird" looks like and a bad place to absorb a disturbance from.  0.80 asks
+        # 0.471 m and puts the hips at 38 degrees with 17 degrees in hand.
+        #
+        # This is only safe to raise now.  v17 asked 0.85 with no stance term and the robot
+        # spent the extra height on a splits rather than on standing taller -- 9/20 on walk
+        # with 45% falls.  Height and stance have to be set together: the height says how
+        # far to extend, and only ``success_max_stance_offset`` says where to put the feet.
+        "target_height_scale": {"biped": 0.82, "quadruped": 0.80},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -384,7 +396,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # surviving episodes had dropped to ~0.30 anyway.  0.55 asks for 0.324, which is
         # where the episodes that survived actually walked, and puts the posture floor
         # (0.8 of target) at 0.259 so a working gait has room to bob without tripping it.
-        "target_height_scale": {"biped": 0.9, "quadruped": 0.55},
+        # Quadruped 0.55 -> 0.75 in v21, for the headroom reason given on stand-balance,
+        # and still below that task's 0.80 for the reason given below.  0.75 asks 0.442 m
+        # and leaves 12.3 degrees of hip travel; 0.55 asked 0.324 m, which is under the
+        # 0.351 m floor of the whole feet-under-hips envelope, so the only way to reach it
+        # was to put the feet somewhere else.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.75},
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,

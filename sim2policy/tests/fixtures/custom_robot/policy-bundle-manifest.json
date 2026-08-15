@@ -1,6 +1,6 @@
 {
   "backend": "sb3",
-  "fingerprint": "7d0783bd866620f5f203517adc76b438b89a585c5d4cdbed91bec5596bb9e2f2",
+  "fingerprint": "3abafae7a247c1a15b2598ba6238b0c35c8d82856e1ae47825551ecda1cf1e51",
   "kind": "custom-robot-policy-bundle",
   "members": [
     {"path": "README.md", "size_bytes": 100, "sha256": "1111111111111111111111111111111111111111111111111111111111111111", "content_type": "text/markdown"},

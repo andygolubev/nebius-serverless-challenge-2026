@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v20` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v21` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -144,8 +144,49 @@ final step, because a stride passes through its widest split every cycle.
 **The height target is not the cause, and this was checked before the term was written.** The sample
 quadruped can put a foot directly under every hip at any body height between 0.36 and 0.57 m, so no
 target in the usable range forces a splay. Nothing had ever asked it to, and for a robot whose eight
-joints all pitch, a splits is the *more* stable answer — so that is what PPO found. Heights are
-unchanged across this version for that reason: the attribution stays clean.
+joints all pitch, a splits is the *more* stable answer — so that is what PPO found. Heights were
+held unchanged across v20 for that reason, so the attribution stayed clean.
+
+**Measured, v20, all four defaults at one version.** The splits is gone everywhere and the bound was
+never the binding constraint:
+
+| cell | success | stance offset | unsupported | height | notes |
+| --- | --- | --- | --- | --- | --- |
+| quad stand | 20/20 | 0.256–0.277 | 0.000–0.016 | 0.362–0.365 | upright 0.993–0.994, zero falls |
+| quad walk | 20/20 | 0.252–0.257 | 0.005–0.020 | 0.297–0.340 | 0.82–0.84 m/s, zero falls |
+| biped stand | 19/20 | 0.166–0.283 | 0.000 | 0.696 ×19 | one seed tips at 0.302 |
+| biped walk | 18/20 | 0.332–0.354 | 0.000–0.058 | up to 0.913 | 0.39–0.63 m/s |
+
+That fixes the 0.5 bound as measured rather than assumed: the widest good episode is the biped's
+gait at 0.354, and the splits holds 0.82, so the bound sits with 41% clearance below and 39% above.
+The 0.35 deadband is confirmed by the same row — a walking biped averages 0.332–0.354, i.e. right at
+the free-zone edge, so it is charged almost nothing for walking, which is what the deadband is for.
+
+### Standing at the joint stop
+
+v21 raises the quadruped's targets — stand 0.62 → 0.80, walk 0.55 → 0.75 — and the reason is joint
+headroom, not height. The v20 quadruped stood rock-steady and scored 20/20 while folded to the
+**edge of its own hip range**: legs of 2 × 0.28 m holding a body at 0.365 m need the hips at 53.2°
+against a 55° stop, leaving 1.8° of travel. Two independent measurements agree it was there — the
+height implies that pose, and the measured stance of 0.266 matches the 0.268 the pose predicts.
+
+| target scale | body height | hip | knee | hip headroom |
+| --- | --- | --- | --- | --- |
+| 0.62 (v20 stand) | 0.365 | 53.2° | −106.5° | **1.8°** |
+| 0.75 (v21 walk) | 0.442 | 42.7° | −85.4° | 12.3° |
+| 0.80 (v21 stand) | 0.471 | 38.0° | −76.1° | 17.0° |
+| 0.85 (v17, no stance term) | 0.501 | 32.8° | −65.7° | 22.2° |
+
+A robot at its joint stop has nothing left to correct a disturbance with, and it reads to a person as
+a robot crouched as low as it will go. Note also that v20's *walk* target of 0.55 asked for 0.324 m,
+which is below the 0.351 m floor of the entire feet-under-hips envelope — at that height there is no
+pose with the feet under the hips at all, so the target itself was unsatisfiable in the terms the
+stance check scores.
+
+**Raising the target is only safe once stance is scored.** v17 asked 0.85 with no stance term and the
+robot spent the extra height on a splits instead of on standing taller: 9/20 on walk with 45% falls.
+Height says how far to extend; only the stance bound says where to put the feet. The two have to move
+together.
 
 Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
 gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at

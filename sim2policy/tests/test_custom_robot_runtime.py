@@ -393,16 +393,17 @@ def test_s3_loader_derives_prefix_only_from_opaque_identity() -> None:
     [
         # Fractions are of ``reference_height``, so these are the numbers the measured
         # runs reported.  The bar is 0.8 of the task's target, which differs by
-        # morphology -- 0.44 of reference for the quadruped, 0.72 for the biped -- which
-        # is what the two 0.50 rows below are for.
+        # morphology -- 0.60 of reference for the quadruped since v21 raised its walking
+        # target to 0.75, and 0.72 for the biped.
         #
         # The biped crouch that prompted this check: it crossed the arena at 58% of its
         # standing height, folded onto one knee, and scored 20/20 under the old
         # criterion.
         ("sample-biped.xml", 0.58, False, "the crouch that was certified as a gait"),
-        ("sample-biped.xml", 0.50, False, "clears the quadruped's bar, not the biped's"),
+        ("sample-biped.xml", 0.50, False, "clears neither bar"),
         ("sample-biped.xml", 0.82, True, "the upright gait, at 0.91 of target"),
-        ("sample-quadruped.xml", 0.50, True, "a normal quadruped gait, at 0.29 m"),
+        ("sample-quadruped.xml", 0.72, True, "a normal quadruped gait, at 0.42 m"),
+        ("sample-quadruped.xml", 0.50, False, "the 0.29 m gait v21's target rejects"),
         ("sample-quadruped.xml", 0.35, False, "dragging along at 0.21 m"),
     ],
 )
@@ -452,11 +453,14 @@ def test_height_floor_alone_cannot_reject_a_kneeling_quadruped(
 ) -> None:
     """The reason ``ground_contact`` exists, stated as an assertion rather than a comment.
 
-    The sample quadruped's shipped policy knelt at 0.314 m and its measured standing
-    policy holds 0.286-0.394 m.  Those overlap, so *any* height floor low enough to pass
-    the gait it can actually walk is also low enough to pass the kneel — including this
-    one.  A future change that lowers the target further is not making the check weaker,
-    because the check was never doing this job.
+    Stated against the *target* rather than against the 0.314 m the v16 policy knelt at.
+    That literal number stopped being the interesting case in v21, which raised the
+    quadruped's walking target to 0.75 of reference and so happens to put the floor above
+    it -- but that is an accident of one number, not height becoming able to describe a
+    posture.  A robot can kneel at any height its thighs will hold it at, including
+    exactly the one being asked for, and this pins that: at the height the reward wants,
+    with velocity and drift satisfied, the only thing left that can tell kneeling from
+    standing is what is carrying the weight.
     """
     env = CustomRobotEnv(
         _robot("sample-quadruped.xml").decode(),
@@ -468,13 +472,11 @@ def test_height_floor_alone_cannot_reject_a_kneeling_quadruped(
         # A kneeling quadruped travels: the measured v16 policy dragged itself across the
         # arena at 0.80 m/s, which is why every other criterion here is satisfied.
         monkeypatch.setattr(CustomRobotEnv, "mean_forward_velocity", property(lambda _: 0.8))
-        kneeling = 0.314
-        floor = (
-            env.reference_height
-            * env.target_height_scale
-            * float(env.contract["success_min_height_of_target"])
-        )
-        assert kneeling > floor, "if this ever inverts, re-read the docstring before relying on it"
+        # A kneel that meets the ask exactly, which is the pose no height floor can ever
+        # reject: the floor is a fraction of this number.
+        kneeling = env.reference_height * env.target_height_scale
+        floor = kneeling * float(env.contract["success_min_height_of_target"])
+        assert kneeling > floor, "the floor is a fraction of the target, so this cannot invert"
         assert env._success(
             upright=0.99, height=kneeling, lateral_drift=0.05, fallen=False,
             unsupported_contact_rate=0.0,
