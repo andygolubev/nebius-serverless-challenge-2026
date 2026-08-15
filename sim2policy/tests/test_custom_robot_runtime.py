@@ -393,17 +393,16 @@ def test_s3_loader_derives_prefix_only_from_opaque_identity() -> None:
     [
         # Fractions are of ``reference_height``, so these are the numbers the measured
         # runs reported.  The bar is 0.8 of the task's target, which differs by
-        # morphology -- 0.60 of reference for the quadruped since v21 raised its walking
-        # target to 0.75, and 0.72 for the biped.
+        # morphology -- 0.44 of reference for the quadruped, 0.72 for the biped -- which
+        # is what the two 0.50 rows below are for.
         #
         # The biped crouch that prompted this check: it crossed the arena at 58% of its
         # standing height, folded onto one knee, and scored 20/20 under the old
         # criterion.
         ("sample-biped.xml", 0.58, False, "the crouch that was certified as a gait"),
-        ("sample-biped.xml", 0.50, False, "clears neither bar"),
+        ("sample-biped.xml", 0.50, False, "clears the quadruped's bar, not the biped's"),
         ("sample-biped.xml", 0.82, True, "the upright gait, at 0.91 of target"),
-        ("sample-quadruped.xml", 0.72, True, "a normal quadruped gait, at 0.42 m"),
-        ("sample-quadruped.xml", 0.50, False, "the 0.29 m gait v21's target rejects"),
+        ("sample-quadruped.xml", 0.50, True, "a normal quadruped gait, at 0.29 m"),
         ("sample-quadruped.xml", 0.35, False, "dragging along at 0.21 m"),
     ],
 )

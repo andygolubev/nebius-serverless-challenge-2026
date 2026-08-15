@@ -614,7 +614,7 @@ and state bound is checked for finiteness.
 Versioned contract identifiers travel with every fingerprint and are mirrored between
 `saas/backend/app/custom_training.py` and `sim2policy.custom_robot_contract`, with a cross-package
 golden test preventing drift: schema version 2, adapter `custom-robot-sb3-v2`, rewards
-`locomotion-rewards-v21`, scenes `custom-locomotion-scenes-v3`, preparation profile
+`locomotion-rewards-v20`, scenes `custom-locomotion-scenes-v3`, preparation profile
 `custom-prepare-v1`, training profile `custom-ppo-quick-v3`.
 
 ### Frozen profiles

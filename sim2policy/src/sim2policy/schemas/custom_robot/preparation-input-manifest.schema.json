@@ -12,7 +12,7 @@
     "setup": {"$ref": "#/$defs/input"},
     "runtime": {"type": "object", "additionalProperties": false, "required": ["image_digest"], "properties": {"image_digest": {"type": "string", "minLength": 1, "maxLength": 256}}},
     "adapter_version": {"const": "custom-robot-sb3-v2"},
-    "reward_version": {"const": "locomotion-rewards-v21"},
+    "reward_version": {"const": "locomotion-rewards-v20"},
     "preparation_profile_version": {"const": "custom-prepare-v1"}
   },
   "$defs": {

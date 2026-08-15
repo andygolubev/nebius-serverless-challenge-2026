@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v21"
+REWARD_VERSION = "locomotion-rewards-v20"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -262,19 +262,25 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # the 0.90 signature exactly, one notch down.  0.82 asks 0.766, the middle of
         # that band.  It should not reach the 0.80 squat, which asked 0.747 and settled
         # 7% under it at 0.694.
-        # The quadruped moves 0.62 -> 0.80 in v21, and the reason is joint headroom rather
-        # than height.  At 0.62 it asks for 0.365 m, which for legs of 2 x 0.28 m means
-        # folding the hips to 53.2 degrees against a 55 degree stop: 1.8 degrees of travel
-        # left on one side.  Twenty of twenty episodes held it dead still, so it scored
-        # perfectly while standing at the edge of its own range, which is both what "stands
-        # very weird" looks like and a bad place to absorb a disturbance from.  0.80 asks
-        # 0.471 m and puts the hips at 38 degrees with 17 degrees in hand.
+        # The quadruped's 0.62 was raised to 0.80 in v21 and put back here, because the
+        # obvious-looking reason to raise it is wrong and the next reader will have it too.
         #
-        # This is only safe to raise now.  v17 asked 0.85 with no stance term and the robot
-        # spent the extra height on a splits rather than on standing taller -- 9/20 on walk
-        # with 45% falls.  Height and stance have to be set together: the height says how
-        # far to extend, and only ``success_max_stance_offset`` says where to put the feet.
-        "target_height_scale": {"biped": 0.82, "quadruped": 0.80},
+        # At 0.62 the ask is 0.365 m, which for legs of 2 x 0.28 m means folding the hips to
+        # 53.2 degrees against a 55 degree stop -- 1.8 degrees of travel left.  Scoring
+        # 20/20 while standing at the edge of your own joint range looks like a defect, and
+        # 0.80 would ask 0.471 m and leave 17 degrees in hand.
+        #
+        # Measured, the robot ignores the taller ask: it held the same ~0.36 m, stance rose
+        # 0.256-0.277 -> 0.316-0.351, unsupported contact rose to 0.118, stand fell to 19/20
+        # and walk to 15/20 -- under the gate.  The render shows it standing nose-down and
+        # asymmetric rather than taller.  The crouch is this morphology's answer, not the
+        # target's fault: all eight joints pitch, so roll is correctable only by differential
+        # leg extension, which is weakest near straight legs.  Standing tall is the *less*
+        # stable option here, same root cause as recover-from-fall.
+        #
+        # Raising it is also only ever safe with stance scored: v17 asked 0.85 with no stance
+        # term and the robot spent the height on a splits instead -- 9/20 on walk, 45% falls.
+        "target_height_scale": {"biped": 0.82, "quadruped": 0.62},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -396,12 +402,15 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # surviving episodes had dropped to ~0.30 anyway.  0.55 asks for 0.324, which is
         # where the episodes that survived actually walked, and puts the posture floor
         # (0.8 of target) at 0.259 so a working gait has room to bob without tripping it.
-        # Quadruped 0.55 -> 0.75 in v21, for the headroom reason given on stand-balance,
-        # and still below that task's 0.80 for the reason given below.  0.75 asks 0.442 m
-        # and leaves 12.3 degrees of hip travel; 0.55 asked 0.324 m, which is under the
-        # 0.351 m floor of the whole feet-under-hips envelope, so the only way to reach it
-        # was to put the feet somewhere else.
-        "target_height_scale": {"biped": 0.9, "quadruped": 0.75},
+        # Raised to 0.75 in v21 and put back, with stand-balance: measured, walk dropped
+        # from 20/20 to 15/20 and under the gate.  See the note there.
+        #
+        # Worth knowing about this number even so: 0.324 m is below the 0.351 m floor of the
+        # whole feet-under-hips envelope, so no pose with the feet under the hips reaches it
+        # and the measured 0.252-0.257 stance is the robot getting as close as geometry
+        # allows.  It passes 20/20 at 0.82-0.84 m/s with zero falls, so this is not costing
+        # anything today, but the target has no room underneath it either.
+        "target_height_scale": {"biped": 0.9, "quadruped": 0.55},
         # Lowered with the target so the band above the fall line stays wide.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.4,

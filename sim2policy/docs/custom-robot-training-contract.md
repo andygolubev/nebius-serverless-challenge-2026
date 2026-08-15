@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v21` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v20` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -162,31 +162,49 @@ gait at 0.354, and the splits holds 0.82, so the bound sits with 41% clearance b
 The 0.35 deadband is confirmed by the same row — a walking biped averages 0.332–0.354, i.e. right at
 the free-zone edge, so it is charged almost nothing for walking, which is what the deadband is for.
 
-### Standing at the joint stop
+### The crouch is the morphology, not the target — a refuted hypothesis
 
-v21 raises the quadruped's targets — stand 0.62 → 0.80, walk 0.55 → 0.75 — and the reason is joint
-headroom, not height. The v20 quadruped stood rock-steady and scored 20/20 while folded to the
-**edge of its own hip range**: legs of 2 × 0.28 m holding a body at 0.365 m need the hips at 53.2°
-against a 55° stop, leaving 1.8° of travel. Two independent measurements agree it was there — the
+The v20 quadruped stands rock-steady at 0.365 m, which for legs of 2 × 0.28 m puts its hips at 53.2°
+against a 55° stop: **1.8° of travel left**. Two independent measurements agree it is there — the
 height implies that pose, and the measured stance of 0.266 matches the 0.268 the pose predicts.
+
+That looked like a defect worth fixing. A robot at its joint stop has nothing left to correct a
+disturbance with, and it reads to a person as a robot crouched as low as it will go. So v21 raised
+the targets to move it to mid-range:
 
 | target scale | body height | hip | knee | hip headroom |
 | --- | --- | --- | --- | --- |
-| 0.62 (v20 stand) | 0.365 | 53.2° | −106.5° | **1.8°** |
+| 0.62 (stand, shipped) | 0.365 | 53.2° | −106.5° | 1.8° |
 | 0.75 (v21 walk) | 0.442 | 42.7° | −85.4° | 12.3° |
 | 0.80 (v21 stand) | 0.471 | 38.0° | −76.1° | 17.0° |
-| 0.85 (v17, no stance term) | 0.501 | 32.8° | −65.7° | 22.2° |
 
-A robot at its joint stop has nothing left to correct a disturbance with, and it reads to a person as
-a robot crouched as low as it will go. Note also that v20's *walk* target of 0.55 asked for 0.324 m,
-which is below the 0.351 m floor of the entire feet-under-hips envelope — at that height there is no
-pose with the feet under the hips at all, so the target itself was unsatisfiable in the terms the
-stance check scores.
+**Measured, and it does not work.** The robot does not track the taller target at all — it stayed at
+the same ~0.36 m and spent the mismatch on tilting instead:
 
-**Raising the target is only safe once stance is scored.** v17 asked 0.85 with no stance term and the
-robot spent the extra height on a splits instead of on standing taller: 9/20 on walk with 45% falls.
-Height says how far to extend; only the stance bound says where to put the feet. The two have to move
-together.
+| cell | v20 (0.62/0.55) | v21 (0.80/0.75) |
+| --- | --- | --- |
+| quad stand | **20/20**, h 0.362–0.365, stance 0.256–0.277, unsupported ≤0.016 | 19/20, h 0.283–0.386, stance 0.316–0.351, unsupported ≤0.118 |
+| quad walk | **20/20**, h 0.297–0.340, 0.82–0.84 m/s | **15/20 — below the gate**, h 0.284–0.480 |
+
+Raising the ask by 29% moved the achieved height by roughly nothing, degraded the stance, started
+scuffing the knees, and pushed walk-forward under threshold. The render shows why: v21 stands
+nose-down and asymmetric rather than taller. **The deep crouch is what this morphology settles at,
+not an artefact of the target**, and it is consistent with the same pitch-only limitation behind
+`recover-from-fall` — near-straight legs are exactly where differential leg extension has least roll
+authority, so standing tall is the *less* stable option for this robot.
+
+v21 is therefore reverted and the shipped values are v20's. This is recorded rather than deleted
+because the joint-stop reasoning is sound and will look attractive again; it has been tested, and
+the robot's answer is no.
+
+One thing the geometry does say independently: v20's *walk* target of 0.55 asks for 0.324 m, which is
+below the 0.351 m floor of the entire feet-under-hips envelope, so no pose with the feet under the
+hips can reach it. The measured walk stance of 0.252–0.257 is the robot getting as close as the
+envelope allows, and it passes 20/20 — but that target has no headroom underneath it either.
+
+**Raising a height target is only safe once stance is scored.** v17 asked 0.85 with no stance term
+and the robot spent the extra height on a splits instead of on standing taller: 9/20 on walk with 45%
+falls. Height says how far to extend; only the stance bound says where to put the feet.
 
 Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
 gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at
