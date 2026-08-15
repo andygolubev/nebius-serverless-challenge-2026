@@ -69,8 +69,22 @@ standing height scored 20/20 and was reported as a clean gait — the terminatio
 a crouch, and Stand Balance was the only task that ever checked height. The bar is a fraction of the
 *target* rather than of `reference_height` so that it needs no per-morphology table of its own: 0.8
 of reference would pass the biped and fail the quadruped outright, which walks at 0.54 of its spawn
-height by nature. Measured fraction of target reached at the shipped targets is 0.97 (biped) and
-0.88 (quadruped) against a 0.50 crawl.
+height by nature. Measured fraction of target reached at the shipped targets is 0.93–1.01 (biped)
+and 0.92–0.94 (quadruped) against a 0.50 crawl.
+
+Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
+gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at
+all twelve checkpoints while reward climbed 178 → 3493 — it never took the trade. At 2.0 the biped
+stood at 0.867 and stopped dead, velocity 0.01, failing the velocity bound instead of the posture
+floor. 1.5 gives 20/20 at heights 0.782–0.851 and velocity 0.83, with the training curve reaching
+1.00 at 1.5M and holding it to 3M.
+
+That trap is biped-specific and the quadruped shows why: it walks at 0.314 and stands at 0.314, so
+no height weight can pay it to stop, and it scored 0.95+ at 1.2, 1.5 and 2.0 alike. The biped walks
+at ~0.72 but stands at ~0.87, so every increase in the weight raises the payoff for freezing. Note
+the reward still *prefers* walking at 2.0 — a stationary robot loses about 1.8/step on the velocity
+Gaussian against ~0.5/step gained on height — so that failure is PPO converging to the easier
+behaviour first, not the reward ranking them wrongly. Raising the weight cannot fix it.
 
 `task_threshold_achieved` is `success_rate >= 0.9`, and the bar travels with the metrics as
 `task_success_rate_threshold`. It was every episode until v11, which is not a sound rule for a
@@ -121,15 +135,24 @@ where they came from a different harness.
 
 | robot | scale | asks for | stand | walk | posture |
 | --- | --- | --- | --- | --- | --- |
-| **quadruped** | **0.575** | 0.339 | **20/20**, h 0.314 | **20/20**, h 0.298 | bent-leg stance and stride |
-| quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95 final-policy, h 0.264 | crawling at 45% of reference |
-| biped | 0.575 | 0.537 | 0.95 in production, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
-| **biped** | **0.900** | 0.840 | **18/20**, h 0.807–0.840 | **20/20**, h 0.811 | upright torso, extended stride |
+| **quadruped** | **0.575** | 0.339 | **20/20**, h 0.314 | **20/20**, h 0.313–0.319 | bent-leg stance and stride |
+| quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95, h 0.264 | crawling at 45% of reference |
+| biped | 0.575 | 0.537 | 0.95, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
 | biped | 0.800 | 0.747 | 20/20, h 0.694 | not measured | squat: knees folded, torso pitched back |
+| **biped** | **0.850** | 0.794 | **20/20**, h 0.776–0.786 | **20/20**, h 0.782–0.851 | upright torso, extended stride |
+| biped | 0.900 | 0.840 | 17/20, h 0.741–0.798 | 20/20 | upright, but three falls at steps 108–185 |
 
 The quadruped-at-0.9 stand row scored 0.0 at *every* checkpoint from 500k to 3M, so best-checkpoint
-selection cannot rescue it. The biped-at-0.8 row is the reason the biped's 18/20 is left alone: the
-extra two episodes are bought with a crouch.
+selection cannot rescue it.
+
+The biped's 0.85 is the interesting row, and the rule it illustrates is *ask for a height the robot
+can actually hold*. At 0.90 the policy strains for 0.840 and only ever reaches 0.741–0.798, and the
+three episodes it loses are falls rather than posture failures — standing on near-straight legs is
+an inverted pendulum with little recovery authority. At 0.85 the ask sits inside the band the robot
+already holds, the height term stops competing with balance, and it holds 0.776–0.786 across all
+twenty episodes — a 1 cm spread, taller on average than the 0.90 policy, with no falls. Dropping
+further to 0.80 also scores 20/20 and buys it with a squat, which is what the posture requirement
+exists to reject.
 
 The quadruped gets *worse* when asked for more, because the height term is a Gaussian of width
 `target * 0.25`: at a target the robot cannot reach the term is flat, so nothing opposes trading
