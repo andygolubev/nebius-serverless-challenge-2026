@@ -40,8 +40,13 @@ spec:
               value: "4"
             - name: CUSTOM_ROBOT_MAX_ACTIVE_TRAINING_JOBS
               value: "4"
+            # Rolling 24-hour cap per tenant. 16 is one full four-cell matrix plus one
+            # retry, which is under-sized for the measure-change-remeasure loop the
+            # reward contract is tuned by: a single evening of bracketing a coefficient
+            # spends it and then blocks for the rest of the window. At the measured
+            # ~$0.08 per 3M-step CPU run, 40 bounds a tenant at roughly $3.20 a day.
             - name: CUSTOM_ROBOT_MAX_DAILY_STARTS
-              value: "16"
+              value: "40"
             # Runtime job images come from Git (runtime-images.env), not from the
             # OpenTofu-written secret. Explicit env beats envFrom, so these win
             # over the stale keys still present in `saas-nebius`.
