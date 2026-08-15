@@ -85,12 +85,30 @@ ramp or a step; `recover-from-fall` is exempt, because it resets the robot onto 
 non-foot contact there is the task rather than a failure.
 
 The rate is deliberately not a prohibition, and it is measured over the episode rather than sampled
-at the end. A stride may brush a shin without being carried by it, and the failure being rejected is
-nowhere near the bound: driving the sample quadruped onto its knees reads 0.55–0.64, while its
-*instantaneous* contact set at the final step is sometimes nothing but feet. The bound also cannot
+at the end. A stride may brush a shin without being carried by it, and the *instantaneous* contact
+set of a kneeling quadruped at the final step is sometimes nothing but feet. The bound also cannot
 fire on a working biped — swept across 1,713 joint configurations with the pelvis at or above 0.70 m,
 the closest any non-foot geom comes to the floor is +1.5 cm (the shin cap, which sits directly above
 the foot box).
+
+**The bound is 0.25, and the first value tried — 0.1 — was set by reasoning rather than measured.**
+It came from the assumption that a working gait reads near zero. A measured quadruped gait reads
+0.105–0.119: twenty episodes of full-horizon walking at 0.820–0.841 m/s against a commanded 0.8,
+zero falls, torso level at 0.961–1.000, scored 0/20 by a bound a percentage point and a half too
+low. A quadruped brushes a thigh as it swings the leg through; that is a stride, not a crawl. The
+behaviours are five times apart, so the bound does not need precision, only to sit in the gap:
+
+| behaviour | unsupported contact rate |
+| --- | --- |
+| kneeling, driven to full knee flexion | 0.55–0.64 |
+| walking, 0.83 m/s, zero falls | 0.105–0.119 |
+| standing on its feet | 0.000–0.007 |
+| biped, either task | 0.000–0.042 |
+
+0.25 clears the gait by more than 2× and rejects the kneel by more than 2×. It was raised only
+after watching the render — loosening a threshold because a policy failed it is precisely how the
+kneeling got certified for eight versions, and the only thing separating a correction from a
+repeat of that mistake is looking at the rollout first.
 
 Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
 gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at
@@ -163,7 +181,12 @@ seeds, and the rejected rows are noted where they came from a different harness.
 | quadruped | 0.575 | 0.339 | 20/20, h 0.314 | 20/20, h 0.313–0.319 | **kneeling — shins on the floor** |
 | quadruped | 0.900 | 0.530 | 0/20, h 0.256 | 0.95, h 0.264 | crawling at 45% of reference |
 | quadruped | 0.850 | 0.501 | 17/20, h 0.286–0.394 | 9/20, 45% falls | **on its feet**, but reaching |
-| **quadruped** | **0.620 / 0.550** | 0.365 / 0.324 | *v18, being measured* | *v18, being measured* | on its feet |
+| **quadruped** | **0.620 / 0.550** | 0.365 / 0.324 | **20/20**, h 0.349–0.359 | 0/20 at bound 0.10 † | on its feet, bounding gait |
+
+† Every walk episode ran the full horizon at 0.820–0.841 m/s with zero falls and read 0.105–0.119
+against a bound of 0.10 — see the contact-rate table above for why that bound was wrong. The
+re-measurement at 0.25 is pending; it is not simply the same policy re-scored, because the progress
+evaluation's success signal also changes and with it which checkpoint gets published.
 | biped | 0.575 | 0.537 | 0.95, h 0.523 | 20/20, h 0.539 | crossed the arena on one knee |
 | biped | 0.800 | 0.747 | 20/20, h 0.694 | not measured | squat: knees folded, torso pitched back |
 | **biped** | **0.850** | 0.794 | **20/20**, h 0.776–0.786 | **18/20**, h 0.300–0.902 | upright torso, extended stride |
