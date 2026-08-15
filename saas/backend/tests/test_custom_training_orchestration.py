@@ -311,6 +311,39 @@ def test_custom_artifact_manifest_requires_every_matching_object_checksum() -> N
         S3ArtifactReader(client, "artifacts").read_manifest("job-one", "run-one")
 
 
+def test_accepted_preparation_survives_a_contract_rollback(tmp_path) -> None:
+    """After a rollback the matching preparation is no longer the newest one.
+
+    Sequence that produced this: ship a reward version, roll it back, prepare again.
+    ``reserve_preparation`` reuses the still-accepted original attempt rather than
+    inserting a new row, so the superseded attempt keeps the newest ``created_at``
+    forever.  Anything gated on "latest" then refuses every start while the UI reports
+    the setup as prepared and ready — measured against the live service, where all four
+    default setups became permanently unstartable.
+    """
+    store = CustomTrainingStore(str(tmp_path / "saas.db"))
+    shipped = _attempt()
+    store.reserve_preparation(shipped, max_active_per_tenant=4, retry=False)
+    store.put_preparation(shipped.model_copy(update={"state": "accepted"}))
+    superseded = shipped.model_copy(
+        update={
+            "id": "prepare-two",
+            "fingerprint": "e" * 64,
+            "state": "accepted",
+            "created_at": "2026-07-15T00:00:00+00:00",
+        }
+    )
+    store.reserve_preparation(superseded, max_active_per_tenant=4, retry=False)
+    store.put_preparation(superseded)
+
+    latest = store.latest_preparation(shipped.tenant_id, shipped.setup_id)
+    assert latest is not None and latest.fingerprint == "e" * 64, "the rolled-back one"
+
+    found = store.accepted_preparation(shipped.tenant_id, shipped.setup_id, "f" * 64)
+    assert found is not None and found.id == "prepare-one"
+    assert store.accepted_preparation(shipped.tenant_id, shipped.setup_id, "d" * 64) is None
+
+
 def test_preparation_submission_poll_and_report_gate_are_restart_safe(tmp_path) -> None:
     db_path = str(tmp_path / "saas.db")
     store = CustomTrainingStore(db_path)

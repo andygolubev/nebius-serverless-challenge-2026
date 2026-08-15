@@ -681,9 +681,16 @@ def start_robot_setup_training(
     if robot_entry is None:
         raise HTTPException(status_code=409, detail="source robot is unavailable")
     robot, robot_xml = robot_entry
-    attempt = _custom_store.latest_preparation(session.email, setup.id)
     current_fingerprint = preparation_fingerprint(
         robot, setup, _custom_settings.runtime_image
+    )
+    # Looked up by fingerprint, not by recency: those are the same row until a runtime or
+    # reward version is rolled back, and then they are not.  ``reserve_preparation``
+    # reuses an existing accepted attempt rather than inserting a new one, so preparing
+    # again after a rollback hands back the older matching row and leaves the superseded
+    # attempt newest forever -- which made every start 409 with the setup showing ready.
+    attempt = _custom_store.accepted_preparation(
+        session.email, setup.id, current_fingerprint
     )
     if (
         not _custom_settings.enabled

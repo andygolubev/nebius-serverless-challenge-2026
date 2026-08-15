@@ -198,6 +198,28 @@ class CustomTrainingStore(_SQLiteStore):
             ).fetchone()
         return None if row is None else self._attempt(row)
 
+    def accepted_preparation(
+        self, tenant_id: str, setup_id: str, fingerprint: str
+    ) -> PreparationAttempt | None:
+        """The accepted preparation for one exact fingerprint, newest first.
+
+        Training asks this rather than ``latest_preparation`` because "latest" and "the
+        one that matches" stop being the same row the moment a contract is rolled back.
+        ``reserve_preparation`` reuses an existing accepted attempt instead of inserting a
+        new one, so re-preparing after a rollback returns the older row and leaves the
+        superseded attempt newest -- and a start gated on the newest row then refuses
+        forever, with the UI reporting a setup that is prepared and ready.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                """SELECT tenant_id, data FROM preparation_attempts
+                   WHERE tenant_id = ? AND setup_id = ? AND fingerprint = ?
+                     AND json_extract(data, '$.state') = 'accepted'
+                   ORDER BY created_at DESC, rowid DESC LIMIT 1""",
+                (tenant_id, setup_id, fingerprint),
+            ).fetchone()
+        return None if row is None else self._attempt(row)
+
     def get_preparation(
         self, tenant_id: str, preparation_id: str
     ) -> PreparationAttempt | None:
