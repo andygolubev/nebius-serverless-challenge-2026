@@ -439,6 +439,7 @@ def test_walk_forward_success_requires_a_standing_posture(
                 lateral_drift=0.05,
                 fallen=False,
                 unsupported_contact_rate=0.0,
+                mean_stance_offset=0.0,
             )
             is expected
         ), why
@@ -477,10 +478,12 @@ def test_height_floor_alone_cannot_reject_a_kneeling_quadruped(
         assert env._success(
             upright=0.99, height=kneeling, lateral_drift=0.05, fallen=False,
             unsupported_contact_rate=0.0,
+            mean_stance_offset=0.0,
         ), "height and velocity alone certify the kneel"
         assert not env._success(
             upright=0.99, height=kneeling, lateral_drift=0.05, fallen=False,
             unsupported_contact_rate=0.6,
+            mean_stance_offset=0.0,
         ), "what it was standing on is the only thing that rejects it"
     finally:
         env.close()
@@ -550,5 +553,67 @@ def test_kneeling_is_scored_as_unsupported_contact() -> None:
         assert metrics["upright"] > 0.95, "the torso stays level, which is why upright missed this"
         assert metrics["unsupported_contact_rate"] > 0.5
         assert not metrics["success"]
+    finally:
+        env.close()
+
+
+def _hold_pose(env: CustomRobotEnv, degrees: dict[str, float]) -> None:
+    """Place the robot in a named joint configuration and rest its feet on the floor.
+
+    Kinematic on purpose: this measures what a pose *is*, and driving the robot into one
+    with a PD controller measures whether that controller can hold it, which is a
+    different question and the one that made the first pass at these numbers useless.
+    """
+    env.data.qpos[:] = env.model.qpos0
+    env.data.qvel[:] = 0.0
+    for name, value in degrees.items():
+        joint_id = mujoco.mj_name2id(env.model, mujoco.mjtObj.mjOBJ_JOINT, name)
+        env.data.qpos[env.model.jnt_qposadr[joint_id]] = np.radians(value)
+    mujoco.mj_forward(env.model, env.data)
+    lowest = min(
+        float(env.data.geom_xpos[geom][2]) - float(env.model.geom_rbound[geom])
+        for geom in env.support_geoms
+    )
+    env.data.qpos[env.root_qpos_adr + 2] -= lowest
+    mujoco.mj_forward(env.model, env.data)
+
+
+def test_stance_offset_separates_a_splits_from_feet_under_the_body() -> None:
+    """The posture fault left after kneeling was fixed: legs splayed, but on their tips.
+
+    Both of the earlier posture signals pass this pose.  The feet are what touch the
+    ground, so ``unsupported_contact_rate`` is 0, and the torso is level at whatever
+    height was asked for, so height and upright are met.  It still does not look like a
+    robot standing on its legs, and this is the term that says so.
+
+    The zigzag rows are the control: they cover the whole height range the target could
+    ask for, and every one of them keeps the feet under the hips.  That is what rules out
+    blaming the height target for the splay -- at no height was the robot forced into it.
+    """
+    env = CustomRobotEnv(
+        _robot("sample-quadruped.xml").decode(),
+        _setup("stand-balance", robot_name="sample-quadruped.xml"),
+    )
+    legs = ("front_left", "front_right", "rear_left", "rear_right")
+    try:
+        tolerance = float(env.contract["stance_tolerance"])
+        for hip, knee in ((23.5, -47.0), (33.0, -66.0), (41.0, -82.0), (53.5, -107.0)):
+            _hold_pose(
+                env,
+                {f"{leg}_{joint}": angle for leg in legs for joint, angle in
+                 (("hip", hip), ("knee", knee))},
+            )
+            offset = env._stance_offset()
+            assert offset < tolerance, f"feet under the hips at hip={hip} reads {offset:.3f}"
+        _hold_pose(
+            env,
+            {f"{leg}_hip": 55.0 if leg.startswith("front") else -55.0 for leg in legs}
+            | {f"{leg}_knee": 0.0 for leg in legs},
+        )
+        splits = env._stance_offset()
+        assert splits > 0.75, splits
+        assert not env._grounded_geoms(env.data) - env.support_geoms, (
+            "the splits stands on its feet, which is exactly why ground contact cannot see it"
+        )
     finally:
         env.close()

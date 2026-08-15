@@ -441,7 +441,9 @@ class CustomRobotEnv(
             index for index in range(self.model.ngeom) if int(self.model.geom_bodyid[index]) == 0
         )
         self.support_geoms = self._measure_support_geoms()
+        self.support_anchors = self._measure_support_anchors()
         self.unsupported_steps = 0
+        self.stance_offset_total = 0.0
         self.initial_x = float(self.initial_qpos[self.root_qpos_adr])
         self.initial_y = float(self.initial_qpos[self.root_qpos_adr + 1])
         self.action_space = spaces.Box(-1.0, 1.0, shape=(self.model.nu,), dtype=np.float32)
@@ -516,6 +518,65 @@ class CustomRobotEnv(
         for _ in range(SUPPORT_SETTLE_STEPS * FRAME_SKIP):
             mujoco.mj_step(self.model, data)
         return frozenset(self._grounded_geoms(data))
+
+    def _measure_support_anchors(self) -> dict[int, tuple[int, float]]:
+        """Map each foot to the joint that carries its limb, and that limb's reach.
+
+        The joint is the one where the leg meets the body — the first joint on the limb's
+        topmost link, found by walking the kinematic tree up from the foot until the link
+        below the root.  Its ``xanchor`` is the hip, and the reach is the foot's distance
+        from that hip in the authored pose, which is what the horizontal offset gets
+        stated against so the measure is a shape and not a length in metres.
+
+        Feet whose chain does not reach the root, or whose limb has no joint, are left
+        out rather than guessed at: a robot that carries its weight on a fixed skid has
+        no stance to score.
+        """
+        data = mujoco.MjData(self.model)
+        data.qpos[:] = self.model.qpos0
+        mujoco.mj_forward(self.model, data)
+        anchors: dict[int, tuple[int, float]] = {}
+        for geom_index in sorted(self.support_geoms):
+            body = int(self.model.geom_bodyid[geom_index])
+            chain: list[int] = []
+            while body != self.root_body_id and body != 0:
+                chain.append(body)
+                body = int(self.model.body_parentid[body])
+            if body != self.root_body_id or not chain:
+                continue
+            limb_root = chain[-1]
+            if int(self.model.body_jntnum[limb_root]) <= 0:
+                continue
+            joint_id = int(self.model.body_jntadr[limb_root])
+            foot = np.asarray(data.geom_xpos[geom_index], dtype=float)
+            hip = np.asarray(data.xanchor[joint_id], dtype=float)
+            reach = float(np.linalg.norm(foot - hip))
+            if reach > 1e-6:
+                anchors[geom_index] = (joint_id, reach)
+        return anchors
+
+    def _stance_offset(self) -> float:
+        """How far the feet are from being underneath the joints that carry them.
+
+        Averaged over the feet and stated as a fraction of each limb's reach, so 0 is a
+        foot directly below its hip and 1 is a leg stuck straight out sideways.  This is
+        the part of "standing on its legs" that neither height nor ground contact can
+        see: the sample quadruped can put a foot under every hip at any height between
+        0.36 and 0.57 m, so when it instead holds a splits — front legs folded forward,
+        rear legs raked back, feet far outside the hips — it is not because the target
+        left it no choice.  Nothing in the contract had ever asked, and a splayed stance
+        is the more stable one for a robot whose joints all pitch, so that is what the
+        policy converged to and what made the result look wrong to a person while every
+        number in the contract said it was fine.
+        """
+        if not self.support_anchors:
+            return 0.0
+        offsets = []
+        for geom_index, (joint_id, reach) in self.support_anchors.items():
+            foot = self.data.geom_xpos[geom_index][:2]
+            hip = self.data.xanchor[joint_id][:2]
+            offsets.append(float(np.linalg.norm(foot - hip)) / reach)
+        return float(np.mean(offsets))
 
     def _root_features(self) -> tuple[float, float, np.ndarray[Any, Any], np.ndarray[Any, Any]]:
         root_matrix = self.data.xmat[self.root_body_id].reshape(3, 3)
@@ -610,6 +671,7 @@ class CustomRobotEnv(
         self.previous_action[:] = 0
         self.steps = 0
         self.unsupported_steps = 0
+        self.stance_offset_total = 0.0
         mujoco.mj_forward(self.model, self.data)
         # Let the model settle onto the floor under zero control before the episode
         # starts.  ``initial_height`` is the height the author wrote into the MJCF, not
@@ -675,6 +737,17 @@ class CustomRobotEnv(
         )
         self.unsupported_steps += int(unsupported_contact)
         unsupported_contact_rate = self.unsupported_steps / max(self.steps, 1)
+        # Are the feet underneath the robot, or stuck out in a splits?  Priced past a
+        # deadband rather than from zero, because the honest version of this quantity
+        # rises with every stride — a biped mid-step measures 0.42 with its legs split
+        # 25 degrees, and a quadruped trot 0.29 — while the splits the quadruped had
+        # settled into holds 0.82 continuously.  Charging from zero would bill a gait for
+        # walking; charging past 0.35 leaves every measured good posture free and prices
+        # only the poses that are outside the envelope a stride ever needs.
+        stance_offset = self._stance_offset()
+        stance_cost = max(0.0, stance_offset - float(self.contract["stance_tolerance"]))
+        self.stance_offset_total += stance_offset
+        mean_stance_offset = self.stance_offset_total / max(self.steps, 1)
         terms: dict[str, float]
         # Paid for every step the robot has not terminated.  Without it the only signal
         # against falling is the -1.0 terminal penalty, which a step of forward motion
@@ -688,6 +761,7 @@ class CustomRobotEnv(
                 "height": height_score,
                 "root_motion": root_motion,
                 "ground_contact": unsupported_contact,
+                "stance": stance_cost,
                 "action": action_cost,
                 "energy": energy,
             }
@@ -737,6 +811,7 @@ class CustomRobotEnv(
                 "lateral_velocity": abs(float(linear[1])),
                 "yaw_rate": abs(float(angular[2])),
                 "ground_contact": unsupported_contact,
+                "stance": stance_cost,
                 "action": action_cost,
                 "energy": energy,
             }
@@ -756,6 +831,7 @@ class CustomRobotEnv(
             lateral_drift=abs(y - self.initial_y),
             fallen=fallen,
             unsupported_contact_rate=unsupported_contact_rate,
+            mean_stance_offset=mean_stance_offset,
         )
         info = {
             "task": self.task_id,
@@ -768,6 +844,8 @@ class CustomRobotEnv(
                 "lateral_drift": abs(y - self.initial_y),
                 "forward_progress": x - self.initial_x,
                 "unsupported_contact_rate": unsupported_contact_rate,
+                "stance_offset": stance_offset,
+                "mean_stance_offset": mean_stance_offset,
                 "fallen": fallen,
                 "non_finite": not finite,
                 "runaway": runaway,
@@ -808,8 +886,15 @@ class CustomRobotEnv(
         lateral_drift: float,
         fallen: bool,
         unsupported_contact_rate: float,
+        mean_stance_offset: float,
     ) -> bool:
         if fallen:
+            return False
+        # Feet under the body, averaged over the episode rather than sampled at the end:
+        # a stride passes through a wide split every step, so the instantaneous value
+        # rejects good gaits at whatever phase the episode happens to stop in.
+        stance_bound = self.contract.get("success_max_stance_offset")
+        if stance_bound is not None and mean_stance_offset > float(stance_bound):
             return False
         # Standing tasks are scored on posture, and a robot propped on its knees is not
         # standing however tall the number says it is.  Stated as a rate rather than a

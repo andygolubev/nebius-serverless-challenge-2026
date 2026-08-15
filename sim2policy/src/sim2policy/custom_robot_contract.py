@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v19"
+REWARD_VERSION = "locomotion-rewards-v20"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -311,6 +311,42 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # was raised only after watching the render -- a bound agreeing with a policy is
         # not evidence the policy is right, which is the whole reason this check exists.
         "success_max_unsupported_contact": 0.25,
+        # How far each foot may sit from directly under the joint that carries its limb,
+        # as a fraction of that limb's reach, averaged over the feet
+        # (``CustomRobotEnv._stance_offset``).  Charged only past ``stance_tolerance``.
+        #
+        # This is the third distinct thing "standing on its legs" turned out to mean, and
+        # the first two do not imply it.  Height says how high the body is; ground contact
+        # says the feet are what touch the floor.  Both were satisfied by a quadruped
+        # holding a splits -- front legs folded forward, rear legs raked back, every foot
+        # on the ground and the torso level at the requested height.  It reads 0.82 here.
+        #
+        # Not forced by the height target, which was the first suspicion: the sample
+        # quadruped can put a foot directly under every hip anywhere between 0.36 and
+        # 0.57 m, so the splay was never the target leaving it no choice.  Nothing had
+        # ever asked, and for a robot whose joints all pitch, a splits is the more stable
+        # answer -- so that is what PPO found.
+        #
+        # Measured on constructed poses, both sample robots:
+        #
+        #   quadruped, feet under hips, any height 0.36-0.59   0.00-0.27
+        #   quadruped, trot with a diagonal pair swung 20 deg  0.29
+        #   biped, standing, any crouch depth                  0.04-0.09
+        #   biped, mid-stride, legs split 25 / 45 deg          0.42 / 0.71
+        #   quadruped, the splits it had settled into          0.82
+        #
+        # The tolerance has to clear a stride, because a walking robot reaches its widest
+        # split every step and charging from zero would bill it for walking.  0.35 leaves
+        # every good *posture* free and every good *gait* nearly so, while the splits pays
+        # on all 1000 steps.
+        "stance_tolerance": 0.35,
+        # The bound is on the episode mean, so a stride passing through a wide split does
+        # not fail an episode for the phase it ended in.  0.5 sits above the widest
+        # measured good posture (0.29) and far below the splits (0.82); the biped's gait
+        # mean is the number this has never seen, so it is deliberately loose on the
+        # first pass and gets tightened from the measured matrix, not from reasoning --
+        # which is how ``success_max_unsupported_contact`` was got wrong.
+        "success_max_stance_offset": 0.5,
         "weights": {
             "alive": 1.0,
             "upright": 1.5,
@@ -321,6 +357,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # stable than standing, so without a cost it stays the better bet whatever the
             # height target says.  At 1.0 it takes back most of what the posture is worth.
             "ground_contact": -1.0,
+            # Priced at twice ground contact so the two posture faults are worth about the
+            # same per step: the splits costs (0.82 - 0.35) * 2.0 = 0.94, against the
+            # kneel's 1.0.  They are the same mistake wearing different geometry, and the
+            # policy should not be able to trade one for the other.
+            "stance": -2.0,
             "action": -0.01,
             "energy": -0.0005,
         },
@@ -389,6 +430,12 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         #
         # This task is where 0.1 was measured wrong -- see the note on stand-balance.
         "success_max_unsupported_contact": 0.25,
+        # Same tolerance and bound as stand-balance, and for once the walking task is not
+        # the harder case to set: the tolerance was chosen around a stride in the first
+        # place, since the widest split in the measured table belongs to a walking biped
+        # (0.42 at 25 degrees) rather than to any standing pose.  See the table there.
+        "stance_tolerance": 0.35,
+        "success_max_stance_offset": 0.5,
         "weights": {
             # Halved from the balance tasks' 1.0.  Standing still collected
             # alive + upright + height ~= 2.6 per step for free while walking added at
@@ -443,6 +490,7 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # the cost of dragging yourself along the floor should not depend on which
             # task is asking, and 1.0 is already a fifth of everything else on offer here.
             "ground_contact": -1.0,
+            "stance": -2.0,
             "action": -0.01,
             "energy": -0.0005,
         },
@@ -477,6 +525,11 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         "success_upright": 0.8,
         "success_height_scale": 0.75,
         "success_max_root_speed": 0.75,
+        # Present because the runtime reads it every step, but paired with a zero weight
+        # below and no success bound: a robot lying on its side has its legs out to one
+        # side by definition, so this would charge for the starting pose exactly as
+        # ``ground_contact`` would.
+        "stance_tolerance": 0.35,
         "weights": {
             "alive": 1.0,
             "upright": 1.8,
@@ -487,6 +540,8 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # Pricing it would charge the policy for the pose the task handed it.  There
             # is no ``success_max_unsupported_contact`` here for the same reason.
             "ground_contact": 0.0,
+            # Zero for the same reason as ``ground_contact`` directly above.
+            "stance": 0.0,
             "action": -0.01,
             "energy": -0.0005,
         },

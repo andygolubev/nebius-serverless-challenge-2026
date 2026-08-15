@@ -210,6 +210,30 @@ def test_standing_tasks_bound_ground_contact_as_well_as_height() -> None:
     assert float(recovery["weights"]["ground_contact"]) == 0.0
 
 
+def test_standing_tasks_bound_where_the_feet_are() -> None:
+    """The third posture signal, and the one neither of the other two implies.
+
+    A quadruped holding a splits satisfies both of them at once — its feet are what touch
+    the floor, and its torso is level at the requested height — so without this the
+    contract calls a robot doing the splits a robot standing on its legs.
+
+    The tolerance has to leave a stride free, since a walking biped measures 0.42 with its
+    legs split 25 degrees, and the bound has to sit under the 0.82 the splits holds.
+    ``recover-from-fall`` is excluded for the same reason it is excluded from the contact
+    bound: it starts the robot on its side, legs out.
+    """
+    for task in ("stand-balance", "walk-forward"):
+        contract = TASK_CONTRACTS[task]
+        tolerance = float(contract["stance_tolerance"])
+        bound = float(contract["success_max_stance_offset"])
+        assert 0.29 < tolerance < 0.42, f"{task}: must clear a trot and leave a stride free"
+        assert tolerance <= bound < 0.82, f"{task}: must sit under the splits"
+        assert float(contract["weights"]["stance"]) < 0.0, task
+    recovery = TASK_CONTRACTS["recover-from-fall"]
+    assert "success_max_stance_offset" not in recovery
+    assert float(recovery["weights"]["stance"]) == 0.0
+
+
 def test_contract_summary_contains_complete_builder_matrix() -> None:
     summary = contract_summary()
     assert summary["supported_robot_types"] == ["biped", "quadruped"]
