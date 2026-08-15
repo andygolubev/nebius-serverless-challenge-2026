@@ -75,7 +75,7 @@ and 0.92–0.94 (quadruped) against a 0.50 crawl.
 That posture floor is a height, and v17 exists because a height cannot describe a posture on its
 own. Both locomotion tasks now also bound **what is holding the robot up**: the fraction of the
 episode spent touching the ground with anything that is not a foot must stay at or below
-`success_max_unsupported_contact` (0.1), and the same signal is priced in the reward at
+`success_max_unsupported_contact` (0.25), and the same signal is priced in the reward at
 `ground_contact` −1.0. "Foot" is measured rather than declared — `CustomRobotEnv` settles the model
 from its authored pose under zero control once at construction and records whatever it comes to rest
 on, which resolves to the quadruped's four shin tips and the biped's two foot boxes. Anything else
@@ -109,6 +109,43 @@ behaviours are five times apart, so the bound does not need precision, only to s
 after watching the render — loosening a threshold because a policy failed it is precisely how the
 kneeling got certified for eight versions, and the only thing separating a correction from a
 repeat of that mistake is looking at the rollout first.
+
+### Where the feet are
+
+Height and ground contact are two of the three things "standing on its legs" turned out to mean,
+and they do not imply the third. v20 exists because the quadruped came off its knees and went
+straight into a **splits** — front legs folded forward, rear legs raked back, every foot on the
+ground and the torso level at exactly the height asked for. Both earlier signals pass that pose.
+Height says how high the body is; ground contact says the feet are what carry it; neither says the
+feet are *underneath the robot*.
+
+`stance_offset` is the horizontal distance from each foot to the joint that carries its limb — the
+joint where the leg meets the body, found by walking the kinematic tree up from the foot — stated as
+a fraction of that limb's reach and averaged over the feet. 0 is a foot directly below its hip; 1 is
+a leg stuck straight out. Like "foot", the hip is derived from the model rather than named, so it
+needs no per-morphology table. Measured on constructed poses:
+
+| pose | stance offset |
+| --- | --- |
+| quadruped, feet under hips, any height 0.36–0.59 m | 0.00–0.27 |
+| quadruped, trot with a diagonal pair swung 20° | 0.29 |
+| biped, standing, any crouch depth | 0.04–0.09 |
+| biped, mid-stride, legs split 25° / 45° | 0.42 / 0.71 |
+| **quadruped, the splits it had settled into** | **0.82** |
+
+The widest *good* number in that table belongs to a walking biped, not to any stance, so the reward
+charges only what exceeds `stance_tolerance` (0.35) rather than charging from zero — a robot reaches
+its widest split every step, and billing that would bill it for walking. Priced at `stance` −2.0,
+which makes the splits cost (0.82 − 0.35) × 2.0 ≈ 0.94/step against the kneel's 1.00: the two
+posture faults are the same mistake wearing different geometry, and the policy should not be able to
+trade one for the other. Success bounds the **episode mean** at `success_max_stance_offset`, not the
+final step, because a stride passes through its widest split every cycle.
+
+**The height target is not the cause, and this was checked before the term was written.** The sample
+quadruped can put a foot directly under every hip at any body height between 0.36 and 0.57 m, so no
+target in the usable range forces a splay. Nothing had ever asked it to, and for a robot whose eight
+joints all pitch, a splits is the *more* stable answer — so that is what PPO found. Heights are
+unchanged across this version for that reason: the attribution stays clean.
 
 Walk Forward's `height` weight is 1.5, and it was bracketed rather than guessed. At 0.6 the upright
 gait was worth only ~13% more total reward than a crouch, and a measured Nebius run scored 0.000 at
