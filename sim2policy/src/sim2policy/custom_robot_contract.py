@@ -16,7 +16,7 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v18"
+REWARD_VERSION = "locomotion-rewards-v19"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
 TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
@@ -251,7 +251,18 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # worth remembering -- the height was never what was wrong.  A quadruped on its
         # feet and a quadruped on its knees stand at almost the same height, and only
         # ``success_max_unsupported_contact`` can tell them apart.
-        "target_height_scale": {"biped": 0.85, "quadruped": 0.62},
+        #
+        # The biped moves 0.85 -> 0.82 in v19, by the same rule and against the same
+        # symptom the 0.90 row shows.  0.85 scored 20/20 under v16 and 17/20 under v18 at
+        # an unchanged target -- adding ``ground_contact`` re-rolled the PPO trajectory
+        # even though the term is inert for this robot (0.000 across every passing
+        # episode).  What the v18 draw exposes is that the ask sits at the top of the
+        # band rather than inside it: the seventeen surviving episodes hold 0.718-0.799
+        # against an ask of 0.794, and the three losses are early falls at steps 92-143 --
+        # the 0.90 signature exactly, one notch down.  0.82 asks 0.766, the middle of
+        # that band.  It should not reach the 0.80 squat, which asked 0.747 and settled
+        # 7% under it at 0.694.
+        "target_height_scale": {"biped": 0.82, "quadruped": 0.62},
         # Lowered with the target so exploration has room to dip without terminating.
         "fall_height_scale": 0.35,
         "minimum_upright": 0.45,
@@ -279,8 +290,27 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # standing from kneeling for a robot whose legs fold under it -- which is how a
         # quadruped propped on its shins scored 20/20 for eight versions.  A rate rather
         # than a prohibition because a stride may brush a shin without being carried by
-        # it; the failure being rejected sits at 1.0, not near this bound.
-        "success_max_unsupported_contact": 0.1,
+        # it.
+        #
+        # 0.25 is measured; the first value here, 0.1, was not.  It came from the
+        # reasoning that a working gait should read near zero, and a measured quadruped
+        # gait reads 0.105-0.119 -- twenty full-horizon episodes at 0.83 m/s with zero
+        # falls and the torso level at 0.96-1.00, scored 0/20 by a bound guessed a
+        # percentage point and a half too low.  A quadruped brushes a thigh swinging the
+        # leg through; that is a stride, not a crawl.
+        #
+        # The behaviours are five times apart, so this does not need to be precise, only
+        # inside the gap:
+        #
+        #   kneeling, driven to full knee flexion   0.55-0.64
+        #   walking, 0.83 m/s, no falls             0.105-0.119
+        #   standing on its feet                    0.000-0.007
+        #   biped, either task                      0.000-0.042
+        #
+        # 0.25 clears the gait by more than 2x and rejects the kneel by more than 2x, and
+        # was raised only after watching the render -- a bound agreeing with a policy is
+        # not evidence the policy is right, which is the whole reason this check exists.
+        "success_max_unsupported_contact": 0.25,
         "weights": {
             "alive": 1.0,
             "upright": 1.5,
@@ -356,7 +386,9 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
         # a crawl cannot satisfy: the height floor above is stated against the target, so
         # lowering the target moved the floor with it and a shin-dragging gait stayed
         # certified.  What holds the robot up does not scale with anything.
-        "success_max_unsupported_contact": 0.1,
+        #
+        # This task is where 0.1 was measured wrong -- see the note on stand-balance.
+        "success_max_unsupported_contact": 0.25,
         "weights": {
             # Halved from the balance tasks' 1.0.  Standing still collected
             # alive + upright + height ~= 2.6 per step for free while walking added at

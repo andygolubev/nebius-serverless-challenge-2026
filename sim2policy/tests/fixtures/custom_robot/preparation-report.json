@@ -2,12 +2,12 @@
   "compiled": {"nq": 15, "nv": 14, "nu": 8, "body_count": 9},
   "failure_phase": null,
   "failure_reason": null,
-  "fingerprint": "69b3ff01831b95bc95ae1d4353b95fca983a0c57ba0c3c09296d41d2efdb164d",
+  "fingerprint": "19772473635c74ee1e1faabae107dc1a9f3e22e073588b841551f79aa19cd828",
   "phases": [{"name": "compile", "status": "passed", "duration_seconds": 0.1}],
   "preparation_id": "preparation-fixture",
   "report_sha256": "3333333333333333333333333333333333333333333333333333333333333333",
   "schema_version": 2,
   "schemas": {"observation_sha256": "4444444444444444444444444444444444444444444444444444444444444444", "action_sha256": "5555555555555555555555555555555555555555555555555555555555555555"},
   "status": "accepted",
-  "versions": {"adapter": "custom-robot-sb3-v2", "reward": "locomotion-rewards-v18"}
+  "versions": {"adapter": "custom-robot-sb3-v2", "reward": "locomotion-rewards-v19"}
 }
