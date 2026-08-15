@@ -50,7 +50,7 @@ the very quantity `walk-forward` success bounds. Each action is one value in `[-
 motor range. The ordered field list, normalization, bounds, and SHA-256 schema hashes are written to
 preparation and run metadata.
 
-Reward contract `locomotion-rewards-v12` owns all coefficients. Stand Balance rewards uprightness
+Reward contract `locomotion-rewards-v13` owns all coefficients. Stand Balance rewards uprightness
 and target height while penalizing root motion, action, and energy. Walk Forward adds target forward
 velocity and target walking height, and penalizes lateral/yaw motion; it is scored as a success when
 the robot survives the full horizon with an episode-mean forward velocity at or above
@@ -145,7 +145,7 @@ Preparation profile `custom-prepare-v1` starts at `cpu-d3/4vcpu-16gb`, a 50 GiB 
 seeded reset and zero/random rollouts, headless rendering, the Gymnasium/SB3 checker, and a 2,048
 step PPO save/reload/inference cycle.
 
-Training profile `custom-ppo-quick-v2` starts at `cpu-d3/16vcpu-64gb`, a 100 GiB disk, a
+Training profile `custom-ppo-quick-v3` starts at `cpu-d3/16vcpu-64gb`, a 100 GiB disk, a
 three-hour timeout, sixteen subprocess vector environments, and 3,000,000 PPO timesteps with
 fixed hyperparameters, running observation/reward normalisation, periodic checkpoints, and a
 20-episode/five-seed final evaluation. The policy published as final is the best-scoring

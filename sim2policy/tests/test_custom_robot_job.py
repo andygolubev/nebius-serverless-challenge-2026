@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 import zipfile
 from dataclasses import replace
@@ -27,6 +28,7 @@ from sim2policy.custom_robot_job import (
     _evaluate_policy,
     bounded_phase,
     build_policy_bundle,
+    checkpoint_rank,
     inspect_policy_bundle,
     main,
     run_preparation,
@@ -338,3 +340,54 @@ def test_task_threshold_is_a_rate_against_a_stated_bar(
     assert aggregate["task_threshold_achieved"] is expected
     # The bar travels with the metrics so a reader can see what was applied.
     assert aggregate["task_success_rate_threshold"] == TASK_SUCCESS_RATE_THRESHOLD
+
+
+@pytest.mark.parametrize(
+    ("curve", "expected_timesteps", "why"),
+    [
+        # The measured local biped walk-forward run: success 0.000 at most checkpoints
+        # with reward climbing the whole way, then 1.000 at the last.  Ranking by reward
+        # alone would pick 2_750_000 -- a crouch that scores zero on the gate -- and only
+        # the near-tie at 3_000_000 saved it.
+        (
+            [
+                (2_000_000, 0.75, 2418.0),
+                (2_500_000, 0.0, 2878.8),
+                (2_750_000, 0.0, 3184.9),
+                (3_000_000, 1.0, 3542.7),
+            ],
+            3_000_000,
+            "highest success rate wins even when a later reward is close",
+        ),
+        # Reward still breaks ties, so an equally successful but better-performing
+        # checkpoint is preferred.
+        (
+            [(1_000_000, 1.0, 900.0), (2_000_000, 1.0, 3300.0), (3_000_000, 1.0, 3100.0)],
+            2_000_000,
+            "reward breaks ties among equally successful checkpoints",
+        ),
+        # A run that never succeeds still publishes its best-rewarded checkpoint rather
+        # than nothing.
+        (
+            [(1_000_000, 0.0, 500.0), (2_000_000, 0.0, 2600.0), (3_000_000, 0.0, 1200.0)],
+            2_000_000,
+            "falls back to reward when nothing succeeds",
+        ),
+    ],
+)
+def test_published_checkpoint_is_ranked_by_success_then_reward(
+    curve: list[tuple[int, float, float]], expected_timesteps: int, why: str
+) -> None:
+    """The selector must optimise the quantity the gate measures.
+
+    Before the walk-forward posture floor, success and reward moved together and ranking
+    by reward was a fair proxy.  The floor decoupled them: a crouching policy is alive,
+    fast and on the line, so it out-earns an upright one while scoring zero.
+    """
+    best_rank = (-math.inf, -math.inf)
+    best_timesteps = 0
+    for timesteps, success_rate, mean_reward in curve:
+        rank = checkpoint_rank({"success_rate": success_rate, "mean_reward": mean_reward})
+        if rank > best_rank:
+            best_rank, best_timesteps = rank, timesteps
+    assert best_timesteps == expected_timesteps, why

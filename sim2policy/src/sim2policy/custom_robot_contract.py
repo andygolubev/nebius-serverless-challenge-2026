@@ -16,10 +16,10 @@ from typing import Any, cast
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v12"
+REWARD_VERSION = "locomotion-rewards-v13"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
-TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
+TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
 
 # Fraction of evaluation episodes that must succeed for ``task_threshold_achieved``.
 #
@@ -121,7 +121,14 @@ class TrainingProfile:
     n_envs: int = 16
     checkpoint_every_steps: int = 250_000
     evaluation_every_steps: int = 250_000
-    progress_evaluation_episodes: int = 4
+    # The progress evaluation picks which checkpoint ships, so it has to be able to tell
+    # checkpoints apart.  At four episodes it cannot: the standard error on a true rate
+    # of 0.9 is +-0.15, and a measured biped stand-balance run read a flat 1.00 at five
+    # consecutive checkpoints, of which the one published scored 0.55 over the twenty
+    # evaluation seeds.  Selection among those five was a lottery.  Twelve episodes puts
+    # the standard error at +-0.087 for about 4% more environment steps, against a
+    # three-hour timeout that measured runs finish inside two.
+    progress_evaluation_episodes: int = 12
     progress_evaluation_seeds: tuple[int, ...] = (101, 151, 199, 251)
     evaluation_episodes: int = 20
     evaluation_seeds: tuple[int, ...] = (11, 23, 37, 53, 71)
@@ -293,7 +300,19 @@ TASK_CONTRACTS: dict[str, dict[str, Any]] = {
             # v4 scored no body height at all while walking, so nothing opposed a policy
             # that crept lower and lower until it clipped the fall line: measured runs
             # stayed upright but fell in 20% of evaluation episodes.
-            "height": 0.6,
+            #
+            # Doubled in v13.  At 0.6 the tall gait was worth too little to be worth
+            # reaching for: the height term pays 0.6 * 0.19 = 0.11/step at the crouch the
+            # biped settles into (0.571) against 0.6 * 0.98 = 0.59/step at the gait it
+            # should have (0.811), so the whole upright posture was a ~13% reward
+            # improvement bought by raising the torso mid-stride with a fall penalty if
+            # it goes wrong.  The measured Nebius run never took that trade -- success
+            # 0.000 at all twelve checkpoints while reward climbed 178 -> 3493 -- and the
+            # local run only found it at the very last checkpoint.  1.2 makes the gap
+            # 0.23 against 1.18/step.  Kept below ``forward_velocity`` so the task is
+            # still to walk: a robot that stands tall and stops fails
+            # ``success_min_velocity`` regardless.
+            "height": 1.2,
             # A cost, not a bonus — see the reward term for why v7's bonus form taught
             # the robot to stand still.  Kept below the forward-velocity weight so that
             # walking off course still beats not walking at all.

@@ -1,13 +1,13 @@
 {
   "adapter": {
-    "reward_version": "locomotion-rewards-v12",
+    "reward_version": "locomotion-rewards-v13",
     "scene_version": "custom-locomotion-scenes-v3",
     "version": "custom-robot-sb3-v2"
   },
   "backend": "sb3",
   "job_kind": "custom-robot",
   "preparation": {
-    "fingerprint": "dbd29626428bc2ea32d3f93d6fbe0bf39900fe1c08cfa023a0444ecf5fb14437",
+    "fingerprint": "e73e8e5475b522b45e1bbe4169170203bb1d2feee07e3369670fd024aa8e60f9",
     "id": "preparation-fixture"
   },
   "profile": "custom-ppo-quick",
@@ -63,8 +63,8 @@
     "ppo_n_steps": 512,
     "preset": "16vcpu-64gb",
     "profile": "custom-ppo-quick",
-    "profile_version": "custom-ppo-quick-v2",
-    "progress_evaluation_episodes": 4,
+    "profile_version": "custom-ppo-quick-v3",
+    "progress_evaluation_episodes": 12,
     "progress_evaluation_seeds": [
       101,
       151,
@@ -75,6 +75,6 @@
     "rate_date": "2026-07-14",
     "timeout_seconds": 10800,
     "total_timesteps": 3000000,
-    "version": "custom-ppo-quick-v2"
+    "version": "custom-ppo-quick-v3"
   }
 }

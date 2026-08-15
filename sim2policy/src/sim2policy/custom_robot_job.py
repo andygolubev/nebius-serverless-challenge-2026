@@ -425,6 +425,24 @@ def _observation_normalizer(vector: Any, profile: TrainingProfile) -> Any:
     return normalize
 
 
+def checkpoint_rank(aggregate: dict[str, Any]) -> tuple[float, float]:
+    """Order checkpoints by success rate first, mean reward only as a tiebreak.
+
+    Those two came apart in v12.  Once walk-forward success required a posture, reward
+    stopped tracking the gate: a crouching policy is alive, fast and on the line, and
+    height carries a weight of 0.6 against forward velocity's 2.0, so it can out-earn an
+    upright one while scoring zero.  A measured biped walk run climbed monotonically from
+    reward 178 to 3493 across twelve checkpoints while scoring success 0.000 at every one
+    of them -- reward rising steadily says nothing at all about the quantity the run is
+    judged on.
+
+    This is a correctness fix, not a fix for that run: ranking by success could not have
+    rescued a curve with no successful checkpoint in it.  It matters where a good
+    checkpoint does exist and reward points elsewhere.
+    """
+    return (float(aggregate["success_rate"]), float(aggregate["mean_reward"]))
+
+
 def _evaluate_policy(
     model: Any,
     documents: CustomInputDocuments,
@@ -696,7 +714,12 @@ def run_training(
         normalize_observation = _observation_normalizer(vector, profile)
         episode_rewards: list[float] = []
         progress_evaluations: list[dict[str, Any]] = []
-        best: dict[str, Any] = {"mean_reward": -math.inf, "timesteps": 0, "path": None}
+        best: dict[str, Any] = {
+            "success_rate": -math.inf,
+            "mean_reward": -math.inf,
+            "timesteps": 0,
+            "path": None,
+        }
 
         class RewardCallback(BaseCallback):
             def _on_step(self) -> bool:
@@ -744,12 +767,18 @@ def run_training(
                     )
                     # v1 always published the last checkpoint.  Measured runs peaked
                     # early and regressed, so the shipped policy was worse than one
-                    # already computed; keep the best-scoring one instead.
-                    mean_reward = float(evaluation["aggregate"]["mean_reward"])
-                    if profile.publish_best_checkpoint and mean_reward > best["mean_reward"]:
+                    # already computed; keep the best-scoring one instead.  See
+                    # ``checkpoint_rank`` for why the ranking is not on reward alone.
+                    success_rate, mean_reward = checkpoint_rank(evaluation["aggregate"])
+                    better = (success_rate, mean_reward) > (
+                        best["success_rate"],
+                        best["mean_reward"],
+                    )
+                    if profile.publish_best_checkpoint and better:
                         candidate = checkpoint_dir / f"best-{timesteps:09d}"
                         self.model.save(candidate)
                         best.update(
+                            success_rate=success_rate,
                             mean_reward=mean_reward,
                             timesteps=timesteps,
                             path=candidate.with_suffix(".zip"),
@@ -820,6 +849,11 @@ def run_training(
                 ),
                 "evaluation_mean_reward": (
                     best["mean_reward"] if best["path"] is not None else None
+                ),
+                # Reported alongside the reward so a run whose published checkpoint was
+                # chosen on a poor success rate is legible without re-reading the curve.
+                "evaluation_success_rate": (
+                    best["success_rate"] if best["path"] is not None else None
                 ),
             }
             reloaded = PPO.load(final_zip, env=vector, device="cpu")

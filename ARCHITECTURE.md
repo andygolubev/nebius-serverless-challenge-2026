@@ -614,8 +614,8 @@ and state bound is checked for finiteness.
 Versioned contract identifiers travel with every fingerprint and are mirrored between
 `saas/backend/app/custom_training.py` and `sim2policy.custom_robot_contract`, with a cross-package
 golden test preventing drift: schema version 2, adapter `custom-robot-sb3-v2`, rewards
-`locomotion-rewards-v12`, scenes `custom-locomotion-scenes-v3`, preparation profile
-`custom-prepare-v1`, training profile `custom-ppo-quick-v2`.
+`locomotion-rewards-v13`, scenes `custom-locomotion-scenes-v3`, preparation profile
+`custom-prepare-v1`, training profile `custom-ppo-quick-v3`.
 
 ### Frozen profiles
 
@@ -624,7 +624,7 @@ per-phase deadlines (manifest 30 s, compile 45 s, rollout 120 s, checker 60 s, r
 learning 240 s, publish 30 s). The eight canonical combinations measured about 3m42s–3m57s
 create-to-finish.
 
-`custom-ppo-quick` at contract version `custom-ppo-quick-v2` is `cpu-d3` / `16vcpu-64gb`, 100 GiB,
+`custom-ppo-quick` at contract version `custom-ppo-quick-v3` is `cpu-d3` / `16vcpu-64gb`, 100 GiB,
 sixteen subprocess vector environments, 3M timesteps, and a three-hour cap, with observation and
 reward normalisation and best-checkpoint publication. The v1 shape — eight serial environments and
 100k steps, roughly twelve PPO updates — finished in minutes but reliably produced 100% fall rates

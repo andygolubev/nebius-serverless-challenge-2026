@@ -162,7 +162,7 @@ Frozen shapes:
 | Profile | Version | Platform / preset | Disk | Cap | Budget |
 | --- | --- | --- | --- | --- | --- |
 | Preparation | `custom-prepare-v1` | `cpu-d3` / `4vcpu-16gb` | 50 GiB | 10 min | 2,048-step PPO smoke |
-| Training | `custom-ppo-quick-v2` | `cpu-d3` / `16vcpu-64gb` | 100 GiB | 3 h | 3M steps, 16 subprocess envs |
+| Training | `custom-ppo-quick-v3` | `cpu-d3` / `16vcpu-64gb` | 100 GiB | 3 h | 3M steps, 16 subprocess envs |
 
 The eight historical anchor combinations measured about 3m42s–3m57s end to end for preparation.
 Training v2 normalises observations and rewards and publishes the best checkpoint rather than the

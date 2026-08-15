@@ -23,7 +23,7 @@ USD/hour`, recorded with access date 2026-07-14. The gallery SB3 run configs sto
 rate, currency, and date, and `estimated_cost` is measured runtime in hours multiplied by it.
 
 The custom-robot training profile moved to `16vcpu-64gb` at contract version
-`custom-ppo-quick-v2`. The same per-resource rates give `(16 × 0.012) + (64 × 0.0032) = 0.3968
+`custom-ppo-quick-v3`. The same per-resource rates give `(16 × 0.012) + (64 × 0.0032) = 0.3968
 USD/hour`, on the same 2026-07-14 access date; the preparation profile stays on `4vcpu-16gb`.
 
 The same caveats as the L40S rate apply: these are benchmark inputs, not billing promises, and

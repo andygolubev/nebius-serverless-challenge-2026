@@ -17,10 +17,10 @@ from .models import PreparationAttempt, PreparationSummary, RobotAsset, RobotSet
 
 SCHEMA_VERSION = 2
 ADAPTER_VERSION = "custom-robot-sb3-v2"
-REWARD_VERSION = "locomotion-rewards-v12"
+REWARD_VERSION = "locomotion-rewards-v13"
 SCENE_VERSION = "custom-locomotion-scenes-v3"
 PREPARATION_PROFILE_VERSION = "custom-prepare-v1"
-TRAINING_PROFILE_VERSION = "custom-ppo-quick-v2"
+TRAINING_PROFILE_VERSION = "custom-ppo-quick-v3"
 
 SUPPORTED_TASKS = frozenset({"stand-balance", "walk-forward", "recover-from-fall"})
 SUPPORTED_SCENES = frozenset(
@@ -103,7 +103,10 @@ class TrainingProfile:
     n_envs: int = 16
     checkpoint_every_steps: int = 250_000
     evaluation_every_steps: int = 250_000
-    progress_evaluation_episodes: int = 4
+    # Mirrors sim2policy.custom_robot_contract.TrainingProfile; see the comment there for
+    # why four episodes could not tell checkpoints apart.  The cross-package golden test
+    # fails if these drift.
+    progress_evaluation_episodes: int = 12
     progress_evaluation_seeds: tuple[int, ...] = (101, 151, 199, 251)
     evaluation_episodes: int = 20
     evaluation_seeds: tuple[int, ...] = (11, 23, 37, 53, 71)
